@@ -9,8 +9,7 @@ function authHeaders(token) {
 }
 
 async function signInWithGitHub() {
-  const r = await fetch(`${SUPA_URL}/auth/v1/authorize?provider=github&redirect_to=${encodeURIComponent(window.location.origin)}`, { headers:{"apikey":SUPA_KEY} });
-  window.location.href = `${SUPA_URL}/auth/v1/authorize?provider=github&redirect_to=${encodeURIComponent(window.location.origin)}`;
+  window.location.href = `${SUPA_URL}/auth/v1/authorize?provider=github&redirect_to=${encodeURIComponent(window.location.origin + window.location.pathname)}`;
 }
 
 async function getSession() {
