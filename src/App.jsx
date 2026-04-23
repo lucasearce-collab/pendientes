@@ -1,81 +1,11 @@
 import { useState, useRef, useMemo, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────
-const SUPA_URL = "https://wdncosdqufitaxddnrfm.supabase.co";
-const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkbmNvc2RxdWZpdGF4ZGRucmZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MzE0OTUsImV4cCI6MjA5MjQwNzQ5NX0.HndgrvPhhV8Ty13ieyfJwgsM80erG6mPufHGV90jT10";
-
-function authHeaders(token) {
-  return { "Content-Type":"application/json", "apikey":SUPA_KEY, "Authorization":`Bearer ${token||SUPA_KEY}`, "Prefer":"return=representation" };
-}
-
-async function signInWithGitHub() {
-  window.location.href = `${SUPA_URL}/auth/v1/authorize?provider=github&redirect_to=${encodeURIComponent(window.location.origin + window.location.pathname)}`;
-}
-
-async function getSession() {
-  // Check URL hash for token (after OAuth redirect)
-  const hash = window.location.hash;
-  if (hash && hash.includes("access_token")) {
-    const params = new URLSearchParams(hash.substring(1));
-    const token = params.get("access_token");
-    const refresh = params.get("refresh_token");
-    if (token) {
-      localStorage.setItem("sb_token", token);
-      if (refresh) localStorage.setItem("sb_refresh", refresh);
-      window.history.replaceState({}, "", window.location.pathname);
-      return token;
-    }
-  }
-  return localStorage.getItem("sb_token");
-}
-
-async function refreshSession() {
-  const refresh = localStorage.getItem("sb_refresh");
-  if (!refresh) return null;
-  const r = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=refresh_token`, {
-    method:"POST", headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
-    body: JSON.stringify({refresh_token:refresh})
-  });
-  if (!r.ok) { localStorage.removeItem("sb_token"); localStorage.removeItem("sb_refresh"); return null; }
-  const d = await r.json();
-  localStorage.setItem("sb_token", d.access_token);
-  if (d.refresh_token) localStorage.setItem("sb_refresh", d.refresh_token);
-  return d.access_token;
-}
-
-async function signOut() {
-  const token = localStorage.getItem("sb_token");
-  await fetch(`${SUPA_URL}/auth/v1/logout`, { method:"POST", headers:authHeaders(token) });
-  localStorage.removeItem("sb_token"); localStorage.removeItem("sb_refresh");
-  window.location.reload();
-}
-
-async function dbGet(table, params, token) {
-  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?${params||""}`, { headers:authHeaders(token) });
-  if (r.status===401) { const t=await refreshSession(); if(t) return dbGet(table,params,t); return []; }
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-}
-
-async function dbUpsert(table, data, token) {
-  const r = await fetch(`${SUPA_URL}/rest/v1/${table}`, {
-    method:"POST", headers:{...authHeaders(token),"Prefer":"resolution=merge-duplicates,return=representation"},
-    body:JSON.stringify(data)
-  });
-  if (r.status===401) { const t=await refreshSession(); if(t) return dbUpsert(table,data,t); }
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-}
-
-async function dbDelete(table, id, token) {
-  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?id=eq.${id}`, { method:"DELETE", headers:authHeaders(token) });
-  if (r.status===401) { const t=await refreshSession(); if(t) return dbDelete(table,id,t); }
-}
-
-const projToDb  = (p,uid) => ({ id:p.id, area:p.area, name:p.name, monto:p.monto||"", importance:p.importance||"normal", description:p.description||"", main_goal:p.mainGoal||"", secondary_goals:p.secondaryGoals||[], user_id:uid });
-const projFromDb = r => ({ id:r.id, area:r.area, name:r.name, monto:r.monto||"", importance:r.importance||"normal", description:r.description||"", mainGoal:r.main_goal||"", secondaryGoals:r.secondary_goals||[] });
-const taskToDb  = (t,uid) => ({ id:t.id, project_id:t.projectId, title:t.title, type:t.type||"normal", date:t.date||"", responsable:t.responsable||"", notes:t.notes||"", done:t.done||false, sort_order:t.sortOrder||0, user_id:uid });
-const taskFromDb = r => ({ id:r.id, projectId:r.project_id, title:r.title, type:r.type||"normal", date:r.date||"", responsable:r.responsable||"", notes:r.notes||"", done:r.done||false, sortOrder:r.sort_order||0 });
+const supabase = createClient(
+  "https://wdncosdqufitaxddnrfm.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkbmNvc2RxdWZpdGF4ZGRucmZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MzE0OTUsImV4cCI6MjA5MjQwNzQ5NX0.HndgrvPhhV8Ty13ieyfJwgsM80erG6mPufHGV90jT10"
+);
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const AREAS = {
@@ -116,39 +46,46 @@ const fmtDate = (d) => {
   const [,m,day]=d.split("-"); return `${day}/${m}`;
 };
 
+const projToDb  = (p,uid) => ({ id:p.id, area:p.area, name:p.name, monto:p.monto||"", importance:p.importance||"normal", description:p.description||"", main_goal:p.mainGoal||"", secondary_goals:p.secondaryGoals||[], user_id:uid });
+const projFromDb = r => ({ id:r.id, area:r.area, name:r.name, monto:r.monto||"", importance:r.importance||"normal", description:r.description||"", mainGoal:r.main_goal||"", secondaryGoals:r.secondary_goals||[] });
+const taskToDb  = (t,uid) => ({ id:t.id, project_id:t.projectId, title:t.title, type:t.type||"normal", date:t.date||"", responsable:t.responsable||"", notes:t.notes||"", done:t.done||false, sort_order:t.sortOrder||0, user_id:uid });
+const taskFromDb = r => ({ id:r.id, projectId:r.project_id, title:r.title, type:r.type||"normal", date:r.date||"", responsable:r.responsable||"", notes:r.notes||"", done:r.done||false, sortOrder:r.sort_order||0 });
+
 function TypeDot({ type, done }) {
   const t = TASK_TYPE[type||"normal"];
   if (!t.color) return null;
   return <div style={{width:t.size,height:t.size,borderRadius:"50%",background:done?"#C8C3BB":t.color,flexShrink:0,boxShadow:(!done&&t.ring)?`0 0 0 2px white, 0 0 0 3.5px ${t.color}`:"none"}}/>;
 }
 
-// ─── Login screen ─────────────────────────────────────────────────────────────
+// ─── Login ────────────────────────────────────────────────────────────────────
 function LoginScreen() {
   const [loading, setLoading] = useState(false);
+  async function login() {
+    setLoading(true);
+    await supabase.auth.signInWithOAuth({
+      provider: "github",
+      options: { redirectTo: window.location.origin }
+    });
+  }
   return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",flexDirection:"column",gap:32,padding:32}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}`}</style>
       <div style={{textAlign:"center"}}>
         <div style={{fontSize:32,color:"#C8C3BB",marginBottom:16}}>◈</div>
-        <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase",marginBottom:8}}>Pendientes</div>
-        <div style={{fontFamily:"'Lora'",fontSize:18,color:"#2C2825",fontStyle:"italic"}}></div>
+        <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase"}}>Pendientes</div>
       </div>
-      <button onClick={()=>{setLoading(true);signInWithGitHub();}}
-        style={{display:"flex",alignItems:"center",gap:12,background:"#2C2825",color:"white",border:"none",borderRadius:12,padding:"14px 28px",fontSize:15,fontFamily:"'DM Sans'",fontWeight:500,cursor:"pointer",transition:"background .2s",opacity:loading?.6:1}}>
+      <button onClick={login} style={{display:"flex",alignItems:"center",gap:12,background:"#2C2825",color:"white",border:"none",borderRadius:12,padding:"14px 28px",fontSize:15,fontFamily:"'DM Sans'",fontWeight:500,cursor:"pointer",opacity:loading?.6:1}}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
         {loading ? "Conectando..." : "Continuar con GitHub"}
       </button>
-      <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",textAlign:"center",maxWidth:280,lineHeight:1.6}}>
-        Cada usuario ve solo sus propios datos
-      </div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",textAlign:"center"}}>Cada usuario ve solo sus propios datos</div>
     </div>
   );
 }
 
-// ─── App root ─────────────────────────────────────────────────────────────────
+// ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [token,    setToken]    = useState(null);
-  const [userId,   setUserId]   = useState(null);
+  const [session,  setSession]  = useState(null);
   const [authReady,setAuthReady]= useState(false);
   const [tasks,    setTasks]    = useState([]);
   const [projects, setProjects] = useState([]);
@@ -169,96 +106,86 @@ export default function App() {
     window.addEventListener("resize",fn); return ()=>window.removeEventListener("resize",fn);
   },[]);
 
-  // Auth init
+  // Auth
   useEffect(()=>{
-    async function init() {
-      let t = await getSession();
-      if (!t) { setAuthReady(true); setLoading(false); return; }
-      // Get user info
-      const r = await fetch(`${SUPA_URL}/auth/v1/user`, { headers:authHeaders(t) });
-      if (r.status===401) { t = await refreshSession(); if(!t){setAuthReady(true);setLoading(false);return;} }
-      if (r.ok) { const u=await r.json(); setUserId(u.id); setToken(t); }
-      setAuthReady(true);
-    }
-    init();
+    supabase.auth.getSession().then(({data:{session}})=>{
+      setSession(session); setAuthReady(true);
+    });
+    const {data:{subscription}} = supabase.auth.onAuthStateChange((_,session)=>{
+      setSession(session);
+    });
+    return ()=>subscription.unsubscribe();
   },[]);
 
-  // Load data when authenticated
+  // Load data
   useEffect(()=>{
-    if (!token||!userId) return;
+    if (!session) { setLoading(false); return; }
     async function load() {
-      try {
-        const [ps,ts] = await Promise.all([
-          dbGet("projects","order=created_at.asc",token),
-          dbGet("tasks","order=sort_order.asc,created_at.asc",token),
-        ]);
-        setProjects(ps.map(projFromDb));
-        setTasks(ts.map(taskFromDb));
-      } catch(e){console.error(e);}
-      finally{setLoading(false);}
+      setLoading(true);
+      const [ps,ts] = await Promise.all([
+        supabase.from("projects").select("*").order("created_at"),
+        supabase.from("tasks").select("*").order("sort_order").order("created_at"),
+      ]);
+      setProjects((ps.data||[]).map(projFromDb));
+      setTasks((ts.data||[]).map(taskFromDb));
+      setLoading(false);
     }
     load();
-  },[token,userId]);
+  },[session]);
 
-  if (!authReady||loading) return (
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",flexDirection:"column",gap:12}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}`}</style>
-      <div style={{fontSize:28,color:"#C8C3BB"}}>◈</div>
-      <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",letterSpacing:".08em"}}>cargando...</div>
-    </div>
-  );
+  if (!authReady) return <Loader/>;
+  if (!session)   return <LoginScreen/>;
+  if (loading)    return <Loader/>;
 
-  if (!token||!userId) return <LoginScreen/>;
-
-  // ── Actions ───────────────────────────────────────────────
+  const uid = session.user.id;
   const projectsForArea = a => projects.filter(p=>p.area===a);
   const tasksForProject = id => tasks.filter(t=>t.projectId===id);
-
-  const overdueWork = projects.length>0 ? tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p?.area==="trabajo"&&isOverdue(t.date,t.done);}).sort(taskSort) : [];
-  const todayWork   = projects.length>0 ? tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p?.area==="trabajo"&&t.date===todayStr();}).sort(taskSort) : [];
+  const overdueWork = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p?.area==="trabajo"&&isOverdue(t.date,t.done);}).sort(taskSort);
+  const todayWork   = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p?.area==="trabajo"&&t.date===todayStr();}).sort(taskSort);
 
   async function addTask(task){
     const n={id:"t"+Date.now(),...task,done:false,notes:task.notes||"",responsable:task.responsable||"",sortOrder:tasks.length};
     setTasks(ts=>[n,...ts]); setAddSheet(null);
-    try{await dbUpsert("tasks",taskToDb(n,userId),token);}catch(e){console.error(e);}
+    await supabase.from("tasks").upsert(taskToDb(n,uid));
   }
   async function toggleDone(id){
     const task=tasks.find(t=>t.id===id); if(!task) return;
     const u={...task,done:!task.done};
     setTasks(ts=>ts.map(t=>t.id===id?u:t)); setSwipedId(null);
-    try{await dbUpsert("tasks",taskToDb(u,userId),token);}catch(e){console.error(e);}
+    await supabase.from("tasks").upsert(taskToDb(u,uid));
   }
   async function deleteTask(id){
     setTasks(ts=>ts.filter(t=>t.id!==id)); setSwipedId(null); setSheet(null);
-    try{await dbDelete("tasks",id,token);}catch(e){console.error(e);}
+    await supabase.from("tasks").delete().eq("id",id);
   }
   async function updateTask(u){
     setTasks(ts=>ts.map(t=>t.id===u.id?u:t)); setSheet(null);
-    try{await dbUpsert("tasks",taskToDb(u,userId),token);}catch(e){console.error(e);}
+    await supabase.from("tasks").upsert(taskToDb(u,uid));
   }
   async function addProject(area,name){
     if(!name.trim()) return;
     const n={id:"p"+Date.now(),area,name:name.trim(),monto:"",importance:"normal",description:"",mainGoal:"",secondaryGoals:[]};
     setProjects(ps=>[...ps,n]); setNewProjSheet(null);
-    try{await dbUpsert("projects",projToDb(n,userId),token);}catch(e){console.error(e);}
+    await supabase.from("projects").upsert(projToDb(n,uid));
   }
   async function updateProject(u){
     setProjects(ps=>ps.map(p=>p.id===u.id?u:p)); setPlanSheet(null);
-    try{await dbUpsert("projects",projToDb(u,userId),token);}catch(e){console.error(e);}
+    await supabase.from("projects").upsert(projToDb(u,uid));
   }
   async function deleteProject(pid){
     setProjects(ps=>ps.filter(p=>p.id!==pid));
-    const ids=tasks.filter(t=>t.projectId===pid).map(t=>t.id);
     setTasks(ts=>ts.filter(t=>t.projectId!==pid));
     if(activeProjId===pid) setActiveProjId(null);
-    try{await Promise.all([...ids.map(id=>dbDelete("tasks",id,token)),dbDelete("projects",pid,token)]);}catch(e){console.error(e);}
+    await supabase.from("tasks").delete().eq("project_id",pid);
+    await supabase.from("projects").delete().eq("id",pid);
   }
   async function reorderTasks(orderedIds){
     const map=Object.fromEntries(tasks.map(t=>[t.id,t]));
     const reordered=orderedIds.map((id,i)=>({...map[id],sortOrder:i})).filter(Boolean);
     setTasks(ts=>{const rest=ts.filter(t=>!orderedIds.includes(t.id));return[...reordered,...rest];});
-    try{await Promise.all(reordered.map(t=>dbUpsert("tasks",taskToDb(t,userId),token)));}catch(e){console.error(e);}
+    await Promise.all(reordered.map(t=>supabase.from("tasks").upsert(taskToDb(t,uid))));
   }
+  async function signOut(){ await supabase.auth.signOut(); }
 
   function handleTouchStart(e,id){touchStart.current={x:e.touches[0].clientX,id};}
   function handleTouchEnd(e,id){
@@ -278,24 +205,31 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,sw,sheets,onSignOut:signOut};
+  const props={tasks,projects,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,sw,sheets,signOut};
   return isDesktop?<DesktopLayout {...props}/>:<MobileLayout {...props}/>;
+}
+
+function Loader(){
+  return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#F7F5F2",flexDirection:"column",gap:12}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}`}</style>
+      <div style={{fontSize:28,color:"#C8C3BB"}}>◈</div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",letterSpacing:".08em"}}>cargando...</div>
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESKTOP
 // ═══════════════════════════════════════════════════════════════════════════════
-function DesktopLayout({tasks,projects,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,sw,sheets,onSignOut}){
+function DesktopLayout({tasks,projects,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,sw,sheets,signOut}){
   return(
     <div style={{display:"flex",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",overflow:"hidden"}}>
       <DesktopStyles/>
       <div style={{width:240,background:"#F0EDE8",borderRight:"1px solid #E5E1DB",display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
         <div style={{padding:"28px 20px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
-          <div>
-            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase"}}>Pendientes</div>
-            
-          </div>
-          <button onClick={onSignOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:"2px 0",marginTop:2}} title="Cerrar sesión">↩</button>
+          <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase"}}>Pendientes</div>
+          <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}} title="Cerrar sesión">↩</button>
         </div>
         <div style={{padding:"0 10px",display:"flex",flexDirection:"column",gap:2}}>
           {NAV.map(n=>(
@@ -399,7 +333,6 @@ function DProjBlock({project,area,tasks,onToggle,onOpen,onAddTask,reorderTasks,s
   const [open,setOpen]=useState(false);
   const imp=IMPORTANCE[project.importance||"normal"];
   const pending=tasks.filter(t=>!t.done).length;
-  const dragItem=useRef(null),dragOver=useRef(null);
   const sorted=[...tasks].sort(taskSort);
   return(
     <div style={{marginBottom:10,border:"1px solid #EAE6E0",borderRadius:12,overflow:"hidden",background:"white"}}>
@@ -486,49 +419,47 @@ function DTaskList({tasks,projects,onToggle,onOpen,overdue=false,reorderTasks}){
   );
 }
 
-function DesktopStyles(){
-  return(<style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
-    *{box-sizing:border-box;margin:0;padding:0;}body{background:#F7F5F2;overflow:hidden;}
-    .d-nav{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 10px;border-radius:8px;text-align:left;transition:all .15s;}
-    .d-nav:hover{background:#E8E3DC;color:#3A3530!important;}
-    .d-proj{display:flex;align-items:center;justify-content:space-between;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;border-radius:6px;transition:all .15s;gap:6px;}
-    .d-proj:hover{background:#E8E3DC;}
-    .d-apill{cursor:pointer;border-radius:99px;padding:6px 14px;font-size:12px;font-family:'DM Sans',sans-serif;transition:all .2s;white-space:nowrap;}
-    .d-tr{transition:background .12s;cursor:grab;}.d-tr:hover{background:#F5F2EE!important;}
-    .d-ci{width:22px;height:22px;border-radius:50%;border:1.5px solid #C8C3BB;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
-    .d-ci:hover{border-color:#9B8878;}.d-ci.done{background:#B5A99A;border-color:#B5A99A;}
-    .d-ib{background:none;border:1px solid #E5E1DB;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11px;color:#B0AA9F;padding:4px 9px;transition:all .15s;white-space:nowrap;}
-    .d-ib:hover{border-color:#B5A99A;color:#6B6258;}
-    .d-newp{display:flex;align-items:center;gap:8px;background:none;border:1px dashed #D5CFC8;border-radius:10px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;color:#C8C3BB;padding:12px 18px;margin-top:8px;transition:all .2s;width:100%;}
-    .d-newp:hover{border-color:#B5A99A;color:#9B8878;}
-    .sheet-overlay{position:fixed;inset:0;background:rgba(44,40,37,.45);z-index:100;animation:fadeIn .2s;}
-    .sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#F7F5F2;border-radius:20px 20px 0 0;padding:20px 20px 44px;z-index:101;animation:slideUp .28s cubic-bezier(.4,0,.2,1);max-height:92vh;overflow-y:auto;}
-    .d-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;background:#F7F5F2;border-radius:16px;padding:28px;z-index:101;animation:fadeIn .2s;box-shadow:0 20px 60px rgba(0,0,0,.15);max-height:90vh;overflow-y:auto;}
-    @keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
-    .si{width:100%;background:white;border:1px solid #E5E1DB;border-radius:10px;padding:10px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#3A3530;}.si:focus{border-color:#B5A99A;}
-    .sl{font-family:'DM Sans';font-size:10px;color:#B0AA9F;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:block;}
-    .sv{width:100%;background:#6B6258;color:white;border:none;border-radius:12px;padding:13px;font-size:15px;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;margin-top:16px;transition:background .15s;}.sv:hover{background:#4A433C;}
-    .hd{width:36px;height:4px;background:#D5CFC8;border-radius:99px;margin:0 auto 20px;}
-    .dc{cursor:pointer;border:1px solid #E5E1DB;border-radius:99px;padding:4px 11px;font-size:11px;font-family:'DM Sans';color:#8C877F;background:white;transition:all .2s;white-space:nowrap;}.dc.on{background:#6B6258;border-color:#6B6258;color:white;}
-    .impb{cursor:pointer;border-radius:8px;padding:8px 12px;font-family:'DM Sans';font-size:13px;border:1px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;}
-    .typb{cursor:pointer;border-radius:10px;padding:10px 14px;font-family:'DM Sans';font-size:13px;border:1.5px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
-  `}</style>);
-}
+function DesktopStyles(){return(<style>{`
+  @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}body{background:#F7F5F2;overflow:hidden;}
+  .d-nav{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 10px;border-radius:8px;text-align:left;transition:all .15s;}
+  .d-nav:hover{background:#E8E3DC;color:#3A3530!important;}
+  .d-proj{display:flex;align-items:center;justify-content:space-between;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;border-radius:6px;transition:all .15s;gap:6px;}
+  .d-proj:hover{background:#E8E3DC;}
+  .d-apill{cursor:pointer;border-radius:99px;padding:6px 14px;font-size:12px;font-family:'DM Sans',sans-serif;transition:all .2s;white-space:nowrap;}
+  .d-tr{transition:background .12s;cursor:grab;}.d-tr:hover{background:#F5F2EE!important;}
+  .d-ci{width:22px;height:22px;border-radius:50%;border:1.5px solid #C8C3BB;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+  .d-ci:hover{border-color:#9B8878;}.d-ci.done{background:#B5A99A;border-color:#B5A99A;}
+  .d-ib{background:none;border:1px solid #E5E1DB;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11px;color:#B0AA9F;padding:4px 9px;transition:all .15s;white-space:nowrap;}
+  .d-ib:hover{border-color:#B5A99A;color:#6B6258;}
+  .d-newp{display:flex;align-items:center;gap:8px;background:none;border:1px dashed #D5CFC8;border-radius:10px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;color:#C8C3BB;padding:12px 18px;margin-top:8px;transition:all .2s;width:100%;}
+  .d-newp:hover{border-color:#B5A99A;color:#9B8878;}
+  .sheet-overlay{position:fixed;inset:0;background:rgba(44,40,37,.45);z-index:100;animation:fadeIn .2s;}
+  .sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#F7F5F2;border-radius:20px 20px 0 0;padding:20px 20px 44px;z-index:101;animation:slideUp .28s cubic-bezier(.4,0,.2,1);max-height:92vh;overflow-y:auto;}
+  .d-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;background:#F7F5F2;border-radius:16px;padding:28px;z-index:101;animation:fadeIn .2s;box-shadow:0 20px 60px rgba(0,0,0,.15);max-height:90vh;overflow-y:auto;}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
+  .si{width:100%;background:white;border:1px solid #E5E1DB;border-radius:10px;padding:10px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#3A3530;}.si:focus{border-color:#B5A99A;}
+  .sl{font-family:'DM Sans';font-size:10px;color:#B0AA9F;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:block;}
+  .sv{width:100%;background:#6B6258;color:white;border:none;border-radius:12px;padding:13px;font-size:15px;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;margin-top:16px;transition:background .15s;}.sv:hover{background:#4A433C;}
+  .hd{width:36px;height:4px;background:#D5CFC8;border-radius:99px;margin:0 auto 20px;}
+  .dc{cursor:pointer;border:1px solid #E5E1DB;border-radius:99px;padding:4px 11px;font-size:11px;font-family:'DM Sans';color:#8C877F;background:white;transition:all .2s;white-space:nowrap;}.dc.on{background:#6B6258;border-color:#6B6258;color:white;}
+  .impb{cursor:pointer;border-radius:8px;padding:8px 12px;font-family:'DM Sans';font-size:13px;border:1px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;}
+  .typb{cursor:pointer;border-radius:10px;padding:10px 14px;font-family:'DM Sans';font-size:13px;border:1.5px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
+`}</style>);}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MOBILE
 // ═══════════════════════════════════════════════════════════════════════════════
-function MobileLayout({tasks,projects,view,setView,activeArea,setActiveArea,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,sw,sheets,onSignOut}){
+function MobileLayout({tasks,projects,view,setView,activeArea,setActiveArea,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,sw,sheets,signOut}){
   return(
     <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",position:"relative"}}>
       <MobileStyles/>
       <div style={{padding:"52px 20px 14px"}}>
-        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:6}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
           <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".12em",textTransform:"uppercase"}}>
             {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
           </div>
-          <button onClick={onSignOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}} title="Cerrar sesión">↩</button>
+          <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}}>↩</button>
         </div>
         <h1 style={{fontSize:26,fontWeight:600,color:"#2C2825",letterSpacing:"-.02em",marginBottom:16}}>
           {view==="hoy"?"Hoy":view==="proyectos"?"Proyectos":"Estrategia"}
@@ -675,6 +606,7 @@ function TaskRows({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorder
     }
     onTouchEnd(e,taskId);
   }
+
   return(
     <div>
       {sorted.map((task,idx)=>{
@@ -713,27 +645,25 @@ function TaskRows({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorder
   );
 }
 
-function MobileStyles(){
-  return(<style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
-    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}body{background:#F7F5F2;}
-    .m-np{cursor:pointer;border:none;font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;border-radius:99px;transition:all .2s;}
-    .m-at{cursor:pointer;border:none;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 12px;border-radius:99px;transition:all .2s;white-space:nowrap;}
-    .m-ib{background:none;border:1px solid #E5E1DB;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11px;color:#B0AA9F;padding:5px 10px;white-space:nowrap;}
-    .m-newp{display:flex;align-items:center;gap:8px;background:none;border:1px dashed #D5CFC8;border-radius:10px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;color:#C8C3BB;padding:12px 20px;margin:12px 20px;width:calc(100% - 40px);}
-    .sheet-overlay{position:fixed;inset:0;background:rgba(44,40,37,.45);z-index:100;animation:fadeIn .2s;}
-    .sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#F7F5F2;border-radius:20px 20px 0 0;padding:20px 20px 44px;z-index:101;animation:slideUp .28s cubic-bezier(.4,0,.2,1);max-height:92vh;overflow-y:auto;}
-    .d-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;background:#F7F5F2;border-radius:16px;padding:28px;z-index:101;animation:fadeIn .2s;box-shadow:0 20px 60px rgba(0,0,0,.15);max-height:90vh;overflow-y:auto;}
-    @keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
-    .si{width:100%;background:white;border:1px solid #E5E1DB;border-radius:10px;padding:10px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#3A3530;}.si:focus{border-color:#B5A99A;}
-    .sl{font-family:'DM Sans';font-size:10px;color:#B0AA9F;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:block;}
-    .sv{width:100%;background:#6B6258;color:white;border:none;border-radius:12px;padding:13px;font-size:15px;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;margin-top:16px;}
-    .hd{width:36px;height:4px;background:#D5CFC8;border-radius:99px;margin:0 auto 20px;}
-    .dc{cursor:pointer;border:1px solid #E5E1DB;border-radius:99px;padding:4px 11px;font-size:11px;font-family:'DM Sans';color:#8C877F;background:white;transition:all .2s;white-space:nowrap;}.dc.on{background:#6B6258;border-color:#6B6258;color:white;}
-    .impb{cursor:pointer;border-radius:8px;padding:8px 12px;font-family:'DM Sans';font-size:13px;border:1px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;}
-    .typb{cursor:pointer;border-radius:10px;padding:10px 14px;font-family:'DM Sans';font-size:13px;border:1.5px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
-  `}</style>);
-}
+function MobileStyles(){return(<style>{`
+  @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}body{background:#F7F5F2;}
+  .m-np{cursor:pointer;border:none;font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;border-radius:99px;transition:all .2s;}
+  .m-at{cursor:pointer;border:none;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 12px;border-radius:99px;transition:all .2s;white-space:nowrap;}
+  .m-ib{background:none;border:1px solid #E5E1DB;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11px;color:#B0AA9F;padding:5px 10px;white-space:nowrap;}
+  .m-newp{display:flex;align-items:center;gap:8px;background:none;border:1px dashed #D5CFC8;border-radius:10px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;color:#C8C3BB;padding:12px 20px;margin:12px 20px;width:calc(100% - 40px);}
+  .sheet-overlay{position:fixed;inset:0;background:rgba(44,40,37,.45);z-index:100;animation:fadeIn .2s;}
+  .sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#F7F5F2;border-radius:20px 20px 0 0;padding:20px 20px 44px;z-index:101;animation:slideUp .28s cubic-bezier(.4,0,.2,1);max-height:92vh;overflow-y:auto;}
+  .d-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;background:#F7F5F2;border-radius:16px;padding:28px;z-index:101;animation:fadeIn .2s;box-shadow:0 20px 60px rgba(0,0,0,.15);max-height:90vh;overflow-y:auto;}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
+  .si{width:100%;background:white;border:1px solid #E5E1DB;border-radius:10px;padding:10px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#3A3530;}.si:focus{border-color:#B5A99A;}
+  .sl{font-family:'DM Sans';font-size:10px;color:#B0AA9F;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:block;}
+  .sv{width:100%;background:#6B6258;color:white;border:none;border-radius:12px;padding:13px;font-size:15px;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;margin-top:16px;}
+  .hd{width:36px;height:4px;background:#D5CFC8;border-radius:99px;margin:0 auto 20px;}
+  .dc{cursor:pointer;border:1px solid #E5E1DB;border-radius:99px;padding:4px 11px;font-size:11px;font-family:'DM Sans';color:#8C877F;background:white;transition:all .2s;white-space:nowrap;}.dc.on{background:#6B6258;border-color:#6B6258;color:white;}
+  .impb{cursor:pointer;border-radius:8px;padding:8px 12px;font-family:'DM Sans';font-size:13px;border:1px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;}
+  .typb{cursor:pointer;border-radius:10px;padding:10px 14px;font-family:'DM Sans';font-size:13px;border:1.5px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
+`}</style>);}
 
 // ─── Shared Sheets ────────────────────────────────────────────────────────────
 function TypeSelector({value,onChange}){
