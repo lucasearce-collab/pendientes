@@ -326,13 +326,12 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
           {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} isDesktop={true}/>}
           {view==="proyectos"&&(
             <div style={{maxWidth:720}}>
-              {projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId).map(proj=>(
-                <DProjBlock key={proj.id} project={proj} area={activeArea} tasks={tasksForProject(proj.id)}
-                  onToggle={toggleDone} onOpen={setSheet}
-                  onAddTask={()=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
-                  reorderTasks={reorderTasks} sw={sw}/>
+              <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:24,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
+              {projectsForArea(activeArea).map(proj=>(
+                <DPlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)}/>
               ))}
-              {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos. Creá uno desde Estrategia.</div>}
+              {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
+              <button className="d-newp" onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea].label}</button>
             </div>
           )}
           {view==="estrategia"&&(
@@ -548,13 +547,12 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
           {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
         </>)}
         {view==="proyectos"&&(<>
+          <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
           {projectsForArea(activeArea).map(proj=>(
-            <ProjBlock key={proj.id} project={proj} area={activeArea} tasks={tasksForProject(proj.id)}
-              onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet}
-              onAddTask={()=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
-              reorderTasks={reorderTasks} {...sw}/>
+            <PlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)}/>
           ))}
-          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
+          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
+          <button className="m-newp" onClick={()=>setNewProjSheet({area:activeArea})}><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</button>
         </>)}
         {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} isDesktop={false}/>}
         {view==="estrategia"&&(<>
