@@ -24,10 +24,20 @@ const IMPORTANCE = {
   normal:      { label:"Normal",      color:"#9B948C", bg:"#F5F3F1" },
 };
 const NAV = [
-  { id:"hoy",        label:"Hoy",        icon:"◈" },
-  { id:"proyectos",  label:"Proyectos",  icon:"⊞" },
-  { id:"estrategia", label:"Estrategia", icon:"◎" },
+  { id:"hoy",       label:"Hoy",       icon:"◈" },
+  { id:"tareas",    label:"Tareas",    icon:"☐" },
+  { id:"proyectos", label:"Proyectos", icon:"⊞" },
+  { id:"metas",     label:"Metas",     icon:"◎" },
 ];
+
+const HORIZONS = {
+  anio:    { label:"Este año",  sub:"2025",    color:"#9B8878", bg:"#F5F1ED", ring:"#C4896A" },
+  medio:   { label:"2–5 años", sub:"2026–30",  color:"#8A8EA8", bg:"#F1F2F5", ring:"#8A8EA8" },
+  largo:   { label:"5+ años",  sub:"2031+",    color:"#5B6BAF", bg:"#F0F1F8", ring:"#5B6BAF" },
+};
+
+const goalToDb  = (g,uid) => ({ id:g.id, user_id:uid, title:g.title, description:g.description||"", horizon:g.horizon, parent_id:g.parentId||null });
+const goalFromDb = r => ({ id:r.id, title:r.title, description:r.description||"", horizon:r.horizon, parentId:r.parent_id||null });
 
 const todayStr   = () => new Date().toISOString().split("T")[0];
 const tomorrow   = () => { const d=new Date(); d.setDate(d.getDate()+1); return d.toISOString().split("T")[0]; };
@@ -46,8 +56,8 @@ const fmtDate = (d) => {
   const [,m,day]=d.split("-"); return `${day}/${m}`;
 };
 
-const projToDb  = (p,uid) => ({ id:p.id, area:p.area, name:p.name, monto:p.monto||"", importance:p.importance||"normal", description:p.description||"", main_goal:p.mainGoal||"", secondary_goals:p.secondaryGoals||[], user_id:uid });
-const projFromDb = r => ({ id:r.id, area:r.area, name:r.name, monto:r.monto||"", importance:r.importance||"normal", description:r.description||"", mainGoal:r.main_goal||"", secondaryGoals:r.secondary_goals||[] });
+const projToDb  = (p,uid) => ({ id:p.id, area:p.area, name:p.name, monto:p.monto||"", importance:p.importance||"normal", description:p.description||"", main_goal:p.mainGoal||"", secondary_goals:p.secondaryGoals||[], goal_id:p.goal_id||null, user_id:uid });
+const projFromDb = r => ({ id:r.id, area:r.area, name:r.name, monto:r.monto||"", importance:r.importance||"normal", description:r.description||"", mainGoal:r.main_goal||"", secondaryGoals:r.secondary_goals||[], goal_id:r.goal_id||null });
 const taskToDb  = (t,uid) => ({ id:t.id, project_id:t.projectId, title:t.title, type:t.type||"normal", date:t.date||"", responsable:t.responsable||"", notes:t.notes||"", done:t.done||false, sort_order:t.sortOrder||0, user_id:uid });
 const taskFromDb = r => ({ id:r.id, projectId:r.project_id, title:r.title, type:r.type||"normal", date:r.date||"", responsable:r.responsable||"", notes:r.notes||"", done:r.done||false, sortOrder:r.sort_order||0 });
 
@@ -89,6 +99,7 @@ export default function App() {
   const [authReady,setAuthReady]= useState(false);
   const [tasks,    setTasks]    = useState([]);
   const [projects, setProjects] = useState([]);
+  const [goals,    setGoals]    = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [isDesktop,setIsDesktop]= useState(window.innerWidth>=768);
   const [view,     setView]     = useState("hoy");
@@ -98,6 +109,7 @@ export default function App() {
   const [addSheet, setAddSheet] = useState(null);
   const [newProjSheet,setNewProjSheet]=useState(null);
   const [planSheet,setPlanSheet]=useState(null);
+  const [goalSheet,setGoalSheet]=useState(null);
   const [swipedId, setSwipedId] = useState(null);
   const touchStart = useRef(null);
 
@@ -122,12 +134,14 @@ export default function App() {
     if (!session) { setLoading(false); return; }
     async function load() {
       setLoading(true);
-      const [ps,ts] = await Promise.all([
+      const [ps,ts,gs] = await Promise.all([
         supabase.from("projects").select("*").order("created_at"),
         supabase.from("tasks").select("*").order("sort_order").order("created_at"),
+        supabase.from("goals").select("*").order("created_at"),
       ]);
       setProjects((ps.data||[]).map(projFromDb));
       setTasks((ts.data||[]).map(taskFromDb));
+      setGoals((gs.data||[]).map(goalFromDb));
       setLoading(false);
     }
     load();
@@ -185,6 +199,19 @@ export default function App() {
     setTasks(ts=>{const rest=ts.filter(t=>!orderedIds.includes(t.id));return[...reordered,...rest];});
     await Promise.all(reordered.map(t=>supabase.from("tasks").upsert(taskToDb(t,uid))));
   }
+  async function addGoal(g){
+    const n={id:"g"+Date.now(),...g};
+    setGoals(gs=>[...gs,n]); setGoalSheet(null);
+    await supabase.from("goals").upsert(goalToDb(n,uid));
+  }
+  async function updateGoal(u){
+    setGoals(gs=>gs.map(g=>g.id===u.id?u:g)); setGoalSheet(null);
+    await supabase.from("goals").upsert(goalToDb(u,uid));
+  }
+  async function deleteGoal(id){
+    setGoals(gs=>gs.filter(g=>g.id!==id)); setGoalSheet(null);
+    await supabase.from("goals").delete().eq("id",id);
+  }
   async function signOut(){ await supabase.auth.signOut(); }
 
   function handleTouchStart(e,id){touchStart.current={x:e.touches[0].clientX,id};}
@@ -201,11 +228,12 @@ export default function App() {
       {sheet      &&<><div className="sheet-overlay" onClick={()=>setSheet(null)}/><EditSheet task={sheet} projects={projects} onSave={updateTask} onDelete={()=>deleteTask(sheet.id)} isDesktop={isDesktop}/></>}
       {addSheet   &&<><div className="sheet-overlay" onClick={()=>setAddSheet(null)}/><AddTaskSheet {...addSheet} onAdd={addTask} isDesktop={isDesktop}/></>}
       {newProjSheet&&<><div className="sheet-overlay" onClick={()=>setNewProjSheet(null)}/><NewProjectSheet area={newProjSheet.area} onAdd={addProject} isDesktop={isDesktop}/></>}
-      {planSheet  &&<><div className="sheet-overlay" onClick={()=>setPlanSheet(null)}/><PlanProjectSheet project={planSheet} onSave={updateProject} isDesktop={isDesktop}/></>}
+      {planSheet  &&<><div className="sheet-overlay" onClick={()=>setPlanSheet(null)}/><PlanProjectSheet project={planSheet} onSave={updateProject} isDesktop={isDesktop} goals={goals}/></>}
+      {goalSheet  &&<><div className="sheet-overlay" onClick={()=>setGoalSheet(null)}/><GoalSheet goal={goalSheet} goals={goals} projects={projects} onSave={goalSheet.id?updateGoal:addGoal} onDelete={goalSheet.id?()=>deleteGoal(goalSheet.id):null} isDesktop={isDesktop}/></>}
     </>
   );
 
-  const props={tasks,projects,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,sw,sheets,signOut};
+  const props={tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut};
   return isDesktop?<DesktopLayout {...props}/>:<MobileLayout {...props}/>;
 }
 
@@ -222,7 +250,7 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESKTOP
 // ═══════════════════════════════════════════════════════════════════════════════
-function DesktopLayout({tasks,projects,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,sw,sheets,signOut}){
+function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut}){
   return(
     <div style={{display:"flex",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",overflow:"hidden"}}>
       <DesktopStyles/>
@@ -238,6 +266,7 @@ function DesktopLayout({tasks,projects,view,setView,activeArea,setActiveArea,act
               <span style={{fontSize:10,opacity:.5}}>{n.icon}</span>{n.label}
             </button>
           ))}
+          
         </div>
         <div style={{height:1,background:"#E5E1DB",margin:"12px 16px"}}/>
         <div style={{flex:1,overflowY:"auto",padding:"0 10px"}}>
@@ -267,9 +296,9 @@ function DesktopLayout({tasks,projects,view,setView,activeArea,setActiveArea,act
           </div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <h1 style={{fontSize:22,fontWeight:600,color:"#2C2825",letterSpacing:"-.02em"}}>
-              {view==="hoy"?"Hoy — Trabajo":view==="proyectos"?(activeProjId?projects.find(q=>q.id===activeProjId)?.name:`Proyectos · ${AREAS[activeArea].label}`):`Estrategia · ${AREAS[activeArea]?.label}`}
+              {view==="hoy"?"Hoy — Trabajo":view==="tareas"?`Tareas · ${AREAS[activeArea].label}`:view==="proyectos"?(activeProjId?projects.find(q=>q.id===activeProjId)?.name:`Proyectos · ${AREAS[activeArea].label}`):view==="metas"?"Metas":`Estrategia · ${AREAS[activeArea]?.label}`}
             </h1>
-            {(view==="proyectos"||view==="estrategia")&&(
+            {(view==="tareas"||view==="proyectos"||view==="estrategia")&&(
               <div style={{display:"flex",gap:6}}>
                 {Object.entries(AREAS).map(([k,a])=>(
                   <button key={k} className="d-apill" onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
@@ -283,6 +312,18 @@ function DesktopLayout({tasks,projects,view,setView,activeArea,setActiveArea,act
         </div>
         <div style={{flex:1,overflowY:"auto",padding:"28px 36px 40px"}}>
           {view==="hoy"&&<DHoy overdueWork={overdueWork} todayWork={todayWork} projects={projects} toggleDone={toggleDone} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
+          {view==="tareas"&&(
+            <div style={{maxWidth:720}}>
+              {projectsForArea(activeArea).map(proj=>(
+                <DProjBlock key={proj.id} project={proj} area={activeArea} tasks={tasksForProject(proj.id)}
+                  onToggle={toggleDone} onOpen={setSheet}
+                  onAddTask={()=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
+                  reorderTasks={reorderTasks} sw={sw}/>
+              ))}
+              {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos. Creá uno desde Proyectos.</div>}
+            </div>
+          )}
+          {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} isDesktop={true}/>}
           {view==="proyectos"&&(
             <div style={{maxWidth:720}}>
               {projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId).map(proj=>(
@@ -296,7 +337,7 @@ function DesktopLayout({tasks,projects,view,setView,activeArea,setActiveArea,act
           )}
           {view==="estrategia"&&(
             <div style={{maxWidth:720}}>
-              <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:24,lineHeight:1.6}}>Definí el propósito y objetivos. Acá pensás — en Proyectos ejecutás.</p>
+              <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:24,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
               {projectsForArea(activeArea).map(proj=>(
                 <DPlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)}/>
               ))}
@@ -450,7 +491,7 @@ function DesktopStyles(){return(<style>{`
 // ═══════════════════════════════════════════════════════════════════════════════
 // MOBILE
 // ═══════════════════════════════════════════════════════════════════════════════
-function MobileLayout({tasks,projects,view,setView,activeArea,setActiveArea,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,sw,sheets,signOut}){
+function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut}){
   return(
     <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",position:"relative"}}>
       <MobileStyles/>
@@ -462,7 +503,7 @@ function MobileLayout({tasks,projects,view,setView,activeArea,setActiveArea,over
           <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}}>↩</button>
         </div>
         <h1 style={{fontSize:26,fontWeight:600,color:"#2C2825",letterSpacing:"-.02em",marginBottom:16}}>
-          {view==="hoy"?"Hoy":view==="proyectos"?"Proyectos":"Estrategia"}
+          {view==="hoy"?"Hoy":view==="tareas"?"Tareas":view==="proyectos"?"Proyectos":view==="metas"?"Metas":"Estrategia"}
         </h1>
         <div style={{display:"flex",gap:4}}>
           {NAV.map(v=>(
@@ -472,7 +513,7 @@ function MobileLayout({tasks,projects,view,setView,activeArea,setActiveArea,over
             </button>
           ))}
         </div>
-        {(view==="proyectos"||view==="estrategia")&&(
+        {(view==="tareas"||view==="proyectos"||view==="estrategia")&&(
           <div style={{display:"flex",gap:4,marginTop:12,overflowX:"auto",paddingBottom:2}}>
             {Object.entries(AREAS).map(([k,a])=>(
               <button key={k} className="m-at" onClick={()=>setActiveArea(k)}
@@ -497,6 +538,15 @@ function MobileLayout({tasks,projects,view,setView,activeArea,setActiveArea,over
           {todayWork.length>0?<TaskRows tasks={todayWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} {...sw}/>
             :<div style={{textAlign:"center",padding:"64px 0",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>{overdueWork.length===0?"Todo al día ·":""}</div>}
         </>)}
+        {view==="tareas"&&(<>
+          {projectsForArea(activeArea).map(proj=>(
+            <ProjBlock key={proj.id} project={proj} area={activeArea} tasks={tasksForProject(proj.id)}
+              onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet}
+              onAddTask={()=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
+              reorderTasks={reorderTasks} {...sw}/>
+          ))}
+          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
+        </>)}
         {view==="proyectos"&&(<>
           {projectsForArea(activeArea).map(proj=>(
             <ProjBlock key={proj.id} project={proj} area={activeArea} tasks={tasksForProject(proj.id)}
@@ -504,10 +554,11 @@ function MobileLayout({tasks,projects,view,setView,activeArea,setActiveArea,over
               onAddTask={()=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
               reorderTasks={reorderTasks} {...sw}/>
           ))}
-          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Estrategia.</div>}
+          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
         </>)}
+        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} isDesktop={false}/>}
         {view==="estrategia"&&(<>
-          <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos. Acá pensás, en Proyectos ejecutás.</p></div>
+          <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
           {projectsForArea(activeArea).map(proj=>(
             <PlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)}/>
           ))}
@@ -757,8 +808,243 @@ function NewProjectSheet({area,onAdd,isDesktop}){
   </div>);
 }
 
-function PlanProjectSheet({project,onSave,isDesktop}){
-  const [form,setForm]=useState({...project,monto:project.monto||"",secondaryGoals:project.secondaryGoals?.length>0?[...project.secondaryGoals]:[""]});
+
+// ─── Metas View ───────────────────────────────────────────────────────────────
+
+function MetasView({goals,projects,onNew,onEdit,isDesktop}){
+  const horizons = [
+    {key:"anio",  label:"Este año",  sub:"2025",   color:"#9B8878", bg:"#F5F1ED", border:"#C4A882"},
+    {key:"medio", label:"2–5 años",  sub:"2026–30", color:"#8A8EA8", bg:"#F1F2F5", border:"#8A8EA8"},
+    {key:"largo", label:"5+ años",   sub:"2031+",   color:"#5B6BAF", bg:"#F0F1F8", border:"#5B6BAF"},
+  ];
+
+  // Build connections: for each goal, find children (goals that have this as parent)
+  const getChildren = (id) => goals.filter(g=>g.parentId===id);
+  const getProjects = (goalId) => projects.filter(p=>p.goal_id===goalId);
+
+  const p = isDesktop ? "28px 0 40px" : "16px 0 40px";
+
+  return(
+    <div style={{padding:p}}>
+      {!isDesktop&&<div style={{padding:"0 20px 16px",fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>
+        Tu camino. Lo que hacés hoy te acerca a donde querés llegar.
+      </div>}
+      {isDesktop&&<p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:24,lineHeight:1.6,maxWidth:680}}>
+        Tu camino de vida. Cada nivel alimenta al siguiente — lo que hacés hoy construye el largo plazo.
+      </p>}
+
+      {/* Camino horizontal — desktop */}
+      {isDesktop&&(
+        <div style={{maxWidth:900}}>
+          <div style={{display:"flex",alignItems:"flex-start",gap:0,marginBottom:32}}>
+            {horizons.map((h,hi)=>(
+              <div key={h.key} style={{display:"flex",alignItems:"flex-start",flex:1}}>
+                <div style={{flex:1}}>
+                  {/* Header */}
+                  <div style={{marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:h.color}}/>
+                      <span style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,color:h.color,letterSpacing:".06em",textTransform:"uppercase"}}>{h.label}</span>
+                    </div>
+                    <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",paddingLeft:16}}>{h.sub}</div>
+                  </div>
+                  {/* Goal cards */}
+                  <div style={{display:"flex",flexDirection:"column",gap:8,paddingRight:16}}>
+                    {goals.filter(g=>g.horizon===h.key).map(goal=>(
+                      <GoalCard key={goal.id} goal={goal} horizon={h} children={getChildren(goal.id)} linkedProjects={getProjects(goal.id)} onEdit={()=>onEdit(goal)} allGoals={goals}/>
+                    ))}
+                    <button onClick={()=>onNew(h.key)}
+                      style={{background:"none",border:"1px dashed #D5CFC8",borderRadius:10,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:"10px",textAlign:"center",transition:"all .2s"}}
+                      onMouseOver={e=>e.target.style.borderColor="#B5A99A"}
+                      onMouseOut={e=>e.target.style.borderColor="#D5CFC8"}>
+                      + meta
+                    </button>
+                  </div>
+                </div>
+                {hi < horizons.length-1 && (
+                  <div style={{display:"flex",alignItems:"center",paddingTop:28,flexShrink:0}}>
+                    <div style={{width:24,height:1.5,background:"linear-gradient(to right, "+h.color+", "+horizons[hi+1].color+")"}}/>
+                    <div style={{fontSize:14,color:"#C8C3BB",marginLeft:2}}>›</div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Unlinked projects warning */}
+          {(() => {
+            const unlinked = projects.filter(p=>p.area==="trabajo"&&!p.goal_id);
+            if(unlinked.length===0) return null;
+            return(
+              <div style={{padding:"12px 16px",background:"#FBF8F2",borderRadius:10,border:"1px solid #F0DFA0",display:"flex",alignItems:"center",gap:10,maxWidth:680}}>
+                <div style={{width:6,height:6,borderRadius:"50%",background:"#C4A882",flexShrink:0}}/>
+                <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#7A6A3A"}}>
+                  {unlinked.length===1?`El proyecto "${unlinked[0].name}" no está`:`${unlinked.length} proyectos no están`} vinculado{unlinked.length>1?"s":""} a ninguna meta. ¿Lo asignás desde Proyectos → Editar?
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Camino vertical — mobile */}
+      {!isDesktop&&(
+        <div style={{padding:"0 20px"}}>
+          {horizons.map((h,hi)=>(
+            <div key={h.key} style={{marginBottom:24}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:h.color}}/>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,color:h.color,letterSpacing:".06em",textTransform:"uppercase"}}>{h.label}</span>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>{h.sub}</span>
+                </div>
+                <button className="m-ib" onClick={()=>onNew(h.key)}>+ meta</button>
+              </div>
+              {goals.filter(g=>g.horizon===h.key).map(goal=>(
+                <GoalCard key={goal.id} goal={goal} horizon={h} children={getChildren(goal.id)} linkedProjects={getProjects(goal.id)} onEdit={()=>onEdit(goal)} allGoals={goals} mobile/>
+              ))}
+              {goals.filter(g=>g.horizon===h.key).length===0&&(
+                <div style={{background:"white",borderRadius:10,border:"1px dashed #E5E1DB",padding:"16px",textAlign:"center",fontFamily:"'DM Sans'",fontSize:12,color:"#D5CFC8",fontStyle:"italic"}}>
+                  Sin metas aún
+                </div>
+              )}
+              {hi<horizons.length-1&&(
+                <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 0",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:11}}>
+                  <div style={{flex:1,height:1,background:"linear-gradient(to right,"+h.color+"44,"+horizons[hi+1].color+"44)"}}/>
+                  <span>lleva a</span>
+                  <div style={{flex:1,height:1,background:"linear-gradient(to right,"+horizons[hi+1].color+"44,transparent)"}}/>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Unlinked warning mobile */}
+          {(() => {
+            const unlinked = projects.filter(p=>p.area==="trabajo"&&!p.goal_id);
+            if(unlinked.length===0) return null;
+            return(
+              <div style={{padding:"10px 14px",background:"#FBF8F2",borderRadius:10,border:"1px solid #F0DFA0",display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:5,height:5,borderRadius:"50%",background:"#C4A882",flexShrink:0}}/>
+                <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#7A6A3A"}}>
+                  {unlinked.length} proyecto{unlinked.length>1?"s":""} sin meta vinculada
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GoalCard({goal,horizon,children,linkedProjects,onEdit,allGoals,mobile}){
+  const [exp,setExp]=useState(false);
+  return(
+    <div style={{background:"white",borderRadius:10,border:`1px solid #EAE6E0`,borderLeft:`3px solid ${horizon.color}`,marginBottom:mobile?8:0,overflow:"hidden"}}>
+      <div style={{padding:"12px 14px",cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#2C2825",marginBottom:goal.description?3:0,lineHeight:1.4}}>{goal.title}</div>
+            {goal.description&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",lineHeight:1.4}}>{goal.description}</div>}
+          </div>
+          <button onClick={e=>{e.stopPropagation();onEdit();}} style={{background:"none",border:"1px solid #E5E1DB",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",padding:"3px 7px",flexShrink:0,whiteSpace:"nowrap"}}>Editar</button>
+        </div>
+        {/* Linked projects */}
+        {linkedProjects.length>0&&(
+          <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:8}}>
+            {linkedProjects.map(p=>(
+              <span key={p.id} style={{fontSize:10,color:horizon.color,background:horizon.bg,padding:"2px 8px",borderRadius:99,fontFamily:"'DM Sans'",fontWeight:500}}>{p.name}</span>
+            ))}
+          </div>
+        )}
+        {/* Child goals count */}
+        {children.length>0&&(
+          <div style={{marginTop:6,fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F"}}>
+            {children.length} meta{children.length>1?"s":""} conectada{children.length>1?"s":""} ↓
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Goal Sheet ───────────────────────────────────────────────────────────────
+
+function GoalSheet({goal,goals,projects,onSave,onDelete,isDesktop}){
+  const [form,setForm]=useState({...goal});
+  const [conf,setConf]=useState(false);
+  const isNew=!goal.id;
+  const cls=isDesktop?"d-modal":"sheet";
+
+  const horizons=[
+    {key:"anio",  label:"Este año",  color:"#9B8878"},
+    {key:"medio", label:"2–5 años",  color:"#8A8EA8"},
+    {key:"largo", label:"5+ años",   color:"#5B6BAF"},
+  ];
+
+  // Parent goals: only show goals from the next horizon
+  const nextHorizon = form.horizon==="anio"?"medio":form.horizon==="medio"?"largo":null;
+  const parentOptions = nextHorizon ? goals.filter(g=>g.horizon===nextHorizon) : [];
+
+  return(
+    <div className={cls}>
+      {!isDesktop&&<div className="hd"/>}
+      <span className="sl">{isNew?"Nueva meta":"Editar meta"}</span>
+
+      {/* Horizon */}
+      <div style={{marginBottom:16}}>
+        <span className="sl">Horizonte</span>
+        <div style={{display:"flex",gap:6}}>
+          {horizons.map(h=>(
+            <button key={h.key} onClick={()=>setForm(f=>({...f,horizon:h.key,parentId:null}))}
+              style={{flex:1,padding:"8px 10px",borderRadius:8,border:`1.5px solid ${form.horizon===h.key?h.color:"#E5E1DB"}`,background:form.horizon===h.key?"white":"white",color:form.horizon===h.key?h.color:"#B0AA9F",fontFamily:"'DM Sans'",fontSize:12,cursor:"pointer",fontWeight:form.horizon===h.key?500:400,transition:"all .2s",textAlign:"center"}}>
+              {h.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{marginBottom:14}}>
+        <span className="sl">Meta</span>
+        <input className="si" value={form.title||""} onChange={e=>setForm(f=>({...f,title:e.target.value}))} autoFocus placeholder="¿Qué querés lograr?"/>
+      </div>
+
+      <div style={{marginBottom:16}}>
+        <span className="sl">Descripción (opcional)</span>
+        <textarea className="si" rows={2} value={form.description||""} onChange={e=>setForm(f=>({...f,description:e.target.value}))}
+          placeholder="Contexto o detalle..." style={{resize:"none",fontFamily:"'DM Sans'",lineHeight:1.6}}/>
+      </div>
+
+      {/* Parent goal link */}
+      {parentOptions.length>0&&(
+        <div style={{marginBottom:16}}>
+          <span className="sl">Contribuye a (opcional)</span>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {parentOptions.map(pg=>(
+              <button key={pg.id} onClick={()=>setForm(f=>({...f,parentId:f.parentId===pg.id?null:pg.id}))}
+                style={{textAlign:"left",padding:"8px 12px",borderRadius:8,border:`1px solid ${form.parentId===pg.id?"#8A8EA8":"#E5E1DB"}`,background:form.parentId===pg.id?"#F1F2F5":"white",color:form.parentId===pg.id?"#5B6BAF":"#6B6258",fontFamily:"'DM Sans'",fontSize:13,cursor:"pointer",transition:"all .15s"}}>
+                {pg.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button className="sv" onClick={()=>onSave(form)}>{isNew?"Crear meta":"Guardar"}</button>
+      {!isNew&&onDelete&&(
+        conf
+          ?<div style={{display:"flex",gap:8,marginTop:12}}>
+              <button onClick={onDelete} style={{flex:1,background:"none",border:"1px solid #C4896A",borderRadius:10,padding:"10px",fontSize:13,color:"#C4896A",cursor:"pointer",fontFamily:"'DM Sans'"}}>Confirmar</button>
+              <button onClick={()=>setConf(false)} style={{flex:1,background:"none",border:"1px solid #E5E1DB",borderRadius:10,padding:"10px",fontSize:13,color:"#B0AA9F",cursor:"pointer",fontFamily:"'DM Sans'"}}>Cancelar</button>
+            </div>
+          :<button onClick={()=>setConf(true)} style={{width:"100%",background:"none",border:"none",color:"#C4A89A",fontFamily:"'DM Sans'",fontSize:14,padding:"14px 0 0",cursor:"pointer"}}>Eliminar meta</button>
+      )}
+    </div>
+  );
+}
+
+function PlanProjectSheet({project,onSave,isDesktop,goals=[]}){
+  const [form,setForm]=useState({...project,monto:project.monto||"",goal_id:project.goal_id||null,secondaryGoals:project.secondaryGoals?.length>0?[...project.secondaryGoals]:[""]});
   function updGoal(i,val){const g=[...form.secondaryGoals];g[i]=val;setForm(f=>({...f,secondaryGoals:g}));}
   function addGoal(){setForm(f=>({...f,secondaryGoals:[...f.secondaryGoals,""]}));}
   function remGoal(i){setForm(f=>({...f,secondaryGoals:f.secondaryGoals.filter((_,j)=>j!==i)}));}
@@ -773,6 +1059,20 @@ function PlanProjectSheet({project,onSave,isDesktop}){
       <span className="sl">Monto del deal (opcional)</span>
       <input className="si" value={form.monto||""} onChange={e=>setForm(f=>({...f,monto:e.target.value}))} placeholder="ej. 400k"/>
     </div>
+    {goals&&goals.length>0&&(
+      <div style={{marginBottom:16}}>
+        <span className="sl">Meta vinculada (opcional)</span>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {goals.map(g=>(
+            <button key={g.id} onClick={()=>setForm(f=>({...f,goal_id:f.goal_id===g.id?null:g.id}))}
+              style={{textAlign:"left",padding:"8px 12px",borderRadius:8,border:`1px solid ${form.goal_id===g.id?"#8A8EA8":"#E5E1DB"}`,background:form.goal_id===g.id?"#F1F2F5":"white",color:form.goal_id===g.id?"#5B6BAF":"#6B6258",fontFamily:"'DM Sans'",fontSize:13,cursor:"pointer",transition:"all .15s"}}>
+              <span style={{fontSize:10,color:"#B0AA9F",marginRight:6,textTransform:"uppercase",letterSpacing:".06em"}}>{g.horizon==="anio"?"Este año":g.horizon==="medio"?"2–5a":"5+a"}</span>
+              {g.title}
+            </button>
+          ))}
+        </div>
+      </div>
+    )}
     <div style={{marginBottom:16}}>
       <span className="sl">Importancia del proyecto</span>
       <div style={{display:"flex",gap:6}}>
