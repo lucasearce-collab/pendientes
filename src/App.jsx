@@ -123,7 +123,7 @@ function LoginScreen() {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}`}</style>
       <div style={{textAlign:"center"}}>
         <div style={{fontSize:32,color:"#C8C3BB",marginBottom:16}}>◈</div>
-        <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase"}}>Pendientes</div>
+        <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase"}}>Clarity</div>
       </div>
       <button onClick={login} style={{display:"flex",alignItems:"center",gap:12,background:"#2C2825",color:"white",border:"none",borderRadius:12,padding:"14px 28px",fontSize:15,fontFamily:"'DM Sans'",fontWeight:500,cursor:"pointer",opacity:loading?.6:1}}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
@@ -206,7 +206,7 @@ export default function App() {
   const tasksForProject = id => tasks.filter(t=>t.projectId===id);
   const overdueWork = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p?.area==="trabajo"&&isOverdue(t.date,t.done);}).sort(taskSort);
   const todayWork   = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p?.area==="trabajo"&&t.date===todayStr();}).sort(taskSort);
-  const upcomingWork = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId); if(!p||p.area!=="trabajo"||t.done) return false; const tod=todayStr(); return !t.date||(t.date>tod);}).sort(taskSort);
+  const upcomingWork = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId); if(!p||p.area!=="trabajo"||t.done) return false; return !t.date;}).sort(taskSort);
 
   async function addTask(task){
     const n={id:"t"+Date.now(),...task,done:false,notes:task.notes||"",responsable:task.responsable||"",sortOrder:tasks.length};
@@ -308,7 +308,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
       <div style={{width:240,background:"#F0EDE8",borderRight:"1px solid #E5E1DB",display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
         <div style={{padding:"28px 20px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
           <div>
-            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase"}}>Pendientes</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase"}}>Clarity</div>
             {!isOnline&&<div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",marginTop:2}}>· sin conexión</div>}
           </div>
           <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}} title="Cerrar sesión">↩</button>
@@ -408,52 +408,51 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
 function DHoy({overdueWork,todayWork,upcomingWork,projects,toggleDone,onDelete,onOpen,reorderTasks,sw}){
   return(
     <div style={{maxWidth:680}}>
-      {overdueWork.length>0&&(<div style={{marginBottom:20}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+      {overdueWork.length>0&&(<div style={{marginBottom:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid #EAE6E0"}}>
           <div style={{width:5,height:5,borderRadius:"50%",background:"#C4A882"}}/>
           <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase"}}>De días anteriores · {overdueWork.length}</span>
         </div>
         <DTaskList tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue reorderTasks={reorderTasks}/>
       </div>)}
-      {todayWork.length>0?(<div style={{marginBottom:20}}>
-        <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:12}}>Para hoy</div>
+      {todayWork.length>0&&(<div style={{marginBottom:8}}>
+        <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:8,paddingBottom:6,borderBottom:"1px solid #EAE6E0"}}>Para hoy</div>
         <DTaskList tasks={todayWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
-      </div>):<div style={{padding:"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,textAlign:"center"}}>{overdueWork.length===0?"Todo al día ·":""}</div>}
+      </div>)}
+      {overdueWork.length===0&&todayWork.length===0&&<div style={{padding:"24px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>}
       {upcomingWork.length>0&&<UpcomingSection tasks={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} sw={sw} desktop/>}
     </div>
   );
 }
 
 function UpcomingSection({tasks,projects,onToggle,onDelete,onOpen,reorderTasks,sw,desktop}){
-  const groups = [
-    {key:"estrategica", label:"Estratégicas", color:"#5B6BAF", bg:"#F0F1F8"},
-    {key:"urgente",     label:"Prioritarias", color:"#C49A7A", bg:"#FBF5F0"},
-    {key:"normal",      label:"Normales",     color:"#9B948C", bg:"#F5F3F1"},
-  ];
-  const [open,setOpen]=useState({estrategica:false,urgente:false,normal:false});
+  // Group by project
+  const projectIds = [...new Set(tasks.map(t=>t.projectId))];
+  const [open,setOpen]=useState({});
 
   return(
     <div style={{marginTop:8}}>
-      <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:12,padding:desktop?"0":"0 20px"}}>
-        Próximas
+      <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:8,padding:desktop?"0":"0 20px",paddingBottom:6,borderBottom:"1px solid #EAE6E0"}}>
+        Lo antes posible
       </div>
-      {groups.map(g=>{
-        const gtasks=tasks.filter(t=>(t.type||"normal")===g.key);
-        if(gtasks.length===0) return null;
-        const isOpen=open[g.key];
+      {projectIds.map(pid=>{
+        const proj=projects.find(p=>p.id===pid);
+        const ptasks=tasks.filter(t=>t.projectId===pid).sort(taskSort);
+        if(!proj||ptasks.length===0) return null;
+        const isOpen=open[pid];
+        const imp=IMPORTANCE[proj.importance||"normal"];
         return(
-          <div key={g.key} style={{marginBottom:6}}>
-            <div
-              onClick={()=>setOpen(o=>({...o,[g.key]:!o[g.key]}))}
+          <div key={pid} style={{marginBottom:4}}>
+            <div onClick={()=>setOpen(o=>({...o,[pid]:!o[pid]}))}
               style={{display:"flex",alignItems:"center",gap:8,padding:desktop?"8px 0":"8px 20px",cursor:"pointer",userSelect:"none"}}>
-              <div style={{width:6,height:6,borderRadius:"50%",background:g.color,flexShrink:0}}/>
-              <span style={{fontFamily:"'DM Sans'",fontSize:12,color:g.color,fontWeight:500}}>{g.label}</span>
-              <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>{gtasks.length}</span>
-              <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginLeft:"auto"}}>{isOpen?"▾":"›"}</span>
+              <div style={{width:6,height:6,borderRadius:"50%",background:AREAS[proj.area]?.color||"#9B8878",flexShrink:0}}/>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#3A3530",fontWeight:500,flex:1}}>{proj.name}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>{ptasks.length}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",marginLeft:4}}>{isOpen?"▾":"›"}</span>
             </div>
             {isOpen&&(desktop
-              ?<DTaskList tasks={gtasks} projects={projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
-              :<TaskRows tasks={gtasks} projects={projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...sw}/>
+              ?<DTaskList tasks={ptasks} projects={[]} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
+              :<TaskRows tasks={ptasks} projects={[]} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...(sw||{})}/>
             )}
           </div>
         );
@@ -530,7 +529,7 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
               const r=[...sorted];const[m]=r.splice(dragItem.current,1);r.splice(dragOver.current,0,m);
               reorderTasks(r.map(t=>t.id));dragItem.current=null;dragOver.current=null;
             }}
-            style={{padding:"12px 18px",borderTop:i>0?"1px solid #F5F2EE":"none",display:"flex",alignItems:"center",gap:12,cursor:"pointer",background:overdue?"#FBF8F4":"white"}}
+            style={{padding:"12px 4px",borderTop:i>0?"1px solid #EAE6E0":"none",display:"flex",alignItems:"center",gap:12,cursor:"pointer",background:overdue?"#FBF8F4":"transparent"}}
             onClick={()=>onOpen(task)}>
             <button className={`d-ci${task.done?" done":""}`} onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
               {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
@@ -628,7 +627,6 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
               <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase"}}>De días anteriores · {overdueWork.length}</span>
             </div>
             <TaskRows tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} overdue reorderTasks={reorderTasks} {...sw}/>
-            <div style={{height:1,background:"#EAE6E0",margin:"10px 20px"}}/>
           </>)}
           {todayWork.length>0?<TaskRows tasks={todayWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} {...sw}/>
             :<div style={{textAlign:"center",padding:"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>{overdueWork.length===0?"Todo al día ·":""}</div>}
