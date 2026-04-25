@@ -841,12 +841,12 @@ function EditSheet({task,projects,onSave,onDelete,isDesktop}){
     {isWork&&<div style={{marginBottom:12}}>
       <span className="sl">Fecha (opcional)</span>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-        {[{l:"Hoy",v:todayStr()},{l:"Mañana",v:tomorrow()},{l:"Lunes",v:nextMonday()}].map(q=>(
+        {[{l:"Hoy",v:todayStr()},{l:"Mañana",v:tomorrow()}].map(q=>(
           <button key={q.l} className={`dc${form.date===q.v?" on":""}`} onClick={()=>setForm(f=>({...f,date:q.v}))}>{q.l}</button>
         ))}
+        <button className={`dc${form.date===""?" on":""}`} onClick={()=>setForm(f=>({...f,date:""}))}>Lo antes posible</button>
         <input type="date" value={form.date||""} onChange={e=>setForm(f=>({...f,date:e.target.value}))}
           style={{border:"1px solid #E5E1DB",borderRadius:99,padding:"4px 11px",fontSize:11,fontFamily:"'DM Sans'",outline:"none",color:"#8C877F",background:"white"}}/>
-        {form.date&&<button className="dc" onClick={()=>setForm(f=>({...f,date:""}))}>Sin fecha</button>}
       </div>
     </div>}
     <textarea className="si" rows={3} placeholder="Notas..." value={form.notes||""} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{resize:"none",fontFamily:"'DM Sans'",fontSize:14}}/>
