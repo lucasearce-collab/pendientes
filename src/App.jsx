@@ -302,78 +302,101 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
-    <div style={{display:"flex",flexDirection:"column",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",overflow:"hidden"}}>
+    <div style={{display:"flex",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",overflow:"hidden"}}>
       <DesktopStyles/>
 
-      {/* Top nav bar */}
-      <div style={{background:"#F0EDE8",borderBottom:"1px solid #E5E1DB",padding:"0 32px",display:"flex",alignItems:"center",gap:0,flexShrink:0,height:52}}>
-        <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#6B6258",letterSpacing:".06em",marginRight:32}}>Clarity</div>
-        <div style={{display:"flex",gap:2,flex:1}}>
+      {/* Sidebar */}
+      <div style={{width:220,background:"#F0EDE8",borderRight:"1px solid #E5E1DB",display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
+        <div style={{padding:"24px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,color:"#9B948C",letterSpacing:".1em",textTransform:"uppercase"}}>Clarity</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882"}}>·</span>}
+            <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}} title="Cerrar sesión">↩</button>
+          </div>
+        </div>
+
+        {/* Main nav */}
+        <div style={{padding:"0 8px",display:"flex",flexDirection:"column",gap:1}}>
           {NAV.map(n=>(
-            <button key={n.id} className="d-nav-top" onClick={()=>{setView(n.id);setActiveProjId(null);}}
-              style={{background:view===n.id?"white":"transparent",color:view===n.id?"#2C2825":"#9B948C",borderBottom:view===n.id?"2px solid #6B6258":"2px solid transparent"}}>
+            <button key={n.id} className="d-nav" onClick={()=>{setView(n.id);setActiveProjId(null);}}
+              style={{background:view===n.id?"#E8E3DC":"none",color:view===n.id?"#3A3530":"#9B948C"}}>
               {n.label}
             </button>
           ))}
         </div>
-        {/* Area pills - only for tareas/proyectos */}
-        {(view==="tareas"||view==="proyectos")&&(
-          <div style={{display:"flex",gap:6,marginLeft:16}}>
-            {Object.entries(AREAS).map(([k,a])=>(
-              <button key={k} className="d-apill" onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
-                style={{background:activeArea===k?a.color:"white",color:activeArea===k?"white":a.color,border:`1px solid ${activeArea===k?a.color:"#E5E1DB"}`}}>
-                {a.label}
+
+        <div style={{height:1,background:"#E5E1DB",margin:"10px 14px"}}/>
+
+        {/* Projects list - only trabajo */}
+        <div style={{flex:1,overflowY:"auto",padding:"0 8px 16px"}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".1em",textTransform:"uppercase",padding:"4px 8px 6px",fontWeight:500}}>Trabajo</div>
+          {projectsForArea("trabajo").map(proj=>{
+            const pending=tasks.filter(t=>t.projectId===proj.id&&!t.done).length;
+            const isAct=activeProjId===proj.id;
+            return(
+              <button key={proj.id} className="d-proj" onClick={()=>{setView("tareas");setActiveArea("trabajo");setActiveProjId(proj.id);}}
+                style={{background:isAct?"#E8E3DC":"none",color:isAct?"#3A3530":"#7A736C"}}>
+                <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,textAlign:"left",fontSize:13}}>{proj.name}</span>
+                {proj.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#9B8878",flexShrink:0}}>{proj.monto}</span>}
+                {pending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",flexShrink:0}}>{pending}</span>}
               </button>
-            ))}
-          </div>
-        )}
-        <div style={{display:"flex",alignItems:"center",gap:12,marginLeft:16}}>
-          {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
-          <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}} title="Cerrar sesión">↩</button>
+            );
+          })}
         </div>
       </div>
 
       {/* Main content */}
-      <div style={{flex:1,overflowY:"auto",padding:"32px 48px 48px"}}>
-        {/* Page title + date */}
-        <div style={{marginBottom:24}}>
-          <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".1em",textTransform:"uppercase",marginBottom:4}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        {/* Header */}
+        <div style={{padding:"20px 32px 12px",borderBottom:"1px solid #EAE6E0",background:"#F7F5F2",flexShrink:0}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".1em",textTransform:"uppercase",marginBottom:3}}>
             {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
           </div>
-          <h1 style={{fontSize:28,fontWeight:600,color:"#2C2825",letterSpacing:"-.02em"}}>
-            {view==="hoy"?"Hoy":view==="tareas"?`Tareas · ${AREAS[activeArea].label}`:view==="proyectos"?`Proyectos · ${AREAS[activeArea]?.label}`:"Metas"}
-          </h1>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <h1 style={{fontSize:22,fontWeight:600,color:"#2C2825",letterSpacing:"-.02em"}}>
+              {view==="hoy"?"Hoy":view==="tareas"?(activeProjId?projects.find(q=>q.id===activeProjId)?.name:`Tareas · ${AREAS[activeArea].label}`):view==="proyectos"?`Proyectos · ${AREAS[activeArea]?.label}`:"Metas"}
+            </h1>
+            {(view==="tareas"||view==="proyectos")&&(
+              <div style={{display:"flex",gap:6}}>
+                {Object.entries(AREAS).map(([k,a])=>(
+                  <button key={k} className="d-apill" onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
+                    style={{background:activeArea===k?a.color:"white",color:activeArea===k?"white":a.color,border:`1px solid ${activeArea===k?a.color:"#E5E1DB"}`}}>
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Content */}
-        {view==="hoy"&&<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
-
-        {view==="tareas"&&(
-          <div style={{maxWidth:800}}>
-            {projectsForArea(activeArea).map(proj=>(
-              <DProjBlock key={proj.id} project={proj} area={activeArea} tasks={tasksForProject(proj.id)}
-                onToggle={toggleDone} onOpen={setSheet}
-                onAddTask={()=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
-                reorderTasks={reorderTasks} sw={sw}/>
-            ))}
-            {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos. Creá uno desde Proyectos.</div>}
-          </div>
-        )}
-
-        {view==="proyectos"&&(
-          <div style={{maxWidth:900}}>
-            <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:20,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(380px,1fr))",gap:16}}>
-              {projectsForArea(activeArea).map(proj=>(
-                <DPlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)}/>
+        <div style={{flex:1,overflowY:"auto",padding:"28px 32px 40px"}}>
+          {view==="hoy"&&<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
+          {view==="tareas"&&(
+            <div style={{maxWidth:720}}>
+              {projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId).map(proj=>(
+                <DProjBlock key={proj.id} project={proj} area={activeArea} tasks={tasksForProject(proj.id)}
+                  onToggle={toggleDone} onOpen={setSheet}
+                  onAddTask={()=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
+                  reorderTasks={reorderTasks} sw={sw}/>
               ))}
+              {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos. Creá uno desde Proyectos.</div>}
             </div>
-            {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
-            <button className="d-newp" style={{marginTop:16}} onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea].label}</button>
-          </div>
-        )}
-
-        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} isDesktop={true}/>}
+          )}
+          {view==="proyectos"&&(
+            <div style={{maxWidth:860}}>
+              <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:20,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(360px,1fr))",gap:12}}>
+                {projectsForArea(activeArea).map(proj=>(
+                  <DPlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)}/>
+                ))}
+              </div>
+              {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
+              <button className="d-newp" style={{marginTop:16}} onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea].label}</button>
+            </div>
+          )}
+          {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} isDesktop={true}/>}
+        </div>
       </div>
       {sheets}
     </div>
@@ -532,8 +555,10 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
 function DesktopStyles(){return(<style>{`
   @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}body{background:#F7F5F2;overflow:hidden;}
-  .d-nav-top{border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;padding:0 16px;height:100%;display:flex;align-items:center;transition:all .15s;white-space:nowrap;}
-  .d-nav-top:hover{color:#2C2825!important;}
+  .d-nav{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 10px;border-radius:8px;text-align:left;transition:all .15s;}
+  .d-nav:hover{background:#E8E3DC;color:#3A3530!important;}
+  .d-proj{display:flex;align-items:center;justify-content:space-between;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;border-radius:6px;transition:all .15s;gap:6px;}
+  .d-proj:hover{background:#E8E3DC;}
   .d-apill{cursor:pointer;border-radius:99px;padding:6px 14px;font-size:12px;font-family:'DM Sans',sans-serif;transition:all .2s;white-space:nowrap;}
   .d-tr{transition:background .12s;cursor:grab;}.d-tr:hover{background:#F5F2EE!important;}
   .d-ci{width:22px;height:22px;border-radius:50%;border:1.5px solid #C8C3BB;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
