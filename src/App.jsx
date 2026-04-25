@@ -926,7 +926,7 @@ function MetasView({goals,projects,onNew,onEdit,isDesktop}){
 
       {/* Camino horizontal — desktop */}
       {isDesktop&&(
-        <div style={{maxWidth:1000}}>
+        <div style={{width:"100%"}}>
           <DesktopMetasCanvas goals={goals} horizons={horizons} getChildren={getChildren} getProjects={getProjects} onEdit={onEdit} onNew={onNew}/>
 
           {/* Unlinked projects warning */}
@@ -1019,7 +1019,7 @@ function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew
           y1: fromRect.top + fromRect.height/2 - containerRect.top,
           x2: toRect.left  - containerRect.left,
           y2: toRect.top  + toRect.height/2  - containerRect.top,
-          color: "#C8C3BB",
+          color: "#A09890",
         });
       });
       setLines(newLines);
@@ -1034,13 +1034,13 @@ function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew
         <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none",zIndex:0}} overflow="visible">
           {lines.map((l,i)=>(
             <path key={i}
-              d={`M ${l.x1} ${l.y1} C ${l.x1+60} ${l.y1}, ${l.x2-60} ${l.y2}, ${l.x2} ${l.y2}`}
-              fill="none" stroke={l.color} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6"/>
+              d={`M ${l.x1} ${l.y1} C ${l.x1+40} ${l.y1}, ${l.x2-40} ${l.y2}, ${l.x2} ${l.y2}`}
+              fill="none" stroke={l.color} strokeWidth="1.5" opacity="0.85"/>
           ))}
         </svg>
       )}
       {/* Columns */}
-      <div style={{display:"flex",alignItems:"flex-start",gap:0,position:"relative",zIndex:1}}>
+      <div style={{display:"flex",alignItems:"flex-start",gap:0,position:"relative",zIndex:1,width:"100%"}}>
         {horizons.map((h,hi)=>(
           <div key={h.key} style={{display:"flex",alignItems:"flex-start",flex:1}}>
             <div style={{flex:1}}>
