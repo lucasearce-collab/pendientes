@@ -206,6 +206,7 @@ export default function App() {
   const tasksForProject = id => tasks.filter(t=>t.projectId===id);
   const overdueWork = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p?.area==="trabajo"&&isOverdue(t.date,t.done);}).sort(taskSort);
   const todayWork   = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p?.area==="trabajo"&&t.date===todayStr();}).sort(taskSort);
+  const upcomingWork = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId); if(!p||p.area!=="trabajo"||t.done) return false; const tod=todayStr(); return !t.date||(t.date>tod);}).sort(taskSort);
 
   async function addTask(task){
     const n={id:"t"+Date.now(),...task,done:false,notes:task.notes||"",responsable:task.responsable||"",sortOrder:tasks.length};
@@ -283,7 +284,7 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
+  const props={tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
   return isDesktop?<DesktopLayout {...props}/>:<MobileLayout {...props}/>;
 }
 
@@ -300,7 +301,7 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESKTOP
 // ═══════════════════════════════════════════════════════════════════════════════
-function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{display:"flex",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",overflow:"hidden"}}>
       <DesktopStyles/>
@@ -364,7 +365,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
           </div>
         </div>
         <div style={{flex:1,overflowY:"auto",padding:"28px 36px 40px"}}>
-          {view==="hoy"&&<DHoy overdueWork={overdueWork} todayWork={todayWork} projects={projects} toggleDone={toggleDone} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
+          {view==="hoy"&&<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
           {view==="tareas"&&(
             <div style={{maxWidth:720}}>
               {projectsForArea(activeArea).map(proj=>(
@@ -404,20 +405,59 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
   );
 }
 
-function DHoy({overdueWork,todayWork,projects,toggleDone,onOpen,reorderTasks,sw}){
+function DHoy({overdueWork,todayWork,upcomingWork,projects,toggleDone,onDelete,onOpen,reorderTasks,sw}){
   return(
     <div style={{maxWidth:680}}>
-      {overdueWork.length>0&&(<div style={{marginBottom:28}}>
+      {overdueWork.length>0&&(<div style={{marginBottom:20}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
           <div style={{width:5,height:5,borderRadius:"50%",background:"#C4A882"}}/>
           <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase"}}>De días anteriores · {overdueWork.length}</span>
         </div>
-        <DTaskList tasks={overdueWork} projects={projects} onToggle={toggleDone} onOpen={onOpen} overdue reorderTasks={reorderTasks}/>
+        <DTaskList tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue reorderTasks={reorderTasks}/>
       </div>)}
-      {todayWork.length>0?(<>
+      {todayWork.length>0?(<div style={{marginBottom:20}}>
         <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:12}}>Para hoy</div>
-        <DTaskList tasks={todayWork} projects={projects} onToggle={toggleDone} onOpen={onOpen} reorderTasks={reorderTasks}/>
-      </>):<div style={{padding:"56px 0",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,textAlign:"center"}}>{overdueWork.length===0?"Todo al día ·":""}</div>}
+        <DTaskList tasks={todayWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
+      </div>):<div style={{padding:"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,textAlign:"center"}}>{overdueWork.length===0?"Todo al día ·":""}</div>}
+      {upcomingWork.length>0&&<UpcomingSection tasks={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} sw={sw} desktop/>}
+    </div>
+  );
+}
+
+function UpcomingSection({tasks,projects,onToggle,onDelete,onOpen,reorderTasks,sw,desktop}){
+  const groups = [
+    {key:"estrategica", label:"Estratégicas", color:"#5B6BAF", bg:"#F0F1F8"},
+    {key:"urgente",     label:"Prioritarias", color:"#C49A7A", bg:"#FBF5F0"},
+    {key:"normal",      label:"Normales",     color:"#9B948C", bg:"#F5F3F1"},
+  ];
+  const [open,setOpen]=useState({estrategica:false,urgente:false,normal:false});
+
+  return(
+    <div style={{marginTop:8}}>
+      <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:12,padding:desktop?"0":"0 20px"}}>
+        Próximas
+      </div>
+      {groups.map(g=>{
+        const gtasks=tasks.filter(t=>(t.type||"normal")===g.key);
+        if(gtasks.length===0) return null;
+        const isOpen=open[g.key];
+        return(
+          <div key={g.key} style={{marginBottom:6}}>
+            <div
+              onClick={()=>setOpen(o=>({...o,[g.key]:!o[g.key]}))}
+              style={{display:"flex",alignItems:"center",gap:8,padding:desktop?"8px 0":"8px 20px",cursor:"pointer",userSelect:"none"}}>
+              <div style={{width:6,height:6,borderRadius:"50%",background:g.color,flexShrink:0}}/>
+              <span style={{fontFamily:"'DM Sans'",fontSize:12,color:g.color,fontWeight:500}}>{g.label}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>{gtasks.length}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginLeft:"auto"}}>{isOpen?"▾":"›"}</span>
+            </div>
+            {isOpen&&(desktop
+              ?<DTaskList tasks={gtasks} projects={projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
+              :<TaskRows tasks={gtasks} projects={projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...sw}/>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -474,7 +514,7 @@ function DPlanBlock({project,onEdit,onDelete}){
   );
 }
 
-function DTaskList({tasks,projects,onToggle,onOpen,overdue=false,reorderTasks}){
+function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorderTasks}){
   const sorted=[...tasks].sort(taskSort);
   const dragItem=useRef(null),dragOver=useRef(null);
   return(
@@ -543,7 +583,7 @@ function DesktopStyles(){return(<style>{`
 // ═══════════════════════════════════════════════════════════════════════════════
 // MOBILE
 // ═══════════════════════════════════════════════════════════════════════════════
-function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",position:"relative"}}>
       <MobileStyles/>
@@ -591,7 +631,8 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
             <div style={{height:1,background:"#EAE6E0",margin:"10px 20px"}}/>
           </>)}
           {todayWork.length>0?<TaskRows tasks={todayWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} {...sw}/>
-            :<div style={{textAlign:"center",padding:"64px 0",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>{overdueWork.length===0?"Todo al día ·":""}</div>}
+            :<div style={{textAlign:"center",padding:"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>{overdueWork.length===0?"Todo al día ·":""}</div>}
+          {upcomingWork.length>0&&<UpcomingSection tasks={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
         </>)}
         {view==="tareas"&&(<>
           {projectsForArea(activeArea).map(proj=>(
