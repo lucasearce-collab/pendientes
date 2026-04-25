@@ -52,7 +52,6 @@ async function safeDelete(table, id) {
 const AREAS = {
   trabajo:  { label:"Trabajo",       color:"#9B8878", dot:"#C4896A" },
   personal: { label:"Vida Personal", color:"#8A9E8A", dot:"#6B9E78" },
-  plan:     { label:"Plan de Vida",  color:"#8A8EA8", dot:"#8A8EA8" },
 };
 const TASK_TYPE = {
   urgente:     { label:"Urgente",     color:"#C4896A", size:7,  ring:false },
@@ -927,41 +926,8 @@ function MetasView({goals,projects,onNew,onEdit,isDesktop}){
 
       {/* Camino horizontal — desktop */}
       {isDesktop&&(
-        <div style={{maxWidth:900}}>
-          <div style={{display:"flex",alignItems:"flex-start",gap:0,marginBottom:32}}>
-            {horizons.map((h,hi)=>(
-              <div key={h.key} style={{display:"flex",alignItems:"flex-start",flex:1}}>
-                <div style={{flex:1}}>
-                  {/* Header */}
-                  <div style={{marginBottom:12}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
-                      <div style={{width:8,height:8,borderRadius:"50%",background:h.color}}/>
-                      <span style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,color:h.color,letterSpacing:".06em",textTransform:"uppercase"}}>{h.label}</span>
-                    </div>
-                    <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",paddingLeft:16}}>{h.sub}</div>
-                  </div>
-                  {/* Goal cards */}
-                  <div style={{display:"flex",flexDirection:"column",gap:8,paddingRight:16}}>
-                    {goals.filter(g=>g.horizon===h.key).map(goal=>(
-                      <GoalCard key={goal.id} goal={goal} horizon={h} children={getChildren(goal.id)} linkedProjects={getProjects(goal.id)} onEdit={()=>onEdit(goal)} allGoals={goals}/>
-                    ))}
-                    <button onClick={()=>onNew(h.key)}
-                      style={{background:"none",border:"1px dashed #D5CFC8",borderRadius:10,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:"10px",textAlign:"center",transition:"all .2s"}}
-                      onMouseOver={e=>e.target.style.borderColor="#B5A99A"}
-                      onMouseOut={e=>e.target.style.borderColor="#D5CFC8"}>
-                      + meta
-                    </button>
-                  </div>
-                </div>
-                {hi < horizons.length-1 && (
-                  <div style={{display:"flex",alignItems:"center",paddingTop:28,flexShrink:0}}>
-                    <div style={{width:24,height:1.5,background:"linear-gradient(to right, "+h.color+", "+horizons[hi+1].color+")"}}/>
-                    <div style={{fontSize:14,color:"#C8C3BB",marginLeft:2}}>›</div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+        <div style={{maxWidth:1000}}>
+          <DesktopMetasCanvas goals={goals} horizons={horizons} getChildren={getChildren} getProjects={getProjects} onEdit={onEdit} onNew={onNew}/>
 
           {/* Unlinked projects warning */}
           {(() => {
@@ -1025,6 +991,89 @@ function MetasView({goals,projects,onNew,onEdit,isDesktop}){
           })()}
         </div>
       )}
+    </div>
+  );
+}
+
+
+function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew}){
+  const cardRefs = useRef({});
+  const [lines, setLines] = useState([]);
+  const containerRef = useRef(null);
+
+  useEffect(()=>{
+    // Calculate lines after render
+    const timer = setTimeout(()=>{
+      if(!containerRef.current) return;
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newLines = [];
+      goals.forEach(goal=>{
+        if(!goal.parentId) return;
+        const fromEl = cardRefs.current[goal.id];
+        const toEl   = cardRefs.current[goal.parentId];
+        if(!fromEl||!toEl) return;
+        const fromRect = fromEl.getBoundingClientRect();
+        const toRect   = toEl.getBoundingClientRect();
+        newLines.push({
+          x1: fromRect.right - containerRect.left,
+          y1: fromRect.top + fromRect.height/2 - containerRect.top,
+          x2: toRect.left  - containerRect.left,
+          y2: toRect.top  + toRect.height/2  - containerRect.top,
+          color: "#C8C3BB",
+        });
+      });
+      setLines(newLines);
+    }, 100);
+    return ()=>clearTimeout(timer);
+  },[goals]);
+
+  return(
+    <div ref={containerRef} style={{position:"relative"}}>
+      {/* SVG overlay for lines */}
+      {lines.length>0&&(
+        <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none",zIndex:0}} overflow="visible">
+          {lines.map((l,i)=>(
+            <path key={i}
+              d={`M ${l.x1} ${l.y1} C ${l.x1+60} ${l.y1}, ${l.x2-60} ${l.y2}, ${l.x2} ${l.y2}`}
+              fill="none" stroke={l.color} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6"/>
+          ))}
+        </svg>
+      )}
+      {/* Columns */}
+      <div style={{display:"flex",alignItems:"flex-start",gap:0,position:"relative",zIndex:1}}>
+        {horizons.map((h,hi)=>(
+          <div key={h.key} style={{display:"flex",alignItems:"flex-start",flex:1}}>
+            <div style={{flex:1}}>
+              <div style={{marginBottom:12}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:h.color}}/>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,color:h.color,letterSpacing:".06em",textTransform:"uppercase"}}>{h.label}</span>
+                </div>
+                <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",paddingLeft:16}}>{h.sub}</div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:8,paddingRight:16}}>
+                {goals.filter(g=>g.horizon===h.key).map(goal=>(
+                  <div key={goal.id} ref={el=>cardRefs.current[goal.id]=el}>
+                    <GoalCard goal={goal} horizon={h} children={getChildren(goal.id)} linkedProjects={getProjects(goal.id)} onEdit={()=>onEdit(goal)} allGoals={goals}/>
+                  </div>
+                ))}
+                <button onClick={()=>onNew(h.key)}
+                  style={{background:"none",border:"1px dashed #D5CFC8",borderRadius:10,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:"10px",textAlign:"center",transition:"all .2s"}}
+                  onMouseOver={e=>e.currentTarget.style.borderColor="#B5A99A"}
+                  onMouseOut={e=>e.currentTarget.style.borderColor="#D5CFC8"}>
+                  + meta
+                </button>
+              </div>
+            </div>
+            {hi < horizons.length-1 && (
+              <div style={{display:"flex",alignItems:"center",paddingTop:28,flexShrink:0}}>
+                <div style={{width:24,height:1.5,background:`linear-gradient(to right, ${h.color}, ${horizons[hi+1].color})`}}/>
+                <div style={{fontSize:14,color:"#C8C3BB",marginLeft:2}}>›</div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
