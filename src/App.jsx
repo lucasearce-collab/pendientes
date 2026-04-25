@@ -302,107 +302,84 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
-    <div style={{display:"flex",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",overflow:"hidden"}}>
+    <div style={{display:"flex",flexDirection:"column",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",overflow:"hidden"}}>
       <DesktopStyles/>
-      <div style={{width:240,background:"#F0EDE8",borderRight:"1px solid #E5E1DB",display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
-        <div style={{padding:"28px 20px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
-          <div>
-            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase"}}>Clarity</div>
-            {!isOnline&&<div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",marginTop:2}}>· sin conexión</div>}
-          </div>
-          <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}} title="Cerrar sesión">↩</button>
-        </div>
-        <div style={{padding:"0 10px",display:"flex",flexDirection:"column",gap:2}}>
+
+      {/* Top nav bar */}
+      <div style={{background:"#F0EDE8",borderBottom:"1px solid #E5E1DB",padding:"0 32px",display:"flex",alignItems:"center",gap:0,flexShrink:0,height:52}}>
+        <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#6B6258",letterSpacing:".06em",marginRight:32}}>Clarity</div>
+        <div style={{display:"flex",gap:2,flex:1}}>
           {NAV.map(n=>(
-            <button key={n.id} className="d-nav" onClick={()=>{setView(n.id);setActiveProjId(null);}}
-              style={{background:view===n.id?"#E8E3DC":"none",color:view===n.id?"#3A3530":"#9B948C"}}>
-              <span style={{fontSize:10,opacity:.5}}>{n.icon}</span>{n.label}
+            <button key={n.id} className="d-nav-top" onClick={()=>{setView(n.id);setActiveProjId(null);}}
+              style={{background:view===n.id?"white":"transparent",color:view===n.id?"#2C2825":"#9B948C",borderBottom:view===n.id?"2px solid #6B6258":"2px solid transparent"}}>
+              {n.label}
             </button>
           ))}
-          
         </div>
-        <div style={{height:1,background:"#E5E1DB",margin:"12px 16px"}}/>
-        <div style={{flex:1,overflowY:"auto",padding:"0 10px"}}>
-          {Object.entries(AREAS).map(([ak,a])=>(
-            <div key={ak} style={{marginBottom:8}}>
-              <div style={{fontFamily:"'DM Sans'",fontSize:10,color:a.color,letterSpacing:".1em",textTransform:"uppercase",padding:"6px 10px 3px",fontWeight:500}}>{a.label}</div>
-              {projectsForArea(ak).map(proj=>{
-                const pending=tasks.filter(t=>t.projectId===proj.id&&!t.done).length;
-                const isAct=activeProjId===proj.id;
-                return(
-                  <button key={proj.id} className="d-proj" onClick={()=>{setView("proyectos");setActiveArea(ak);setActiveProjId(proj.id);}}
-                    style={{background:isAct?"#E8E3DC":"none",color:isAct?"#3A3530":"#7A736C"}}>
-                    <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,textAlign:"left"}}>{proj.name}</span>
-                    {proj.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#9B8878",flexShrink:0}}>{proj.monto}</span>}
-                    {pending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",flexShrink:0}}>{pending}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+        {/* Area pills - only for tareas/proyectos */}
+        {(view==="tareas"||view==="proyectos")&&(
+          <div style={{display:"flex",gap:6,marginLeft:16}}>
+            {Object.entries(AREAS).map(([k,a])=>(
+              <button key={k} className="d-apill" onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
+                style={{background:activeArea===k?a.color:"white",color:activeArea===k?"white":a.color,border:`1px solid ${activeArea===k?a.color:"#E5E1DB"}`}}>
+                {a.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div style={{display:"flex",alignItems:"center",gap:12,marginLeft:16}}>
+          {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
+          <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}} title="Cerrar sesión">↩</button>
         </div>
       </div>
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{padding:"24px 36px 14px",borderBottom:"1px solid #EAE6E0",background:"#F7F5F2",flexShrink:0}}>
+
+      {/* Main content */}
+      <div style={{flex:1,overflowY:"auto",padding:"32px 48px 48px"}}>
+        {/* Page title + date */}
+        <div style={{marginBottom:24}}>
           <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".1em",textTransform:"uppercase",marginBottom:4}}>
             {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
           </div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <h1 style={{fontSize:22,fontWeight:600,color:"#2C2825",letterSpacing:"-.02em"}}>
-              {view==="hoy"?"Hoy — Trabajo":view==="tareas"?`Tareas · ${AREAS[activeArea].label}`:view==="proyectos"?(activeProjId?projects.find(q=>q.id===activeProjId)?.name:`Proyectos · ${AREAS[activeArea].label}`):view==="metas"?"Metas":`Estrategia · ${AREAS[activeArea]?.label}`}
-            </h1>
-            {(view==="tareas"||view==="proyectos"||view==="estrategia")&&(
-              <div style={{display:"flex",gap:6}}>
-                {Object.entries(AREAS).map(([k,a])=>(
-                  <button key={k} className="d-apill" onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
-                    style={{background:activeArea===k?a.color:"white",color:activeArea===k?"white":a.color,border:`1px solid ${activeArea===k?a.color:"#E5E1DB"}`}}>
-                    {a.label}
-                  </button>
-                ))}
-              </div>
-            )}
+          <h1 style={{fontSize:28,fontWeight:600,color:"#2C2825",letterSpacing:"-.02em"}}>
+            {view==="hoy"?"Hoy":view==="tareas"?`Tareas · ${AREAS[activeArea].label}`:view==="proyectos"?`Proyectos · ${AREAS[activeArea]?.label}`:"Metas"}
+          </h1>
+        </div>
+
+        {/* Content */}
+        {view==="hoy"&&<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
+
+        {view==="tareas"&&(
+          <div style={{maxWidth:800}}>
+            {projectsForArea(activeArea).map(proj=>(
+              <DProjBlock key={proj.id} project={proj} area={activeArea} tasks={tasksForProject(proj.id)}
+                onToggle={toggleDone} onOpen={setSheet}
+                onAddTask={()=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
+                reorderTasks={reorderTasks} sw={sw}/>
+            ))}
+            {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos. Creá uno desde Proyectos.</div>}
           </div>
-        </div>
-        <div style={{flex:1,overflowY:"auto",padding:"28px 36px 40px"}}>
-          {view==="hoy"&&<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
-          {view==="tareas"&&(
-            <div style={{maxWidth:720}}>
-              {projectsForArea(activeArea).map(proj=>(
-                <DProjBlock key={proj.id} project={proj} area={activeArea} tasks={tasksForProject(proj.id)}
-                  onToggle={toggleDone} onOpen={setSheet}
-                  onAddTask={()=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
-                  reorderTasks={reorderTasks} sw={sw}/>
-              ))}
-              {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos. Creá uno desde Proyectos.</div>}
-            </div>
-          )}
-          {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} isDesktop={true}/>}
-          {view==="proyectos"&&(
-            <div style={{maxWidth:720}}>
-              <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:24,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
+        )}
+
+        {view==="proyectos"&&(
+          <div style={{maxWidth:900}}>
+            <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:20,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(380px,1fr))",gap:16}}>
               {projectsForArea(activeArea).map(proj=>(
                 <DPlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)}/>
               ))}
-              {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
-              <button className="d-newp" onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea].label}</button>
             </div>
-          )}
-          {view==="estrategia"&&(
-            <div style={{maxWidth:720}}>
-              <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:24,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
-              {projectsForArea(activeArea).map(proj=>(
-                <DPlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)}/>
-              ))}
-              {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
-              <button className="d-newp" onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea].label}</button>
-            </div>
-          )}
-        </div>
+            {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
+            <button className="d-newp" style={{marginTop:16}} onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea].label}</button>
+          </div>
+        )}
+
+        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} isDesktop={true}/>}
       </div>
       {sheets}
     </div>
   );
 }
+
 
 function DHoy({overdueWork,todayWork,upcomingWork,projects,toggleDone,onDelete,onOpen,reorderTasks,sw}){
   return(
@@ -485,27 +462,31 @@ function DProjBlock({project,area,tasks,onToggle,onOpen,onAddTask,reorderTasks,s
 
 function DPlanBlock({project,onEdit,onDelete}){
   const [conf,setConf]=useState(false);
+  const [exp,setExp]=useState(false);
   const imp=IMPORTANCE[project.importance||"normal"];
   const has=project.description||project.mainGoal||(project.secondaryGoals?.length>0);
   return(
-    <div style={{marginBottom:10,border:"1px solid #EAE6E0",borderRadius:12,background:"white"}}>
-      <div style={{padding:"16px 20px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16}}>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:has?12:0,flexWrap:"wrap"}}>
-            <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,color:"#3A3530"}}>{project.name}</span>
+    <div style={{border:"1px solid #EAE6E0",borderRadius:12,background:"white",display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"14px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
+        <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
+            <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,color:"#2C2825"}}>{project.name}</span>
             {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
-            <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 8px",borderRadius:99}}>{imp.label}</span>
+            <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 7px",borderRadius:99}}>{imp.label}</span>
           </div>
-          {project.description&&<p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258",marginBottom:12,lineHeight:1.6}}>{project.description}</p>}
-          {project.mainGoal&&<div style={{marginBottom:10}}><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:4}}>Objetivo principal</div><div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#3A3530",fontWeight:500}}>{project.mainGoal}</div></div>}
-          {project.secondaryGoals?.length>0&&<div><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:6}}>Objetivos secundarios</div>{project.secondaryGoals.map((g,i)=><div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:4}}><div style={{width:4,height:4,borderRadius:"50%",background:"#C8C3BB",flexShrink:0,marginTop:6}}/><span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258"}}>{g}</span></div>)}</div>}
-          {!has&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos definidos aún</div>}
+          {project.mainGoal&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B948C",lineHeight:1.4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{project.mainGoal}</div>}
+          {!has&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos definidos</div>}
         </div>
-        <div style={{display:"flex",gap:6,flexShrink:0}}>
+        <div style={{display:"flex",gap:5,flexShrink:0}}>
           <button className="d-ib" onClick={onEdit}>Editar</button>
           {conf?<><button className="d-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={onDelete}>Confirmar</button><button className="d-ib" onClick={()=>setConf(false)}>✕</button></>:<button className="d-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>Eliminar</button>}
         </div>
       </div>
+      {exp&&has&&<div style={{padding:"0 16px 14px",borderTop:"1px solid #F5F2EE"}}>
+        {project.description&&<p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258",margin:"10px 0 8px",lineHeight:1.6}}>{project.description}</p>}
+        {project.mainGoal&&<div style={{marginBottom:8}}><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:3}}>Objetivo principal</div><div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#3A3530",fontWeight:500}}>{project.mainGoal}</div></div>}
+        {project.secondaryGoals?.length>0&&<div><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:5}}>Secundarios</div>{project.secondaryGoals.map((g,i)=><div key={i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}><div style={{width:3,height:3,borderRadius:"50%",background:"#C8C3BB",flexShrink:0,marginTop:6}}/><span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#6B6258"}}>{g}</span></div>)}</div>}
+      </div>}
     </div>
   );
 }
@@ -551,10 +532,8 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
 function DesktopStyles(){return(<style>{`
   @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}body{background:#F7F5F2;overflow:hidden;}
-  .d-nav{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 10px;border-radius:8px;text-align:left;transition:all .15s;}
-  .d-nav:hover{background:#E8E3DC;color:#3A3530!important;}
-  .d-proj{display:flex;align-items:center;justify-content:space-between;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;border-radius:6px;transition:all .15s;gap:6px;}
-  .d-proj:hover{background:#E8E3DC;}
+  .d-nav-top{border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;padding:0 16px;height:100%;display:flex;align-items:center;transition:all .15s;white-space:nowrap;}
+  .d-nav-top:hover{color:#2C2825!important;}
   .d-apill{cursor:pointer;border-radius:99px;padding:6px 14px;font-size:12px;font-family:'DM Sans',sans-serif;transition:all .2s;white-space:nowrap;}
   .d-tr{transition:background .12s;cursor:grab;}.d-tr:hover{background:#F5F2EE!important;}
   .d-ci{width:22px;height:22px;border-radius:50%;border:1.5px solid #C8C3BB;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
@@ -689,25 +668,31 @@ function ProjBlock({project,area,tasks,onToggle,onDelete,onOpen,onAddTask,reorde
 
 function PlanBlock({project,onEdit,onDelete}){
   const [conf,setConf]=useState(false);
+  const [exp,setExp]=useState(false);
   const imp=IMPORTANCE[project.importance||"normal"];
   const has=project.description||project.mainGoal||(project.secondaryGoals?.length>0);
   return(
-    <div style={{margin:"10px 20px",background:"white",borderRadius:12,border:"1px solid #EAE6E0",padding:"16px 18px"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:has?12:0}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,color:"#3A3530"}}>{project.name}</span>
-          {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
-          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 7px",borderRadius:99}}>{imp.label}</span>
+    <div style={{margin:"10px 20px",background:"white",borderRadius:12,border:"1px solid #EAE6E0"}}>
+      <div style={{padding:"14px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10}}>
+        <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:has&&!exp?3:0}}>
+            <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,color:"#3A3530"}}>{project.name}</span>
+            {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
+            <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 7px",borderRadius:99}}>{imp.label}</span>
+          </div>
+          {!exp&&project.mainGoal&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B948C",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{project.mainGoal}</div>}
+          {!has&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos · tap en Editar</div>}
         </div>
         <div style={{display:"flex",gap:6,flexShrink:0}}>
           <button className="m-ib" onClick={onEdit}>Editar</button>
           {conf?<><button className="m-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={onDelete}>Confirmar</button><button className="m-ib" onClick={()=>setConf(false)}>✕</button></>:<button className="m-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>Eliminar</button>}
         </div>
       </div>
-      {project.description&&<p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258",marginBottom:10,lineHeight:1.6}}>{project.description}</p>}
-      {project.mainGoal&&<div style={{marginBottom:8}}><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:3}}>Objetivo principal</div><div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#3A3530",fontWeight:500}}>{project.mainGoal}</div></div>}
-      {project.secondaryGoals?.length>0&&<div><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:6}}>Objetivos secundarios</div>{project.secondaryGoals.map((g,i)=><div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:4}}><div style={{width:4,height:4,borderRadius:"50%",background:"#C8C3BB",flexShrink:0,marginTop:6}}/><span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258"}}>{g}</span></div>)}</div>}
-      {!has&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos · tap en Editar</div>}
+      {exp&&has&&<div style={{padding:"0 16px 14px",borderTop:"1px solid #F5F2EE"}}>
+        {project.description&&<p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258",marginBottom:10,marginTop:10,lineHeight:1.6}}>{project.description}</p>}
+        {project.mainGoal&&<div style={{marginBottom:8}}><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:3}}>Objetivo principal</div><div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#3A3530",fontWeight:500}}>{project.mainGoal}</div></div>}
+        {project.secondaryGoals?.length>0&&<div><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:6}}>Objetivos secundarios</div>{project.secondaryGoals.map((g,i)=><div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:4}}><div style={{width:4,height:4,borderRadius:"50%",background:"#C8C3BB",flexShrink:0,marginTop:6}}/><span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258"}}>{g}</span></div>)}</div>}
+      </div>}
     </div>
   );
 }
@@ -1019,7 +1004,7 @@ function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew
           y1: fromRect.top + fromRect.height/2 - containerRect.top,
           x2: toRect.left  - containerRect.left,
           y2: toRect.top  + toRect.height/2  - containerRect.top,
-          color: "#A09890",
+          color: "#C0BAB2",
         });
       });
       setLines(newLines);
@@ -1195,19 +1180,21 @@ function PlanProjectSheet({project,onSave,isDesktop,goals=[]}){
   return(<div className={cls}>
     {!isDesktop&&<div className="hd"/>}
     <span className="sl">Estrategia del proyecto</span>
-    <div style={{fontFamily:"'DM Sans'",fontSize:16,fontWeight:500,color:"#2C2825",marginBottom:16}}>{project.name}</div>
+    <div style={{marginBottom:16}}>
+      <span className="sl">Nombre del proyecto</span>
+      <input className="si" value={form.name||""} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={{fontWeight:500}}/>
+    </div>
     <div style={{marginBottom:16}}>
       <span className="sl">Monto del deal (opcional)</span>
       <input className="si" value={form.monto||""} onChange={e=>setForm(f=>({...f,monto:e.target.value}))} placeholder="ej. 400k"/>
     </div>
-    {goals&&goals.length>0&&(
+    {goals&&goals.filter(g=>g.horizon==="anio").length>0&&(
       <div style={{marginBottom:16}}>
         <span className="sl">Meta vinculada (opcional)</span>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {goals.map(g=>(
+          {goals.filter(g=>g.horizon==="anio").map(g=>(
             <button key={g.id} onClick={()=>setForm(f=>({...f,goal_id:f.goal_id===g.id?null:g.id}))}
-              style={{textAlign:"left",padding:"8px 12px",borderRadius:8,border:`1px solid ${form.goal_id===g.id?"#8A8EA8":"#E5E1DB"}`,background:form.goal_id===g.id?"#F1F2F5":"white",color:form.goal_id===g.id?"#5B6BAF":"#6B6258",fontFamily:"'DM Sans'",fontSize:13,cursor:"pointer",transition:"all .15s"}}>
-              <span style={{fontSize:10,color:"#B0AA9F",marginRight:6,textTransform:"uppercase",letterSpacing:".06em"}}>{g.horizon==="anio"?"Este año":g.horizon==="medio"?"2–5a":"5+a"}</span>
+              style={{textAlign:"left",padding:"8px 12px",borderRadius:8,border:`1px solid ${form.goal_id===g.id?"#9B8878":"#E5E1DB"}`,background:form.goal_id===g.id?"#F5F1ED":"white",color:form.goal_id===g.id?"#9B8878":"#6B6258",fontFamily:"'DM Sans'",fontSize:13,cursor:"pointer",transition:"all .15s"}}>
               {g.title}
             </button>
           ))}
