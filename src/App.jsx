@@ -416,7 +416,7 @@ function DHoy({overdueWork,todayWork,upcomingWork,projects,toggleDone,onDelete,o
         <DTaskList tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue reorderTasks={reorderTasks}/>
       </div>)}
       {todayWork.length>0&&(<div style={{marginBottom:8}}>
-        <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:8,paddingBottom:6,borderBottom:"1px solid #EAE6E0"}}>Para hoy</div>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid #EAE6E0"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#9B8878",flexShrink:0}}/><span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B8878",letterSpacing:".08em",textTransform:"uppercase"}}>Para hoy</span></div>
         <DTaskList tasks={todayWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
       </div>)}
       {overdueWork.length===0&&todayWork.length===0&&<div style={{padding:"24px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>}
@@ -432,9 +432,7 @@ function UpcomingSection({tasks,projects,onToggle,onDelete,onOpen,reorderTasks,s
 
   return(
     <div style={{marginTop:8}}>
-      <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:8,padding:desktop?"0":"0 20px",paddingBottom:6,borderBottom:"1px solid #EAE6E0"}}>
-        Lo antes posible
-      </div>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid #EAE6E0",padding:desktop?"0 0 6px":"0 20px 6px"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#B0AA9F",flexShrink:0}}/><span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>Lo antes posible</span></div>
       {projectIds.map(pid=>{
         const proj=projects.find(p=>p.id===pid);
         const ptasks=tasks.filter(t=>t.projectId===pid).sort(taskSort);
@@ -444,11 +442,11 @@ function UpcomingSection({tasks,projects,onToggle,onDelete,onOpen,reorderTasks,s
         return(
           <div key={pid} style={{marginBottom:4}}>
             <div onClick={()=>setOpen(o=>({...o,[pid]:!o[pid]}))}
-              style={{display:"flex",alignItems:"center",gap:8,padding:desktop?"8px 0":"8px 20px",cursor:"pointer",userSelect:"none"}}>
+              style={{display:"flex",alignItems:"center",gap:8,padding:desktop?"10px 0":"10px 20px",cursor:"pointer",userSelect:"none",borderBottom:"1px solid #EAE6E0"}}>
               <div style={{width:6,height:6,borderRadius:"50%",background:AREAS[proj.area]?.color||"#9B8878",flexShrink:0}}/>
-              <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#3A3530",fontWeight:500,flex:1}}>{proj.name}</span>
-              <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>{ptasks.length}</span>
-              <span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",marginLeft:4}}>{isOpen?"▾":"›"}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",fontWeight:400,flex:1}}>{proj.name}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F"}}>{ptasks.length}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",marginLeft:4}}>{isOpen?"▾":"›"}</span>
             </div>
             {isOpen&&(desktop
               ?<DTaskList tasks={ptasks} projects={[]} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
@@ -878,9 +876,10 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop}){
     {isWork&&<div style={{marginBottom:14}}>
       <span className="sl">Fecha (opcional)</span>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-        {[{l:"Hoy",v:todayStr()},{l:"Mañana",v:tomorrow()},{l:"Lunes",v:nextMonday()}].map(q=>(
+        {[{l:"Hoy",v:todayStr()},{l:"Mañana",v:tomorrow()}].map(q=>(
           <button key={q.l} className={`dc${date===q.v?" on":""}`} onClick={()=>setDate(p=>p===q.v?"":q.v)}>{q.l}</button>
         ))}
+        <button className={`dc${date===""?" on":""}`} onClick={()=>setDate("")}>Lo antes posible</button>
         <input type="date" value={date} onChange={e=>setDate(e.target.value)}
           style={{border:"1px solid #E5E1DB",borderRadius:99,padding:"4px 11px",fontSize:11,fontFamily:"'DM Sans'",outline:"none",color:"#8C877F",background:"white"}}/>
       </div>
