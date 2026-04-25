@@ -7,6 +7,47 @@ const supabase = createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndkbmNvc2RxdWZpdGF4ZGRucmZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MzE0OTUsImV4cCI6MjA5MjQwNzQ5NX0.HndgrvPhhV8Ty13ieyfJwgsM80erG6mPufHGV90jT10"
 );
 
+// ─── Offline queue ───────────────────────────────────────────────────────────
+const QUEUE_KEY = "pendientes_queue";
+
+function loadQueue() {
+  try { return JSON.parse(localStorage.getItem(QUEUE_KEY)||"[]"); } catch { return []; }
+}
+function saveQueue(q) {
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch {}
+}
+
+async function flushQueue() {
+  const queue = loadQueue();
+  if (!queue.length || !navigator.onLine) return;
+  const failed = [];
+  for (const op of queue) {
+    try {
+      if (op.type === "upsert") await supabase.from(op.table).upsert(op.data);
+      else if (op.type === "delete") await supabase.from(op.table).delete().eq("id", op.id);
+    } catch { failed.push(op); }
+  }
+  saveQueue(failed);
+}
+
+async function safeUpsert(table, data) {
+  if (navigator.onLine) {
+    const { error } = await supabase.from(table).upsert(data);
+    if (error) { const q=loadQueue(); q.push({type:"upsert",table,data}); saveQueue(q); }
+  } else {
+    const q=loadQueue(); q.push({type:"upsert",table,data}); saveQueue(q);
+  }
+}
+
+async function safeDelete(table, id) {
+  if (navigator.onLine) {
+    const { error } = await supabase.from(table).delete().eq("id", id);
+    if (error) { const q=loadQueue(); q.push({type:"delete",table,id}); saveQueue(q); }
+  } else {
+    const q=loadQueue(); q.push({type:"delete",table,id}); saveQueue(q);
+  }
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const AREAS = {
   trabajo:  { label:"Trabajo",       color:"#9B8878", dot:"#C4896A" },
@@ -95,6 +136,7 @@ function LoginScreen() {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [session,  setSession]  = useState(null);
   const [authReady,setAuthReady]= useState(false);
   const [tasks,    setTasks]    = useState([]);
@@ -116,6 +158,14 @@ export default function App() {
   useEffect(()=>{
     const fn=()=>setIsDesktop(window.innerWidth>=768);
     window.addEventListener("resize",fn); return ()=>window.removeEventListener("resize",fn);
+  },[]);
+
+  useEffect(()=>{
+    const onOnline=()=>{ setIsOnline(true); flushQueue(); };
+    const onOffline=()=>setIsOnline(false);
+    window.addEventListener("online",onOnline);
+    window.addEventListener("offline",onOffline);
+    return ()=>{ window.removeEventListener("online",onOnline); window.removeEventListener("offline",onOffline); };
   },[]);
 
   // Auth
@@ -160,38 +210,38 @@ export default function App() {
   async function addTask(task){
     const n={id:"t"+Date.now(),...task,done:false,notes:task.notes||"",responsable:task.responsable||"",sortOrder:tasks.length};
     setTasks(ts=>[n,...ts]); setAddSheet(null);
-    await supabase.from("tasks").upsert(taskToDb(n,uid));
+    await safeUpsert("tasks",taskToDb(n,uid));
   }
   async function toggleDone(id){
     const task=tasks.find(t=>t.id===id); if(!task) return;
     const u={...task,done:!task.done};
     setTasks(ts=>ts.map(t=>t.id===id?u:t)); setSwipedId(null);
-    await supabase.from("tasks").upsert(taskToDb(u,uid));
+    await safeUpsert("tasks",taskToDb(u,uid));
   }
   async function deleteTask(id){
     setTasks(ts=>ts.filter(t=>t.id!==id)); setSwipedId(null); setSheet(null);
-    await supabase.from("tasks").delete().eq("id",id);
+    await safeDelete("tasks",id);
   }
   async function updateTask(u){
     setTasks(ts=>ts.map(t=>t.id===u.id?u:t)); setSheet(null);
-    await supabase.from("tasks").upsert(taskToDb(u,uid));
+    await safeUpsert("tasks",taskToDb(u,uid));
   }
   async function addProject(area,name){
     if(!name.trim()) return;
     const n={id:"p"+Date.now(),area,name:name.trim(),monto:"",importance:"normal",description:"",mainGoal:"",secondaryGoals:[]};
     setProjects(ps=>[...ps,n]); setNewProjSheet(null);
-    await supabase.from("projects").upsert(projToDb(n,uid));
+    await safeUpsert("projects",projToDb(n,uid));
   }
   async function updateProject(u){
     setProjects(ps=>ps.map(p=>p.id===u.id?u:p)); setPlanSheet(null);
-    await supabase.from("projects").upsert(projToDb(u,uid));
+    await safeUpsert("projects",projToDb(u,uid));
   }
   async function deleteProject(pid){
     setProjects(ps=>ps.filter(p=>p.id!==pid));
     setTasks(ts=>ts.filter(t=>t.projectId!==pid));
     if(activeProjId===pid) setActiveProjId(null);
-    await supabase.from("tasks").delete().eq("project_id",pid);
-    await supabase.from("projects").delete().eq("id",pid);
+    await safeDelete("tasks",pid); // project tasks
+    await safeDelete("projects",pid);
   }
   async function reorderTasks(orderedIds){
     const map=Object.fromEntries(tasks.map(t=>[t.id,t]));
@@ -202,15 +252,15 @@ export default function App() {
   async function addGoal(g){
     const n={id:"g"+Date.now(),...g};
     setGoals(gs=>[...gs,n]); setGoalSheet(null);
-    await supabase.from("goals").upsert(goalToDb(n,uid));
+    await safeUpsert("goals",goalToDb(n,uid));
   }
   async function updateGoal(u){
     setGoals(gs=>gs.map(g=>g.id===u.id?u:g)); setGoalSheet(null);
-    await supabase.from("goals").upsert(goalToDb(u,uid));
+    await safeUpsert("goals",goalToDb(u,uid));
   }
   async function deleteGoal(id){
     setGoals(gs=>gs.filter(g=>g.id!==id)); setGoalSheet(null);
-    await supabase.from("goals").delete().eq("id",id);
+    await safeDelete("goals",id);
   }
   async function signOut(){ await supabase.auth.signOut(); }
 
@@ -233,7 +283,7 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut};
+  const props={tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
   return isDesktop?<DesktopLayout {...props}/>:<MobileLayout {...props}/>;
 }
 
@@ -250,13 +300,16 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESKTOP
 // ═══════════════════════════════════════════════════════════════════════════════
-function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut}){
+function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{display:"flex",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",overflow:"hidden"}}>
       <DesktopStyles/>
       <div style={{width:240,background:"#F0EDE8",borderRight:"1px solid #E5E1DB",display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
         <div style={{padding:"28px 20px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
-          <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase"}}>Pendientes</div>
+          <div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase"}}>Pendientes</div>
+            {!isOnline&&<div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",marginTop:2}}>· sin conexión</div>}
+          </div>
           <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}} title="Cerrar sesión">↩</button>
         </div>
         <div style={{padding:"0 10px",display:"flex",flexDirection:"column",gap:2}}>
@@ -490,7 +543,7 @@ function DesktopStyles(){return(<style>{`
 // ═══════════════════════════════════════════════════════════════════════════════
 // MOBILE
 // ═══════════════════════════════════════════════════════════════════════════════
-function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut}){
+function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,overdueWork,todayWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",position:"relative"}}>
       <MobileStyles/>
@@ -499,7 +552,10 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
           <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".12em",textTransform:"uppercase"}}>
             {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
           </div>
-          <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}}>↩</button>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
+            <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}}>↩</button>
+          </div>
         </div>
         <h1 style={{fontSize:26,fontWeight:600,color:"#2C2825",letterSpacing:"-.02em",marginBottom:16}}>
           {view==="hoy"?"Hoy":view==="tareas"?"Tareas":view==="proyectos"?"Proyectos":view==="metas"?"Metas":"Estrategia"}
