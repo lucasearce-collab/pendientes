@@ -523,22 +523,35 @@ function DPlanBlock({project,onEdit,onDelete}){
 }
 
 function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorderTasks}){
-  const sorted=[...tasks].sort(taskSort);
-  const dragItem=useRef(null),dragOver=useRef(null);
+  const [localOrder,setLocalOrder]=useState(null);
+  const [dragOver,setDragOver]=useState(null);
+  const dragging=useRef(null);
+  const sorted=localOrder?localOrder.map(id=>tasks.find(t=>t.id===id)).filter(Boolean):[...tasks].sort(taskSort);
+
+  function handleDragStart(id){ dragging.current=id; }
+  function handleDragEnter(id){ setDragOver(id); }
+  function handleDragEnd(){
+    if(!dragging.current||!dragOver||dragging.current===dragOver){dragging.current=null;setDragOver(null);return;}
+    const ids=sorted.map(t=>t.id);
+    const fi=ids.indexOf(dragging.current), ti=ids.indexOf(dragOver);
+    if(fi<0||ti<0){dragging.current=null;setDragOver(null);return;}
+    const r=[...ids]; r.splice(fi,1); r.splice(ti,0,dragging.current);
+    setLocalOrder(r); reorderTasks&&reorderTasks(r);
+    dragging.current=null; setDragOver(null);
+  }
+
   return(
     <div>
       {sorted.map((task,i)=>{
         const proj=projects.find(p=>p.id===task.projectId);
+        const isOver=dragOver===task.id&&dragging.current&&dragging.current!==task.id;
         return(
           <div key={task.id} className="d-tr" draggable
-            onDragStart={()=>dragItem.current=i} onDragEnter={()=>dragOver.current=i}
+            onDragStart={()=>handleDragStart(task.id)}
+            onDragEnter={()=>handleDragEnter(task.id)}
             onDragOver={e=>e.preventDefault()}
-            onDragEnd={()=>{
-              if(dragItem.current===null||dragOver.current===null||dragItem.current===dragOver.current) return;
-              const r=[...sorted];const[m]=r.splice(dragItem.current,1);r.splice(dragOver.current,0,m);
-              reorderTasks(r.map(t=>t.id));dragItem.current=null;dragOver.current=null;
-            }}
-            style={{padding:"12px 4px",borderTop:i>0?"1px solid #EAE6E0":"none",display:"flex",alignItems:"center",gap:12,cursor:"pointer",background:overdue?"#FBF8F4":"transparent"}}
+            onDragEnd={handleDragEnd}
+            style={{padding:"12px 4px",borderTop:isOver?"2px solid #9B8878":i>0?"1px solid #EAE6E0":"none",display:"flex",alignItems:"center",gap:12,cursor:"grab",background:overdue?"#FBF8F4":"transparent"}}
             onClick={()=>onOpen(task)}>
             <button className={`d-ci${task.done?" done":""}`} onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
               {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
