@@ -530,7 +530,8 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
     ?localOrder.map(id=>tasks.find(t=>t.id===id)).filter(Boolean)
     :[...tasks].sort(taskSort);
 
-  function handleDragStart(id){ dragging.current=id; }
+  const didDrag=useRef(false);
+  function handleDragStart(id){ dragging.current=id; didDrag.current=false; }
   function handleDragEnter(id){ setDragOver(id); }
   function handleDragEnd(){
     if(!dragging.current||!dragOver||dragging.current===dragOver){dragging.current=null;setDragOver(null);return;}
@@ -539,6 +540,7 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
     if(fi<0||ti<0){dragging.current=null;setDragOver(null);return;}
     const r=[...ids]; r.splice(fi,1); r.splice(ti,0,dragging.current);
     setLocalOrder(r); reorderTasks&&reorderTasks(r);
+    didDrag.current=true;
     dragging.current=null; setDragOver(null);
   }
 
@@ -554,7 +556,7 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
             onDragOver={e=>e.preventDefault()}
             onDragEnd={handleDragEnd}
             style={{padding:"12px 4px",borderTop:isOver?"2px solid #9B8878":i>0?"1px solid #EAE6E0":"none",display:"flex",alignItems:"center",gap:12,cursor:"grab",background:isOver?"#F0EDE8":overdue?"#FBF8F4":"transparent",transition:"background .1s"}}
-            onClick={()=>onOpen(task)}>
+            onClick={()=>{ if(didDrag.current){didDrag.current=false;return;} onOpen(task); }}>
             <button className={`d-ci${task.done?" done":""}`} onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
               {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
             </button>
