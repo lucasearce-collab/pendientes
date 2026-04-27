@@ -524,39 +524,59 @@ function DPlanBlock({project,onEdit,onDelete}){
 
 function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorderTasks}){
   const [localOrder,setLocalOrder]=useState(null);
-  const [dragOver,setDragOver]=useState(null);
-  const dragging=useRef(null);
+  const [draggingId,setDraggingId]=useState(null);
+  const [overId,setOverId]=useState(null);
   const sorted=localOrder
     ?localOrder.map(id=>tasks.find(t=>t.id===id)).filter(Boolean)
     :[...tasks].sort(taskSort);
 
-  const didDrag=useRef(false);
-  function handleDragStart(id){ dragging.current=id; didDrag.current=false; }
-  function handleDragEnter(id){ setDragOver(id); }
-  function handleDragEnd(){
-    if(!dragging.current||!dragOver||dragging.current===dragOver){dragging.current=null;setDragOver(null);return;}
-    const ids=sorted.map(t=>t.id);
-    const fi=ids.indexOf(dragging.current), ti=ids.indexOf(dragOver);
-    if(fi<0||ti<0){dragging.current=null;setDragOver(null);return;}
-    const r=[...ids]; r.splice(fi,1); r.splice(ti,0,dragging.current);
-    setLocalOrder(r); reorderTasks&&reorderTasks(r);
-    didDrag.current=true;
-    dragging.current=null; setDragOver(null);
+  function onDragStart(e,id){
+    e.dataTransfer.effectAllowed="move";
+    e.dataTransfer.setData("text/plain",id);
+    setDraggingId(id);
   }
+  function onDragEnter(e,id){
+    e.preventDefault();
+    setOverId(id);
+  }
+  function onDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect="move"; }
+  function onDrop(e,id){
+    e.preventDefault();
+    const dragId=e.dataTransfer.getData("text/plain");
+    if(!dragId||dragId===id){setDraggingId(null);setOverId(null);return;}
+    const ids=sorted.map(t=>t.id);
+    const fi=ids.indexOf(dragId), ti=ids.indexOf(id);
+    if(fi<0||ti<0){setDraggingId(null);setOverId(null);return;}
+    const r=[...ids]; r.splice(fi,1); r.splice(ti,0,dragId);
+    setLocalOrder(r); reorderTasks&&reorderTasks(r);
+    setDraggingId(null); setOverId(null);
+  }
+  function onDragEnd(){ setDraggingId(null); setOverId(null); }
 
   return(
     <div>
       {sorted.map((task,i)=>{
         const proj=projects.find(p=>p.id===task.projectId);
-        const isOver=dragOver===task.id&&dragging.current&&dragging.current!==task.id;
+        const isDragging=draggingId===task.id;
+        const isOver=overId===task.id&&draggingId&&draggingId!==task.id;
         return(
-          <div key={task.id} className="d-tr" draggable
-            onDragStart={()=>handleDragStart(task.id)}
-            onDragEnter={()=>handleDragEnter(task.id)}
-            onDragOver={e=>e.preventDefault()}
-            onDragEnd={handleDragEnd}
-            style={{padding:"12px 4px",borderTop:isOver?"2px solid #9B8878":i>0?"1px solid #EAE6E0":"none",display:"flex",alignItems:"center",gap:12,cursor:"grab",background:isOver?"#F0EDE8":overdue?"#FBF8F4":"transparent",transition:"background .1s"}}
-            onClick={()=>{ if(didDrag.current){didDrag.current=false;return;} onOpen(task); }}>
+          <div key={task.id}
+            draggable="true"
+            onDragStart={e=>onDragStart(e,task.id)}
+            onDragEnter={e=>onDragEnter(e,task.id)}
+            onDragOver={onDragOver}
+            onDrop={e=>onDrop(e,task.id)}
+            onDragEnd={onDragEnd}
+            style={{
+              padding:"12px 4px",
+              borderTop:isOver?"2px solid #9B8878":i>0?"1px solid #EAE6E0":"none",
+              display:"flex",alignItems:"center",gap:12,
+              cursor:"grab",
+              background:isDragging?"#EDE9E4":isOver?"#F5F2EE":overdue?"#FBF8F4":"transparent",
+              opacity:isDragging?.4:1,
+              transition:"opacity .1s,background .1s"
+            }}
+            onClick={()=>{ if(!draggingId) onOpen(task); }}>
             <button className={`d-ci${task.done?" done":""}`} onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
               {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
             </button>
@@ -576,6 +596,7 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
     </div>
   );
 }
+
 
 function DesktopStyles(){return(<style>{`
   @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
