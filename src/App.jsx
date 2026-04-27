@@ -76,8 +76,8 @@ const HORIZONS = {
   largo:   { label:"5+ años",  sub:"2031+",    color:"#5B6BAF", bg:"#F0F1F8", ring:"#5B6BAF" },
 };
 
-const goalToDb  = (g,uid) => ({ id:g.id, user_id:uid, title:g.title, description:g.description||"", horizon:g.horizon, parent_id:g.parentId||null });
-const goalFromDb = r => ({ id:r.id, title:r.title, description:r.description||"", horizon:r.horizon, parentId:r.parent_id||null });
+const goalToDb  = (g,uid) => ({ id:g.id, user_id:uid, title:g.title, description:g.description||"", horizon:g.horizon, parent_id:g.parentId||null, sort_order:g.sortOrder||0 });
+const goalFromDb = r => ({ id:r.id, title:r.title, description:r.description||"", horizon:r.horizon, parentId:r.parent_id||null, sortOrder:r.sort_order||0 });
 
 const todayStr   = () => new Date().toISOString().split("T")[0];
 const tomorrow   = () => { const d=new Date(); d.setDate(d.getDate()+1); return d.toISOString().split("T")[0]; };
@@ -96,8 +96,8 @@ const fmtDate = (d) => {
   const [,m,day]=d.split("-"); return `${day}/${m}`;
 };
 
-const projToDb  = (p,uid) => ({ id:p.id, area:p.area, name:p.name, monto:p.monto||"", importance:p.importance||"normal", description:p.description||"", main_goal:p.mainGoal||"", secondary_goals:p.secondaryGoals||[], goal_id:p.goal_id||null, user_id:uid });
-const projFromDb = r => ({ id:r.id, area:r.area, name:r.name, monto:r.monto||"", importance:r.importance||"normal", description:r.description||"", mainGoal:r.main_goal||"", secondaryGoals:r.secondary_goals||[], goal_id:r.goal_id||null });
+const projToDb  = (p,uid) => ({ id:p.id, area:p.area, name:p.name, monto:p.monto||"", importance:p.importance||"normal", description:p.description||"", main_goal:p.mainGoal||"", secondary_goals:p.secondaryGoals||[], goal_id:p.goal_id||null, sort_order:p.sortOrder||0, user_id:uid });
+const projFromDb = r => ({ id:r.id, area:r.area, name:r.name, monto:r.monto||"", importance:r.importance||"normal", description:r.description||"", mainGoal:r.main_goal||"", secondaryGoals:r.secondary_goals||[], goal_id:r.goal_id||null, sortOrder:r.sort_order||0 });
 const taskToDb  = (t,uid) => ({ id:t.id, project_id:t.projectId, title:t.title, type:t.type||"normal", date:t.date||"", responsable:t.responsable||"", notes:t.notes||"", done:t.done||false, sort_order:t.sortOrder||0, user_id:uid });
 const taskFromDb = r => ({ id:r.id, projectId:r.project_id, title:r.title, type:r.type||"normal", date:r.date||"", responsable:r.responsable||"", notes:r.notes||"", done:r.done||false, sortOrder:r.sort_order||0 });
 
@@ -184,9 +184,9 @@ export default function App() {
     async function load() {
       setLoading(true);
       const [ps,ts,gs] = await Promise.all([
-        supabase.from("projects").select("*").order("created_at"),
+        supabase.from("projects").select("*").order("sort_order").order("created_at"),
         supabase.from("tasks").select("*").order("sort_order").order("created_at"),
-        supabase.from("goals").select("*").order("created_at"),
+        supabase.from("goals").select("*").order("sort_order").order("created_at"),
       ]);
       setProjects((ps.data||[]).map(projFromDb));
       setTasks((ts.data||[]).map(taskFromDb));
@@ -247,7 +247,19 @@ export default function App() {
     const map=Object.fromEntries(tasks.map(t=>[t.id,t]));
     const reordered=orderedIds.map((id,i)=>({...map[id],sortOrder:i})).filter(Boolean);
     setTasks(ts=>{const rest=ts.filter(t=>!orderedIds.includes(t.id));return[...reordered,...rest];});
-    await Promise.all(reordered.map(t=>supabase.from("tasks").upsert(taskToDb(t,uid))));
+    await Promise.all(reordered.map(t=>safeUpsert("tasks",taskToDb(t,uid))));
+  }
+  async function reorderProjects(orderedIds){
+    const map=Object.fromEntries(projects.map(p=>[p.id,p]));
+    const reordered=orderedIds.map((id,i)=>({...map[id],sortOrder:i})).filter(Boolean);
+    setProjects(ps=>{const rest=ps.filter(p=>!orderedIds.includes(p.id));return[...reordered,...rest];});
+    await Promise.all(reordered.map(p=>safeUpsert("projects",{...projToDb(p,uid),sort_order:p.sortOrder||0})));
+  }
+  async function reorderGoals(orderedIds){
+    const map=Object.fromEntries(goals.map(g=>[g.id,g]));
+    const reordered=orderedIds.map((id,i)=>({...map[id],sortOrder:i})).filter(Boolean);
+    setGoals(gs=>{const rest=gs.filter(g=>!orderedIds.includes(g.id));return[...reordered,...rest];});
+    await Promise.all(reordered.map(g=>safeUpsert("goals",{...goalToDb(g,uid),sort_order:g.sortOrder||0})));
   }
   async function addGoal(g){
     const n={id:"g"+Date.now(),...g};
@@ -283,7 +295,7 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
+  const props={tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
   return isDesktop?<DesktopLayout {...props}/>:<MobileLayout {...props}/>;
 }
 
@@ -300,7 +312,7 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESKTOP
 // ═══════════════════════════════════════════════════════════════════════════════
-function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{display:"flex",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",overflow:"hidden"}}>
       <DesktopStyles/>
@@ -386,16 +398,12 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
           {view==="proyectos"&&(
             <div style={{maxWidth:860}}>
               <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:20,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(360px,1fr))",gap:12}}>
-                {projectsForArea(activeArea).map(proj=>(
-                  <DPlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)}/>
-                ))}
-              </div>
+              <DraggableProjectGrid projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onReorder={reorderProjects}/>
               {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
               <button className="d-newp" style={{marginTop:16}} onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea].label}</button>
             </div>
           )}
-          {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} isDesktop={true}/>}
+          {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={true}/>}
         </div>
       </div>
       {sheets}
@@ -583,7 +591,7 @@ function DesktopStyles(){return(<style>{`
 // ═══════════════════════════════════════════════════════════════════════════════
 // MOBILE
 // ═══════════════════════════════════════════════════════════════════════════════
-function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",position:"relative"}}>
       <MobileStyles/>
@@ -644,13 +652,11 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
         </>)}
         {view==="proyectos"&&(<>
           <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
-          {projectsForArea(activeArea).map(proj=>(
-            <PlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)}/>
-          ))}
+          <DraggableProjectList projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onReorder={reorderProjects}/>
           {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
           <button className="m-newp" onClick={()=>setNewProjSheet({area:activeArea})}><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</button>
         </>)}
-        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} isDesktop={false}/>}
+        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={false}/>}
         {view==="estrategia"&&(<>
           <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
           {projectsForArea(activeArea).map(proj=>(
@@ -912,7 +918,7 @@ function NewProjectSheet({area,onAdd,isDesktop}){
 
 // ─── Metas View ───────────────────────────────────────────────────────────────
 
-function MetasView({goals,projects,onNew,onEdit,isDesktop}){
+function MetasView({goals,projects,onNew,onEdit,onReorder,isDesktop}){
   const horizons = [
     {key:"anio",  label:"Este año",  sub:"2025",   color:"#9B8878", bg:"#F5F1ED", border:"#C4A882"},
     {key:"medio", label:"2–5 años",  sub:"2026–30", color:"#8A8EA8", bg:"#F1F2F5", border:"#8A8EA8"},
@@ -937,7 +943,7 @@ function MetasView({goals,projects,onNew,onEdit,isDesktop}){
       {/* Camino horizontal — desktop */}
       {isDesktop&&(
         <div style={{width:"100%"}}>
-          <DesktopMetasCanvas goals={goals} horizons={horizons} getChildren={getChildren} getProjects={getProjects} onEdit={onEdit} onNew={onNew}/>
+          <DesktopMetasCanvas goals={goals} horizons={horizons} getChildren={getChildren} getProjects={getProjects} onEdit={onEdit} onNew={onNew} onReorder={onReorder}/>
 
           {/* Unlinked projects warning */}
           {(() => {
@@ -1006,7 +1012,35 @@ function MetasView({goals,projects,onNew,onEdit,isDesktop}){
 }
 
 
-function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew}){
+
+function DraggableGoalColumn({goals,horizon,getChildren,getProjects,onEdit,onReorder,cardRefs}){
+  const [order,setOrder]=useState(null);
+  const dragItem=useRef(null),dragOver=useRef(null);
+  const sorted=order?order.map(id=>goals.find(g=>g.id===id)).filter(Boolean):[...goals].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+
+  function handleDragEnd(){
+    if(dragItem.current===null||dragOver.current===null||dragItem.current===dragOver.current){dragItem.current=null;dragOver.current=null;return;}
+    const r=[...sorted];const[m]=r.splice(dragItem.current,1);r.splice(dragOver.current,0,m);
+    const ids=r.map(g=>g.id);setOrder(ids);onReorder&&onReorder(ids);
+    dragItem.current=null;dragOver.current=null;
+  }
+
+  return(<>
+    {sorted.map((goal,i)=>(
+      <div key={goal.id} ref={el=>{if(cardRefs)cardRefs.current[goal.id]=el;}}
+        draggable
+        onDragStart={()=>dragItem.current=i}
+        onDragEnter={()=>dragOver.current=i}
+        onDragOver={e=>e.preventDefault()}
+        onDragEnd={handleDragEnd}
+        style={{cursor:"grab"}}>
+        <GoalCard goal={goal} horizon={horizon} children={getChildren(goal.id)} linkedProjects={getProjects(goal.id)} onEdit={()=>onEdit(goal)} allGoals={goals}/>
+      </div>
+    ))}
+  </>);
+}
+
+function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew,onReorder}){
   const cardRefs = useRef({});
   const [lines, setLines] = useState([]);
   const containerRef = useRef(null);
@@ -1062,11 +1096,7 @@ function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew
                 <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",paddingLeft:16}}>{h.sub}</div>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:8,paddingRight:16}}>
-                {goals.filter(g=>g.horizon===h.key).map(goal=>(
-                  <div key={goal.id} ref={el=>cardRefs.current[goal.id]=el}>
-                    <GoalCard goal={goal} horizon={h} children={getChildren(goal.id)} linkedProjects={getProjects(goal.id)} onEdit={()=>onEdit(goal)} allGoals={goals}/>
-                  </div>
-                ))}
+                <DraggableGoalColumn goals={goals.filter(g=>g.horizon===h.key)} horizon={h} getChildren={getChildren} getProjects={getProjects} onEdit={onEdit} onReorder={onReorder} cardRefs={cardRefs}/>
                 <button onClick={()=>onNew(h.key)}
                   style={{background:"none",border:"1px dashed #D5CFC8",borderRadius:10,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:"10px",textAlign:"center",transition:"all .2s"}}
                   onMouseOver={e=>e.currentTarget.style.borderColor="#B5A99A"}
@@ -1084,6 +1114,85 @@ function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+
+// ─── Draggable Project Grid (desktop) ────────────────────────────────────────
+function DraggableProjectGrid({projects,onEdit,onDelete,onReorder}){
+  const [order,setOrder]=useState(null);
+  const dragItem=useRef(null),dragOver=useRef(null);
+  const sorted=order?order.map(id=>projects.find(p=>p.id===id)).filter(Boolean):[...projects].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+
+  function handleDragEnd(){
+    if(dragItem.current===null||dragOver.current===null||dragItem.current===dragOver.current){dragItem.current=null;dragOver.current=null;return;}
+    const r=[...sorted];const[m]=r.splice(dragItem.current,1);r.splice(dragOver.current,0,m);
+    const ids=r.map(p=>p.id);setOrder(ids);onReorder&&onReorder(ids);
+    dragItem.current=null;dragOver.current=null;
+  }
+
+  return(
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(360px,1fr))",gap:12}}>
+      {sorted.map((proj,i)=>(
+        <div key={proj.id} draggable
+          onDragStart={()=>dragItem.current=i}
+          onDragEnter={()=>dragOver.current=i}
+          onDragOver={e=>e.preventDefault()}
+          onDragEnd={handleDragEnd}
+          style={{cursor:"grab"}}>
+          <DPlanBlock project={proj} onEdit={()=>onEdit(proj)} onDelete={()=>onDelete(proj.id)}/>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Draggable Project List (mobile) ─────────────────────────────────────────
+function DraggableProjectList({projects,onEdit,onDelete,onReorder}){
+  const [order,setOrder]=useState(null);
+  const [dragIdx,setDragIdx]=useState(null);
+  const [overIdx,setOverIdx]=useState(null);
+  const longPress=useRef(null);
+  const touchMoved=useRef(false);
+  const touchStartY=useRef(0),touchStartX=useRef(0);
+  const rowRefs=useRef([]);
+  const sorted=order?order.map(id=>projects.find(p=>p.id===id)).filter(Boolean):[...projects].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+
+  function handleTouchStart(e,idx){
+    touchStartX.current=e.touches[0].clientX;touchStartY.current=e.touches[0].clientY;touchMoved.current=false;
+    longPress.current=setTimeout(()=>setDragIdx(idx),450);
+  }
+  function handleTouchMove(e){
+    const dx=Math.abs(e.touches[0].clientX-touchStartX.current),dy=Math.abs(e.touches[0].clientY-touchStartY.current);
+    if(dx>6||dy>6){touchMoved.current=true;clearTimeout(longPress.current);}
+    if(dragIdx===null) return;
+    e.preventDefault();
+    const y=e.touches[0].clientY;let found=null;
+    rowRefs.current.forEach((el,i)=>{if(!el)return;const r=el.getBoundingClientRect();if(y>=r.top&&y<=r.bottom)found=i;});
+    if(found!==null&&found!==dragIdx)setOverIdx(found);
+  }
+  function handleTouchEnd(idx){
+    clearTimeout(longPress.current);
+    if(dragIdx!==null){
+      if(overIdx!==null&&overIdx!==dragIdx){
+        const r=[...sorted];const[m]=r.splice(dragIdx,1);r.splice(overIdx,0,m);
+        const ids=r.map(p=>p.id);setOrder(ids);onReorder&&onReorder(ids);
+      }
+      setDragIdx(null);setOverIdx(null);
+    }
+  }
+
+  return(
+    <div onTouchMove={handleTouchMove}>
+      {sorted.map((proj,idx)=>(
+        <div key={proj.id} ref={el=>rowRefs.current[idx]=el}
+          style={{opacity:dragIdx===idx?.4:1,borderTop:overIdx===idx&&dragIdx!==null&&dragIdx!==idx?"2px solid #9B8878":"none"}}
+          onTouchStart={e=>handleTouchStart(e,idx)}
+          onTouchEnd={()=>handleTouchEnd(idx)}>
+          <PlanBlock project={proj} onEdit={()=>onEdit(proj)} onDelete={()=>onDelete(proj.id)}/>
+        </div>
+      ))}
     </div>
   );
 }
