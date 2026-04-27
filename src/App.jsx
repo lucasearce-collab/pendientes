@@ -526,7 +526,9 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
   const [localOrder,setLocalOrder]=useState(null);
   const [dragOver,setDragOver]=useState(null);
   const dragging=useRef(null);
-  const sorted=localOrder?localOrder.map(id=>tasks.find(t=>t.id===id)).filter(Boolean):[...tasks].sort(taskSort);
+  const sorted=localOrder
+    ?localOrder.map(id=>tasks.find(t=>t.id===id)).filter(Boolean)
+    :[...tasks].sort(taskSort);
 
   function handleDragStart(id){ dragging.current=id; }
   function handleDragEnter(id){ setDragOver(id); }
@@ -551,7 +553,7 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
             onDragEnter={()=>handleDragEnter(task.id)}
             onDragOver={e=>e.preventDefault()}
             onDragEnd={handleDragEnd}
-            style={{padding:"12px 4px",borderTop:isOver?"2px solid #9B8878":i>0?"1px solid #EAE6E0":"none",display:"flex",alignItems:"center",gap:12,cursor:"grab",background:overdue?"#FBF8F4":"transparent"}}
+            style={{padding:"12px 4px",borderTop:isOver?"2px solid #9B8878":i>0?"1px solid #EAE6E0":"none",display:"flex",alignItems:"center",gap:12,cursor:"grab",background:isOver?"#F0EDE8":overdue?"#FBF8F4":"transparent",transition:"background .1s"}}
             onClick={()=>onOpen(task)}>
             <button className={`d-ci${task.done?" done":""}`} onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
               {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
