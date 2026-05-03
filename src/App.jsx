@@ -654,25 +654,22 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
   return(
     <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",position:"relative"}}>
       <MobileStyles/>
-      <div style={{padding:"52px 20px 14px"}}>
+      <div style={{padding:"52px 20px 12px"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-          <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".12em",textTransform:"uppercase"}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>
             {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
             <button onClick={()=>setFocusMode(f=>!f)}
-              title={focusMode?"Salir del modo foco":"Modo foco"}
-              style={{background:focusMode?"#6B6258":"none",color:focusMode?"white":"#C8C3BB",border:`1px solid ${focusMode?"#6B6258":"#E5E1DB"}`,borderRadius:99,padding:"4px 12px",fontFamily:"'DM Sans'",fontSize:11,cursor:"pointer",transition:"all .2s",letterSpacing:".04em"}}>
+              style={{background:focusMode?"#2C2825":"none",color:focusMode?"white":"#C8C3BB",border:`1px solid ${focusMode?"#2C2825":"#E5E1DB"}`,borderRadius:99,padding:"3px 12px",fontFamily:"'DM Sans'",fontSize:10,cursor:"pointer",transition:"all .2s",letterSpacing:".06em"}}>
               {focusMode?"◈ Foco":"◈"}
             </button>
-            <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}}>↩</button>
-          </div>
+            <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",padding:0}}>↩</button>
           </div>
         </div>
-        <h1 style={{fontSize:24,fontWeight:500,color:"#2C2825",letterSpacing:"-.01em",marginBottom:16,fontFamily:"'DM Sans',sans-serif"}}>
-          {view==="hoy"?"Hoy":view==="tareas"?"Tareas":view==="proyectos"?"Proyectos":view==="metas"?"Metas":"Estrategia"}
+        <h1 style={{fontSize:28,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:14,fontFamily:"'DM Sans',sans-serif",lineHeight:1.1}}>
+          {view==="hoy"?"Hoy":view==="tareas"?"Tareas":view==="proyectos"?"Proyectos":view==="metas"?"Metas":""}
         </h1>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div style={{display:"flex",gap:4}}>
@@ -1213,14 +1210,14 @@ function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelet
   );
 
   return(
-    <div style={{padding:desktop?"0":"0 20px",maxWidth:desktop?560:undefined,display:"flex",flexDirection:"column",minHeight:desktop?"55vh":"calc(100vh - 230px)"}}>
+    <div style={{padding:desktop?"0":"0 20px",maxWidth:desktop?560:undefined,display:"flex",flexDirection:"column",minHeight:desktop?"55vh":"calc(100vh - 200px)"}}>
 
       {/* Swipeable zone */}
       <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center"}}
         onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
 
         {/* Project label */}
-        <div style={{marginBottom:16}}>
+        <div style={{marginBottom:14}}>
           <span style={{fontFamily:"'DM Sans'",fontSize:11,color:
             (task.type||"normal")==="urgente"?"#C49A7A":
             (task.type||"normal")==="estrategica"?"#5B6BAF":"#B0AA9F",
@@ -1236,8 +1233,8 @@ function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelet
           </div>
           {task.notes&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B948C",lineHeight:1.6,marginBottom:20,padding:"12px 14px",background:"#F7F5F2",borderRadius:10}}>{task.notes}</div>}
           <div style={{display:"flex",gap:10,marginBottom:10}}>
-            <button onClick={handleDone} style={{flex:1,background:"#8FAF8A",color:"white",border:"none",borderRadius:12,padding:"14px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:"pointer"}}>✓ Hecho</button>
-            <button onClick={handleSkip} style={{flex:1,background:"none",color:"#B0AA9F",border:"1px solid #E5E1DB",borderRadius:12,padding:"14px",fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer"}}>Más tarde</button>
+            <button onClick={handleDone} style={{flex:1,background:"#2C2825",color:"white",border:"1px solid #2C2825",borderRadius:12,padding:"14px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:400,cursor:"pointer",letterSpacing:".01em"}}>✓ Hecho</button>
+            <button onClick={handleSkip} style={{flex:1,background:"none",color:"#9B948C",border:"1px solid #E5E1DB",borderRadius:12,padding:"14px",fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer",letterSpacing:".01em"}}>Más tarde</button>
           </div>
           <button onClick={()=>onOpen(task)} style={{width:"100%",background:"none",border:"none",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:11,padding:"2px 0",cursor:"pointer"}}>Editar tarea</button>
         </div>
