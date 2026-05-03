@@ -683,7 +683,6 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
               </button>
             ))}
           </div>
-
         </div>
         {(view==="tareas"||view==="proyectos"||view==="estrategia")&&(
           <div style={{display:"flex",gap:4,marginTop:12,overflowX:"auto",paddingBottom:2}}>
@@ -740,6 +739,7 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
           }
         </>)}
         {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={false}/>}
+
         {view==="estrategia"&&(<>
           <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
           {projectsForArea(activeArea).map(proj=>(
