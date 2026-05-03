@@ -128,7 +128,7 @@ function LoginScreen() {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
         {loading ? "Conectando..." : "Continuar con GitHub"}
       </button>
-      <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",textAlign:"center"}}>Cada usuario ve solo sus propios datos</div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",textAlign:"center",fontStyle:"italic",lineHeight:1.6,maxWidth:240,margin:"0 auto"}}>"Clarity is not something you find. It's something you build, one day at a time."</div>
     </div>
   );
 }
@@ -696,24 +696,23 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
       <div style={{paddingBottom:32}}>
         {view==="hoy"&&(<>
           {focusMode
-            ?<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet}/>
+            ?<div style={{padding:"16px 20px 0"}}><FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet}/></div>
             :<>
               {overdueWork.length>0&&(<>
-                <div style={{padding:"8px 20px 6px",display:"flex",alignItems:"center",gap:8}}>
+                <div style={{padding:"14px 20px 6px",display:"flex",alignItems:"center",gap:8}}>
                   <div style={{width:5,height:5,borderRadius:"50%",background:"#C4A882"}}/>
                   <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase"}}>De días anteriores · {overdueWork.length}</span>
                 </div>
                 <TaskRows tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} overdue reorderTasks={reorderTasks} {...sw}/>
               </>)}
-              {todayWork.length>0&&<>
-                <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 20px 6px"}}>
+              {todayWork.filter(t=>t.date).length>0&&<>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"14px 20px 6px"}}>
                   <div style={{width:5,height:5,borderRadius:"50%",background:"#9B8878"}}/>
-                  <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B8878",letterSpacing:".08em",textTransform:"uppercase"}}>Para hoy</span>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B8878",letterSpacing:".08em",textTransform:"uppercase"}}>Próximos a vencer</span>
                 </div>
-                <TaskRows tasks={todayWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} {...sw}/>
+                <TaskRows tasks={[...tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p&&!t.done&&t.date&&t.date>=todayStr();}).sort((a,b)=>a.date<b.date?-1:1)]} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} {...sw}/>
               </>}
-              {overdueWork.length===0&&todayWork.length===0&&<div style={{textAlign:"center",padding:"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>}
-              {upcomingWork.length>0&&<UpcomingSection tasks={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
+              {overdueWork.length===0&&tasks.filter(t=>!t.done&&t.date&&t.date>=todayStr()).length===0&&<div style={{textAlign:"center",padding:"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>}
             </>
           }
         </>)}
@@ -1108,11 +1107,11 @@ function FocusStrategyMode({projects,onEdit,onDelete}){
 // ─── Grouped Projects View ────────────────────────────────────────────────────
 function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,reorderTasks,sw,desktop}){
   const groups = [
-    {key:"estrategica", label:"Estratégicos", color:"#5B6BAF", bg:"#F0F1F8"},
     {key:"urgente",     label:"Prioritarios", color:"#C49A7A", bg:"#FBF5F0"},
+    {key:"estrategica", label:"Estratégicos", color:"#5B6BAF", bg:"#F0F1F8"},
     {key:"normal",      label:"Normales",     color:"#9B948C", bg:"#F5F3F1"},
   ];
-  const [open,setOpen]=useState({estrategica:true,urgente:true,normal:false});
+  const [open,setOpen]=useState({urgente:true,estrategica:true,normal:false});
 
   return(
     <div>
