@@ -986,33 +986,29 @@ function FocusProjectMode({projects,tasksForProject,onToggle,onDelete,onOpen,onA
       </div>
 
       {/* Project card */}
-      <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}
-        style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:16}}>
-        <div style={{height:3,background:imp?.color||"#E5E1DB"}}/>
-        <div style={{padding:"20px"}}>
-          {/* Header */}
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-            <div>
-              <div style={{fontFamily:"'Lora',serif",fontSize:20,fontWeight:500,color:"#2C2825",marginBottom:4}}>{proj.name}</div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                {proj.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B8878",fontWeight:500}}>{proj.monto}</span>}
-                {imp&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 8px",borderRadius:99}}>{imp.label}</span>}
-              </div>
-            </div>
-            <button onClick={()=>onAddTask(proj)} style={{background:"none",border:"1px solid #E5E1DB",borderRadius:8,padding:"6px 12px",fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",cursor:"pointer"}}>+ tarea</button>
+      <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
+        {/* Type + name header outside card */}
+        <div style={{marginBottom:8}}>
+          {imp&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:imp.color,fontWeight:500,marginBottom:2}}>{imp.label}</div>}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{fontFamily:"'Lora',serif",fontSize:22,fontWeight:500,color:"#2C2825"}}>{proj.name}</div>
+            <button onClick={()=>onAddTask(proj)} style={{background:"none",border:"1px solid #E5E1DB",borderRadius:8,padding:"6px 12px",fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",cursor:"pointer",flexShrink:0,marginLeft:12}}>+ tarea</button>
           </div>
+          {proj.monto&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B8878",fontWeight:500,marginTop:2}}>{proj.monto}</div>}
+        </div>
 
-          {/* Tasks */}
+        {/* Tasks - adaptive card */}
+        <div style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",marginBottom:16,overflow:"hidden"}}>
           {tasks.length===0
-            ?<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic",padding:"8px 0"}}>Sin tareas pendientes</div>
-            :tasks.map(task=>(
+            ?<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic",padding:"16px 20px"}}>Sin tareas pendientes</div>
+            :tasks.map((task,i)=>(
               <div key={task.id} onClick={()=>onOpen(task)}
-                style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid #F5F2EE",cursor:"pointer"}}>
+                style={{display:"flex",alignItems:"center",gap:12,padding:"13px 20px",borderBottom:i<tasks.length-1?"1px solid #F5F2EE":"none",cursor:"pointer"}}>
                 <button style={{width:22,height:22,borderRadius:"50%",border:"1.5px solid #C8C3BB",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
                   onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
                 </button>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",lineHeight:1.4}}>{task.title}</div>
                   {(task.date||task.responsable)&&<div style={{display:"flex",gap:6,marginTop:2}}>
                     {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C"}}>{fmtDate(task.date)}</span>}
                     {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A"}}>→ {task.responsable}</span>}
@@ -1220,30 +1216,29 @@ function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelet
   return(
     <div style={{padding:desktop?"0":"0 20px",maxWidth:desktop?560:undefined}}>
 
-      {/* Task card - swipeable */}
-      <div
-        onTouchStart={handleSwipeStart}
-        onTouchEnd={handleSwipeEnd}
-        style={{background:"white",borderRadius:14,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:12}}>
-        {/* Type bar */}
-        <div style={{height:3,background:
-          (task.type||"normal")==="estrategica"?"#5B6BAF":
-          (task.type||"normal")==="urgente"?"#C4896A":"#E5E1DB"
-        }}/>
-        <div style={{padding:"20px 20px 16px"}}>
-          {/* Project name - prominent */}
-          {proj&&<div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:600,color:isOverdue?"#C4896A":"#6B6258",marginBottom:6,display:"flex",alignItems:"center",gap:8}}>
-            {proj.name}
-            {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:400,color:isOverdue?"#C4896A":isToday?"#9B8878":"#B0AA9F"}}>{fmtDate(task.date)}</span>}
-            {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:400,color:"#8A9E8A"}}>→ {task.responsable}</span>}
-          </div>}
-          {/* Title */}
-          <div style={{fontFamily:"'Lora',serif",fontSize:desktop?20:18,fontWeight:500,color:"#2C2825",lineHeight:1.4,marginBottom:task.notes?14:20}}>
+      {/* Task card */}
+      <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
+        {/* Type label + project */}
+        <div style={{marginBottom:8}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:12,color:
+            (task.type||"normal")==="urgente"?"#C49A7A":
+            (task.type||"normal")==="estrategica"?"#5B6BAF":"#9B948C",
+            fontWeight:500,marginBottom:2}}>
+            {(task.type||"normal")==="urgente"?"Prioritario":(task.type||"normal")==="estrategica"?"Estratégico":"Normal"}
+          </div>
+          {proj&&<div style={{fontFamily:"'Lora',serif",fontSize:22,fontWeight:500,color:"#2C2825"}}>{proj.name}</div>}
+        </div>
+
+        {/* Task card */}
+        <div style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",padding:"20px",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+            {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:isOverdue?"#C4896A":isToday?"#9B8878":"#B0AA9F"}}>{fmtDate(task.date)}</span>}
+            {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#8A9E8A"}}>→ {task.responsable}</span>}
+          </div>
+          <div style={{fontFamily:"'DM Sans'",fontSize:17,color:"#2C2825",lineHeight:1.5,marginBottom:task.notes?14:20}}>
             {task.title}
           </div>
-          {/* Notes */}
-          {task.notes&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B948C",lineHeight:1.5,marginBottom:14,padding:"10px 12px",background:"#F7F5F2",borderRadius:8}}>{task.notes}</div>}
-          {/* Actions */}
+          {task.notes&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B948C",lineHeight:1.5,marginBottom:16,padding:"10px 12px",background:"#F7F5F2",borderRadius:8}}>{task.notes}</div>}
           <div style={{display:"flex",gap:8,marginBottom:8}}>
             <button onClick={handleDone}
               style={{flex:1,background:"#8FAF8A",color:"white",border:"none",borderRadius:10,padding:"13px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:"pointer"}}>
