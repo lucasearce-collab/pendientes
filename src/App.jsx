@@ -1209,38 +1209,22 @@ function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelet
   );
 
   return(
-    <div style={{padding:desktop?"0":"0 20px",maxWidth:desktop?560:undefined,display:"flex",flexDirection:"column",minHeight:desktop?"55vh":"calc(100vh - 200px)"}}>
-
-      {/* Swipeable zone */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center"}}
-        onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
-
-        {/* Project label */}
-        <div style={{marginBottom:14}}>
-          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:
-            (task.type||"normal")==="urgente"?"#C49A7A":
-            (task.type||"normal")==="estrategica"?"#5B6BAF":"#B0AA9F",
-            fontWeight:500,letterSpacing:".1em",textTransform:"uppercase"}}>{proj?.name}</span>
-          {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:isOverdue?"#C4896A":"#C8C3BB",marginLeft:10}}>{fmtDate(task.date)}</span>}
-          {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginLeft:8}}>→ {task.responsable}</span>}
-        </div>
-
-        {/* White card */}
-        <div style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",padding:"24px 24px 20px",marginBottom:16,boxShadow:"0 1px 8px rgba(44,40,37,.04)"}}>
-          <div style={{fontFamily:"'DM Sans'",fontSize:18,fontWeight:400,color:"#2C2825",lineHeight:1.55,marginBottom:task.notes?16:24}}>
-            {task.title}
-          </div>
-          {task.notes&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B948C",lineHeight:1.6,marginBottom:20,padding:"12px 14px",background:"#F7F5F2",borderRadius:10}}>{task.notes}</div>}
-          <div style={{display:"flex",gap:10,marginBottom:10}}>
-            <button onClick={handleDone} style={{flex:1,background:"#2C2825",color:"white",border:"1px solid #2C2825",borderRadius:12,padding:"14px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:400,cursor:"pointer",letterSpacing:".01em"}}>✓ Hecho</button>
-            <button onClick={handleSkip} style={{flex:1,background:"none",color:"#9B948C",border:"1px solid #E5E1DB",borderRadius:12,padding:"14px",fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer",letterSpacing:".01em"}}>Más tarde</button>
-          </div>
-          <button onClick={()=>onOpen(task)} style={{width:"100%",background:"none",border:"none",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:11,padding:"2px 0",cursor:"pointer"}}>Editar tarea</button>
-        </div>
+    <div style={{padding:desktop?"0":"0",maxWidth:desktop?560:undefined}}>
+      <div style={{marginBottom:12}} onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
+        <span style={{fontFamily:"'DM Sans'",fontSize:10,color:(task.type||"normal")==="urgente"?"#C49A7A":(task.type||"normal")==="estrategica"?"#5B6BAF":"#B0AA9F",fontWeight:500,letterSpacing:".12em",textTransform:"uppercase"}}>{proj?.name}</span>
+        {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:isOverdue?"#C4896A":"#C8C3BB",marginLeft:10}}>{fmtDate(task.date)}</span>}
+        {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C8C3BB",marginLeft:8}}>→ {task.responsable}</span>}
       </div>
-
-      {/* Progress */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:8}}>
+      <div style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",padding:"22px 20px 18px",marginBottom:14}} onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
+        <div style={{fontFamily:"'DM Sans'",fontSize:17,fontWeight:400,color:"#2C2825",lineHeight:1.55,marginBottom:task.notes?14:20}}>{task.title}</div>
+        {task.notes&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B948C",lineHeight:1.6,marginBottom:16,padding:"10px 12px",background:"#F7F5F2",borderRadius:10}}>{task.notes}</div>}
+        <div style={{display:"flex",gap:10,marginBottom:8}}>
+          <button onClick={handleDone} style={{flex:1,background:"#2C2825",color:"white",border:"1px solid #2C2825",borderRadius:12,padding:"13px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:400,cursor:"pointer"}}>✓ Hecho</button>
+          <button onClick={handleSkip} style={{flex:1,background:"none",color:"#9B948C",border:"1px solid #E5E1DB",borderRadius:12,padding:"13px",fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer"}}>Más tarde</button>
+        </div>
+        <button onClick={()=>onOpen(task)} style={{width:"100%",background:"none",border:"none",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:11,padding:"2px 0",cursor:"pointer"}}>Editar tarea</button>
+      </div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <button onClick={handlePrev} disabled={idx===0} style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#C8C3BB",padding:"4px 0"}}>←</button>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           <div style={{display:"flex",gap:3}}>
