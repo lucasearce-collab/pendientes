@@ -661,19 +661,33 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button onClick={()=>setFocusMode(f=>!f)}
+              style={{background:focusMode?"#2C2825":"none",color:focusMode?"white":"#B0AA9F",border:focusMode?"none":"1px solid #E5E1DB",borderRadius:99,padding:"4px 12px",fontFamily:"'DM Sans'",fontSize:11,cursor:"pointer",transition:"all .2s"}}>
+              {focusMode?"◈ Foco":"◈"}
+            </button>
             <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}}>↩</button>
+          </div>
           </div>
         </div>
         <h1 style={{fontSize:26,fontWeight:600,color:"#2C2825",letterSpacing:"-.02em",marginBottom:16}}>
           {view==="hoy"?"Hoy":view==="tareas"?"Tareas":view==="proyectos"?"Proyectos":view==="metas"?"Metas":"Estrategia"}
         </h1>
-        <div style={{display:"flex",gap:4}}>
-          {NAV.map(v=>(
-            <button key={v.id} className="m-np" onClick={()=>setView(v.id)}
-              style={{background:view===v.id?"#2C2825":"transparent",color:view===v.id?"#F7F5F2":"#A09890"}}>
-              {v.label}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",gap:4}}>
+            {NAV.map(v=>(
+              <button key={v.id} className="m-np" onClick={()=>setView(v.id)}
+                style={{background:view===v.id?"#2C2825":"transparent",color:view===v.id?"#F7F5F2":"#A09890"}}>
+                {v.label}
+              </button>
+            ))}
+          </div>
+          {view!=="metas"&&(
+            <button onClick={()=>setFocusMode(f=>!f)}
+              style={{fontFamily:"'DM Sans'",fontSize:11,padding:"5px 12px",borderRadius:99,border:`1px solid ${focusMode?"#6B6258":"#E5E1DB"}`,cursor:"pointer",background:focusMode?"#6B6258":"transparent",color:focusMode?"white":"#B0AA9F",transition:"all .2s",whiteSpace:"nowrap"}}>
+              {focusMode?"◈ Foco":"◎ Foco"}
             </button>
-          ))}
+          )}
         </div>
         {(view==="tareas"||view==="proyectos"||view==="estrategia")&&(
           <div style={{display:"flex",gap:4,marginTop:12,overflowX:"auto",paddingBottom:2}}>
@@ -689,17 +703,6 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
       <div style={{height:1,background:"#EAE6E0",margin:"0 20px"}}/>
       <div style={{paddingBottom:32}}>
         {view==="hoy"&&(<>
-          {/* Mode toggle */}
-          <div style={{display:"flex",alignItems:"center",gap:6,padding:"12px 20px 8px"}}>
-            <button onClick={()=>setFocusMode(false)}
-              style={{fontFamily:"'DM Sans'",fontSize:12,padding:"5px 12px",borderRadius:99,border:"none",cursor:"pointer",background:!focusMode?"#2C2825":"transparent",color:!focusMode?"white":"#B0AA9F",transition:"all .2s"}}>
-              Lista
-            </button>
-            <button onClick={()=>setFocusMode(true)}
-              style={{fontFamily:"'DM Sans'",fontSize:12,padding:"5px 12px",borderRadius:99,border:"none",cursor:"pointer",background:focusMode?"#2C2825":"transparent",color:focusMode?"white":"#B0AA9F",transition:"all .2s"}}>
-              Modo foco
-            </button>
-          </div>
           {focusMode
             ?<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet}/>
             :<>
@@ -723,23 +726,22 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
           }
         </>)}
         {view==="tareas"&&(<>
-          <GroupedProjectsView
-            projects={projectsForArea(activeArea)}
-            tasksForProject={tasksForProject}
-            onToggle={toggleDone}
-            onDelete={deleteTask}
-            onOpen={setSheet}
-            onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
-            reorderTasks={reorderTasks}
-            sw={sw}
-          />
+          {focusMode
+            ?<FocusProject projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}/>
+            :<><GroupedProjectsView projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} reorderTasks={reorderTasks} sw={sw}/></>
+          }
           {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
         </>)}
         {view==="proyectos"&&(<>
-          <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
-          <DraggableProjectList projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onReorder={reorderProjects}/>
-          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
-          <button className="m-newp" onClick={()=>setNewProjSheet({area:activeArea})}><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</button>
+          {focusMode
+            ?<FocusPlan projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject}/>
+            :<>
+              <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
+              <DraggableProjectList projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onReorder={reorderProjects}/>
+              {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
+              <button className="m-newp" onClick={()=>setNewProjSheet({area:activeArea})}><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</button>
+            </>
+          }
         </>)}
         {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={false}/>}
         {view==="estrategia"&&(<>
@@ -757,6 +759,359 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
 }
 
 
+
+
+// ─── Focus Project (Tareas tab) ───────────────────────────────────────────────
+function FocusProject({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask}){
+  const [idx,setIdx]=useState(0);
+  const touchStartX=useRef(0),touchStartY=useRef(0);
+
+  useEffect(()=>{ if(idx>=projects.length) setIdx(Math.max(0,projects.length-1)); },[projects.length]);
+
+  if(projects.length===0) return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"60vh",textAlign:"center",padding:"0 32px"}}>
+      <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#C8C3BB"}}>Sin proyectos en esta área</div>
+    </div>
+  );
+
+  const proj=projects[idx];
+  const tasks=tasksForProject(proj.id).filter(t=>!t.done).sort(taskSort);
+  const imp=IMPORTANCE[proj.importance||"normal"];
+
+  function swipeStart(e){touchStartX.current=e.touches[0].clientX;touchStartY.current=e.touches[0].clientY;}
+  function swipeEnd(e){
+    const dx=e.changedTouches[0].clientX-touchStartX.current;
+    const dy=Math.abs(e.changedTouches[0].clientY-touchStartY.current);
+    if(dy>40) return;
+    if(dx<-50&&idx<projects.length-1) setIdx(i=>i+1);
+    if(dx>50&&idx>0) setIdx(i=>i-1);
+  }
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",minHeight:"75vh"}}>
+      {/* Project card - centered, fills space */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",padding:"8px 20px"}}
+        onTouchStart={swipeStart} onTouchEnd={swipeEnd}>
+        
+        {/* Header */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:imp.color}}/>
+            <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 8px",borderRadius:99}}>{imp.label}</span>
+          </div>
+          {proj.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B8878",fontWeight:500}}>{proj.monto}</span>}
+        </div>
+
+        {/* Project name */}
+        <div style={{fontFamily:"'Lora',serif",fontSize:26,fontWeight:500,color:"#2C2825",lineHeight:1.2,marginBottom:20}}>
+          {proj.name}
+        </div>
+
+        {/* Tasks */}
+        <div style={{flex:1,background:"white",borderRadius:14,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:12}}>
+          {tasks.length===0
+            ?<div style={{padding:"32px 20px",textAlign:"center",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin tareas pendientes</div>
+            :tasks.map((task,i)=>(
+              <div key={task.id} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderTop:i>0?"1px solid #F5F2EE":"none",cursor:"pointer"}}
+                onClick={()=>onOpen(task)}>
+                <button style={{width:24,height:24,borderRadius:"50%",border:"1.5px solid #C8C3BB",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
+                  onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
+                </button>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+                  {(task.date||task.responsable)&&<div style={{display:"flex",gap:8,marginTop:2}}>
+                    {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C"}}>{fmtDate(task.date)}</span>}
+                    {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A"}}>→ {task.responsable}</span>}
+                  </div>}
+                </div>
+                <TypeDot type={task.type} done={task.done}/>
+              </div>
+            ))
+          }
+          <div style={{padding:"10px 16px",borderTop:"1px solid #F5F2EE"}}>
+            <button onClick={()=>onAddTask(proj)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:0}}>
+              + agregar tarea
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px 24px"}}>
+        <button onClick={()=>setIdx(i=>i-1)} disabled={idx===0}
+          style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#9B948C"}}>
+          ← Anterior
+        </button>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          {projects.map((_,i)=>(
+            <div key={i} onClick={()=>setIdx(i)} style={{width:i===idx?14:6,height:6,borderRadius:99,background:i===idx?"#6B6258":"#E5E1DB",transition:"width .2s",cursor:"pointer"}}/>
+          ))}
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",marginLeft:4}}>{idx+1}/{projects.length}</span>
+        </div>
+        <button onClick={()=>setIdx(i=>i+1)} disabled={idx===projects.length-1}
+          style={{background:"none",border:"none",cursor:idx===projects.length-1?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===projects.length-1?"#E5E1DB":"#9B948C"}}>
+          Siguiente →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Focus Plan (Proyectos tab) ───────────────────────────────────────────────
+function FocusPlan({projects,onEdit,onDelete}){
+  const [idx,setIdx]=useState(0);
+  const [conf,setConf]=useState(false);
+  const touchStartX=useRef(0),touchStartY=useRef(0);
+
+  useEffect(()=>{ setConf(false); },[idx]);
+  useEffect(()=>{ if(idx>=projects.length) setIdx(Math.max(0,projects.length-1)); },[projects.length]);
+
+  if(projects.length===0) return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"60vh",textAlign:"center",padding:"0 32px"}}>
+      <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#C8C3BB"}}>Sin proyectos en esta área</div>
+    </div>
+  );
+
+  const proj=projects[idx];
+  const imp=IMPORTANCE[proj.importance||"normal"];
+
+  function swipeStart(e){touchStartX.current=e.touches[0].clientX;touchStartY.current=e.touches[0].clientY;}
+  function swipeEnd(e){
+    const dx=e.changedTouches[0].clientX-touchStartX.current;
+    const dy=Math.abs(e.changedTouches[0].clientY-touchStartY.current);
+    if(dy>40) return;
+    if(dx<-50&&idx<projects.length-1) setIdx(i=>i+1);
+    if(dx>50&&idx>0) setIdx(i=>i-1);
+  }
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",minHeight:"75vh"}}>
+      <div style={{flex:1,padding:"8px 20px"}} onTouchStart={swipeStart} onTouchEnd={swipeEnd}>
+
+        {/* Importance */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"3px 10px",borderRadius:99}}>{imp.label}</span>
+          {proj.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B8878",fontWeight:500}}>{proj.monto}</span>}
+        </div>
+
+        {/* Name */}
+        <div style={{fontFamily:"'Lora',serif",fontSize:26,fontWeight:500,color:"#2C2825",lineHeight:1.2,marginBottom:20}}>
+          {proj.name}
+        </div>
+
+        {/* Content card */}
+        <div style={{background:"white",borderRadius:14,border:"1px solid #EAE6E0",padding:"20px",marginBottom:12}}>
+          {proj.description&&<p style={{fontFamily:"'DM Sans'",fontSize:14,color:"#6B6258",marginBottom:16,lineHeight:1.6}}>{proj.description}</p>}
+          {proj.mainGoal&&<div style={{marginBottom:proj.secondaryGoals?.length>0?16:0}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:4}}>Objetivo principal</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:15,color:"#2C2825",fontWeight:500,lineHeight:1.4}}>{proj.mainGoal}</div>
+          </div>}
+          {proj.secondaryGoals?.length>0&&<div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:8}}>Objetivos secundarios</div>
+            {proj.secondaryGoals.map((g,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:6}}>
+                <div style={{width:4,height:4,borderRadius:"50%",background:"#C8C3BB",flexShrink:0,marginTop:6}}/>
+                <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258"}}>{g}</span>
+              </div>
+            ))}
+          </div>}
+          {!proj.description&&!proj.mainGoal&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos definidos</div>}
+        </div>
+
+        {/* Actions */}
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>onEdit(proj)} style={{flex:1,background:"none",border:"1px solid #E5E1DB",borderRadius:10,padding:"11px",fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258",cursor:"pointer"}}>
+            Editar
+          </button>
+          {conf
+            ?<><button onClick={()=>onDelete(proj.id)} style={{flex:1,background:"none",border:"1px solid #C4896A",borderRadius:10,padding:"11px",fontFamily:"'DM Sans'",fontSize:13,color:"#C4896A",cursor:"pointer"}}>Confirmar</button>
+              <button onClick={()=>setConf(false)} style={{flex:1,background:"none",border:"1px solid #E5E1DB",borderRadius:10,padding:"11px",fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",cursor:"pointer"}}>✕</button></>
+            :<button onClick={()=>setConf(true)} style={{flex:1,background:"none",border:"1px solid #E5E1DB",borderRadius:10,padding:"11px",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",cursor:"pointer"}}>Eliminar</button>
+          }
+        </div>
+      </div>
+
+      {/* Nav */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 20px 24px"}}>
+        <button onClick={()=>setIdx(i=>i-1)} disabled={idx===0}
+          style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#9B948C"}}>
+          ← Anterior
+        </button>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          {projects.map((_,i)=>(
+            <div key={i} onClick={()=>setIdx(i)} style={{width:i===idx?14:6,height:6,borderRadius:99,background:i===idx?"#6B6258":"#E5E1DB",transition:"width .2s",cursor:"pointer"}}/>
+          ))}
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",marginLeft:4}}>{idx+1}/{projects.length}</span>
+        </div>
+        <button onClick={()=>setIdx(i=>i+1)} disabled={idx===projects.length-1}
+          style={{background:"none",border:"none",cursor:idx===projects.length-1?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===projects.length-1?"#E5E1DB":"#9B948C"}}>
+          Siguiente →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Focus Project Mode (Tareas) ─────────────────────────────────────────────
+function FocusProjectMode({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask}){
+  const [idx,setIdx]=useState(0);
+  const touchStartX=useRef(0);
+
+  const proj=projects[idx];
+  const tasks=proj?tasksForProject(proj.id).filter(t=>!t.done).sort(taskSort):[];
+  const imp=proj?IMPORTANCE[proj.importance||"normal"]:null;
+
+  function handleSwipeStart(e){touchStartX.current=e.touches[0].clientX;}
+  function handleSwipeEnd(e){
+    const dx=e.changedTouches[0].clientX-touchStartX.current;
+    if(dx<-50&&idx<projects.length-1)setIdx(i=>i+1);
+    if(dx>50&&idx>0)setIdx(i=>i-1);
+  }
+
+  if(projects.length===0) return(
+    <div style={{textAlign:"center",padding:"60px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún</div>
+  );
+
+  return(
+    <div style={{padding:"16px 20px"}}>
+      {/* Progress */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+        <div style={{display:"flex",gap:4}}>
+          {projects.map((_,i)=>(
+            <div key={i} onClick={()=>setIdx(i)} style={{width:i===idx?18:6,height:6,borderRadius:99,background:i===idx?"#6B6258":"#E5E1DB",transition:"width .2s",cursor:"pointer"}}/>
+          ))}
+        </div>
+        <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F"}}>{idx+1}/{projects.length}</span>
+      </div>
+
+      {/* Project card */}
+      <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}
+        style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:16}}>
+        <div style={{height:3,background:imp?.color||"#E5E1DB"}}/>
+        <div style={{padding:"20px"}}>
+          {/* Header */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+            <div>
+              <div style={{fontFamily:"'Lora',serif",fontSize:20,fontWeight:500,color:"#2C2825",marginBottom:4}}>{proj.name}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                {proj.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B8878",fontWeight:500}}>{proj.monto}</span>}
+                {imp&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 8px",borderRadius:99}}>{imp.label}</span>}
+              </div>
+            </div>
+            <button onClick={()=>onAddTask(proj)} style={{background:"none",border:"1px solid #E5E1DB",borderRadius:8,padding:"6px 12px",fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",cursor:"pointer"}}>+ tarea</button>
+          </div>
+
+          {/* Tasks */}
+          {tasks.length===0
+            ?<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic",padding:"8px 0"}}>Sin tareas pendientes</div>
+            :tasks.map(task=>(
+              <div key={task.id} onClick={()=>onOpen(task)}
+                style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid #F5F2EE",cursor:"pointer"}}>
+                <button style={{width:22,height:22,borderRadius:"50%",border:"1.5px solid #C8C3BB",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
+                  onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
+                </button>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+                  {(task.date||task.responsable)&&<div style={{display:"flex",gap:6,marginTop:2}}>
+                    {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C"}}>{fmtDate(task.date)}</span>}
+                    {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A"}}>→ {task.responsable}</span>}
+                  </div>}
+                </div>
+                <TypeDot type={task.type} done={task.done}/>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+
+      {/* Nav */}
+      <div style={{display:"flex",justifyContent:"space-between"}}>
+        <button onClick={()=>setIdx(i=>Math.max(i-1,0))} disabled={idx===0}
+          style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#9B948C"}}>← Anterior</button>
+        <button onClick={()=>setIdx(i=>Math.min(i+1,projects.length-1))} disabled={idx===projects.length-1}
+          style={{background:"none",border:"none",cursor:idx===projects.length-1?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===projects.length-1?"#E5E1DB":"#9B948C"}}>Siguiente →</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Focus Strategy Mode (Proyectos) ─────────────────────────────────────────
+function FocusStrategyMode({projects,onEdit,onDelete}){
+  const [idx,setIdx]=useState(0);
+  const touchStartX=useRef(0);
+  const [conf,setConf]=useState(false);
+
+  const proj=projects[idx];
+  const imp=proj?IMPORTANCE[proj.importance||"normal"]:null;
+  const has=proj&&(proj.description||proj.mainGoal||(proj.secondaryGoals?.length>0));
+
+  function handleSwipeStart(e){touchStartX.current=e.touches[0].clientX;}
+  function handleSwipeEnd(e){
+    const dx=e.changedTouches[0].clientX-touchStartX.current;
+    if(dx<-50&&idx<projects.length-1){setIdx(i=>i+1);setConf(false);}
+    if(dx>50&&idx>0){setIdx(i=>i-1);setConf(false);}
+  }
+
+  if(projects.length===0) return(
+    <div style={{textAlign:"center",padding:"60px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún</div>
+  );
+
+  return(
+    <div style={{padding:"16px 20px"}}>
+      {/* Progress */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+        <div style={{display:"flex",gap:4}}>
+          {projects.map((_,i)=>(
+            <div key={i} onClick={()=>{setIdx(i);setConf(false);}} style={{width:i===idx?18:6,height:6,borderRadius:99,background:i===idx?"#6B6258":"#E5E1DB",transition:"width .2s",cursor:"pointer"}}/>
+          ))}
+        </div>
+        <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F"}}>{idx+1}/{projects.length}</span>
+      </div>
+
+      {/* Project card */}
+      <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}
+        style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:16}}>
+        <div style={{height:3,background:imp?.color||"#E5E1DB"}}/>
+        <div style={{padding:"20px"}}>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16}}>
+            <div>
+              <div style={{fontFamily:"'Lora',serif",fontSize:20,fontWeight:500,color:"#2C2825",marginBottom:4}}>{proj.name}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                {proj.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B8878",fontWeight:500}}>{proj.monto}</span>}
+                {imp&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 8px",borderRadius:99}}>{imp.label}</span>}
+              </div>
+            </div>
+            <button onClick={()=>onEdit(proj)} style={{background:"none",border:"1px solid #E5E1DB",borderRadius:8,padding:"6px 12px",fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",cursor:"pointer",flexShrink:0}}>Editar</button>
+          </div>
+          {proj.description&&<p style={{fontFamily:"'DM Sans'",fontSize:14,color:"#6B6258",lineHeight:1.6,marginBottom:14}}>{proj.description}</p>}
+          {proj.mainGoal&&<div style={{marginBottom:12}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:4}}>Objetivo principal</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",fontWeight:500}}>{proj.mainGoal}</div>
+          </div>}
+          {proj.secondaryGoals?.length>0&&<div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:8}}>Objetivos secundarios</div>
+            {proj.secondaryGoals.map((g,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:6}}>
+                <div style={{width:4,height:4,borderRadius:"50%",background:"#C8C3BB",flexShrink:0,marginTop:6}}/>
+                <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258"}}>{g}</span>
+              </div>
+            ))}
+          </div>}
+          {!has&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos · tap en Editar</div>}
+        </div>
+      </div>
+
+      {/* Nav */}
+      <div style={{display:"flex",justifyContent:"space-between"}}>
+        <button onClick={()=>{setIdx(i=>Math.max(i-1,0));setConf(false);}} disabled={idx===0}
+          style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#9B948C"}}>← Anterior</button>
+        <button onClick={()=>{setIdx(i=>Math.min(i+1,projects.length-1));setConf(false);}} disabled={idx===projects.length-1}
+          style={{background:"none",border:"none",cursor:idx===projects.length-1?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===projects.length-1?"#E5E1DB":"#9B948C"}}>Siguiente →</button>
+      </div>
+    </div>
+  );
+}
 
 // ─── Grouped Projects View ────────────────────────────────────────────────────
 function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,reorderTasks,sw,desktop}){
