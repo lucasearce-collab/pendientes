@@ -383,15 +383,20 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
 
         {/* Content */}
         <div style={{flex:1,overflowY:"auto",padding:"28px 32px 40px"}}>
-          {view==="hoy"&&<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
+          {view==="hoy"&&<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop/>}
           {view==="tareas"&&(
             <div style={{maxWidth:720}}>
-              {projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId).map(proj=>(
-                <DProjBlock key={proj.id} project={proj} area={activeArea} tasks={tasksForProject(proj.id)}
-                  onToggle={toggleDone} onOpen={setSheet}
-                  onAddTask={()=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
-                  reorderTasks={reorderTasks} sw={sw}/>
-              ))}
+              <GroupedTasksView
+                projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)}
+                tasksForProject={tasksForProject}
+                onToggle={toggleDone}
+                onDelete={deleteTask}
+                onOpen={setSheet}
+                onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
+                reorderTasks={reorderTasks}
+                sw={sw}
+                desktop
+              />
               {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos. Creá uno desde Proyectos.</div>}
             </div>
           )}
@@ -680,12 +685,16 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
           {upcomingWork.length>0&&<UpcomingSection tasks={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
         </>)}
         {view==="tareas"&&(<>
-          {projectsForArea(activeArea).map(proj=>(
-            <ProjBlock key={proj.id} project={proj} area={activeArea} tasks={tasksForProject(proj.id)}
-              onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet}
-              onAddTask={()=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
-              reorderTasks={reorderTasks} {...sw}/>
-          ))}
+          <GroupedTasksView
+            projects={projectsForArea(activeArea)}
+            tasksForProject={tasksForProject}
+            onToggle={toggleDone}
+            onDelete={deleteTask}
+            onOpen={setSheet}
+            onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
+            reorderTasks={reorderTasks}
+            sw={sw}
+          />
           {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
         </>)}
         {view==="proyectos"&&(<>
@@ -705,6 +714,191 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
         </>)}
       </div>
       {sheets}
+    </div>
+  );
+}
+
+
+// ─── Focus Mode ───────────────────────────────────────────────────────────────
+function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelete,onOpen,desktop}){
+  const allTasks = [
+    ...overdueWork,
+    ...todayWork.filter(t=>!overdueWork.find(o=>o.id===t.id)),
+    ...upcomingWork,
+  ].filter(t=>!t.done);
+
+  const [idx,setIdx] = useState(0);
+
+  // Reset index if tasks change
+  useEffect(()=>{
+    if(idx>=allTasks.length) setIdx(Math.max(0,allTasks.length-1));
+  },[allTasks.length]);
+
+  const task = allTasks[idx];
+  const proj = task ? projects.find(p=>p.id===task.projectId) : null;
+  const isOverdue = task ? (task.date && task.date < todayStr()) : false;
+  const isToday = task ? task.date===todayStr() : false;
+
+  function handleDone(){ onToggle(task.id); }
+  function handleNext(){ setIdx(i=>Math.min(i+1,allTasks.length-1)); }
+  function handlePrev(){ setIdx(i=>Math.max(i-1,0)); }
+  function handleSkip(){
+    // Move task to end of list by going next
+    setIdx(i=>i<allTasks.length-1?i+1:0);
+  }
+
+  if(allTasks.length===0) return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"80px 32px",textAlign:"center"}}>
+      <div style={{fontSize:28,marginBottom:16,color:"#C8C3BB"}}>◈</div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:16,color:"#9B948C",marginBottom:4}}>Todo al día</div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB"}}>No hay tareas pendientes para hoy</div>
+    </div>
+  );
+
+  const pad = desktop ? "0" : "0 20px";
+
+  return(
+    <div style={{padding:desktop?"0":"0",maxWidth:desktop?600:undefined}}>
+      {/* Progress indicator */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:desktop?"16px 0 24px":pad?"16px 20px 24px":"16px 20px 24px"}}>
+        <div style={{display:"flex",gap:4}}>
+          {allTasks.map((_,i)=>(
+            <div key={i} onClick={()=>setIdx(i)} style={{width:i===idx?20:6,height:6,borderRadius:99,background:i===idx?"#6B6258":"#E5E1DB",transition:"width .2s,background .2s",cursor:"pointer"}}/>
+          ))}
+        </div>
+        <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F"}}>{idx+1} de {allTasks.length}</div>
+      </div>
+
+      {/* Task card */}
+      <div style={{margin:desktop?"0":"0 20px",background:"white",borderRadius:16,border:"1px solid #EAE6E0",overflow:"hidden",boxShadow:"0 2px 12px rgba(44,40,37,.06)"}}>
+        {/* Type indicator */}
+        <div style={{height:3,background:
+          (task.type||"normal")==="estrategica"?"#5B6BAF":
+          (task.type||"normal")==="urgente"?"#C4896A":"#E5E1DB"
+        }}/>
+
+        <div style={{padding:"24px"}}>
+          {/* Project + date */}
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+            {proj&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B948C",fontWeight:500}}>{proj.name}</span>}
+            {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:isOverdue?"#C4896A":isToday?"#9B8878":"#B0AA9F"}}>{fmtDate(task.date)}</span>}
+            {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#8A9E8A"}}>→ {task.responsable}</span>}
+          </div>
+
+          {/* Task title */}
+          <div style={{fontFamily:"'Lora',serif",fontSize:desktop?20:18,fontWeight:500,color:"#2C2825",lineHeight:1.4,marginBottom:task.notes?16:24}}>
+            {task.title}
+          </div>
+
+          {/* Notes */}
+          {task.notes&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B948C",lineHeight:1.6,marginBottom:24,padding:"12px 14px",background:"#F7F5F2",borderRadius:8}}>{task.notes}</div>}
+
+          {/* Actions */}
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={handleDone}
+              style={{flex:1,background:"#2C2825",color:"white",border:"none",borderRadius:12,padding:"14px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:"pointer",transition:"background .2s"}}>
+              ✓ Hecho
+            </button>
+            <button onClick={handleSkip}
+              style={{flex:1,background:"none",color:"#9B948C",border:"1px solid #E5E1DB",borderRadius:12,padding:"14px",fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer",transition:"all .2s"}}>
+              Más tarde
+            </button>
+          </div>
+
+          {/* Edit link */}
+          <button onClick={()=>onOpen(task)}
+            style={{width:"100%",background:"none",border:"none",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:12,padding:"12px 0 0",cursor:"pointer",textAlign:"center"}}>
+            Editar tarea
+          </button>
+        </div>
+      </div>
+
+      {/* Nav arrows */}
+      {allTasks.length>1&&(
+        <div style={{display:"flex",justifyContent:"space-between",padding:desktop?"16px 0":"16px 20px"}}>
+          <button onClick={handlePrev} disabled={idx===0}
+            style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#9B948C",padding:"4px 0"}}>
+            ← Anterior
+          </button>
+          <button onClick={handleNext} disabled={idx===allTasks.length-1}
+            style={{background:"none",border:"none",cursor:idx===allTasks.length-1?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===allTasks.length-1?"#E5E1DB":"#9B948C",padding:"4px 0"}}>
+            Siguiente →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Grouped Tasks View ───────────────────────────────────────────────────────
+function GroupedTasksView({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,reorderTasks,sw,desktop}){
+  const groups = [
+    {key:"estrategica", label:"Estratégicas", color:"#5B6BAF", bg:"#F0F1F8"},
+    {key:"urgente",     label:"Prioritarias", color:"#C49A7A", bg:"#FBF5F0"},
+    {key:"normal",      label:"Normales",     color:"#9B948C", bg:"#F5F3F1"},
+  ];
+  const [open,setOpen]=useState({estrategica:true,urgente:true,normal:false});
+
+  // Collect all tasks across all projects, grouped by type
+  const allTasks = projects.flatMap(proj=>
+    tasksForProject(proj.id).filter(t=>!t.done).map(t=>({...t,_proj:proj}))
+  );
+
+  return(
+    <div>
+      {groups.map(g=>{
+        const gtasks=allTasks.filter(t=>(t.type||"normal")===g.key).sort(taskSort);
+        if(gtasks.length===0) return null;
+        const isOpen=open[g.key];
+        return(
+          <div key={g.key} style={{marginBottom:4}}>
+            {/* Group header */}
+            <div onClick={()=>setOpen(o=>({...o,[g.key]:!o[g.key]}))}
+              style={{display:"flex",alignItems:"center",gap:10,padding:desktop?"12px 0":"12px 20px",cursor:"pointer",userSelect:"none",borderBottom:"1px solid #EAE6E0"}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:g.color,flexShrink:0}}/>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:g.color,flex:1}}>{g.label}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",background:g.bg,padding:"2px 8px",borderRadius:99}}>{gtasks.length}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:14,color:"#C8C3BB",marginLeft:4}}>{isOpen?"▾":"›"}</span>
+            </div>
+            {/* Tasks */}
+            {isOpen&&(
+              <div>
+                {gtasks.map(task=>{
+                  const proj=task._proj;
+                  return(
+                    <div key={task.id}
+                      style={{display:"flex",alignItems:"center",gap:12,padding:desktop?"12px 0 12px 20px":"12px 20px",borderBottom:"1px solid #F5F2EE",cursor:"pointer"}}
+                      onClick={()=>onOpen(task)}>
+                      <button style={{width:22,height:22,borderRadius:"50%",border:`1.5px solid ${task.done?"#B5A99A":"#C8C3BB"}`,background:task.done?"#B5A99A":"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
+                        onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
+                        {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
+                      </button>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+                        <div style={{display:"flex",gap:8,marginTop:2}}>
+                          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C",fontWeight:500}}>{proj.name}</span>
+                          {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C"}}>{fmtDate(task.date)}</span>}
+                          {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A"}}>→ {task.responsable}</span>}
+                        </div>
+                      </div>
+                      <TypeDot type={task.type} done={task.done}/>
+                    </div>
+                  );
+                })}
+                {/* Add task buttons per project */}
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",padding:desktop?"8px 0 4px 20px":"8px 20px 4px"}}>
+                  {projects.map(proj=>(
+                    <button key={proj.id} onClick={()=>onAddTask(proj)}
+                      style={{background:"none",border:"1px dashed #D5CFC8",borderRadius:99,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:"3px 10px"}}>
+                      + {proj.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
