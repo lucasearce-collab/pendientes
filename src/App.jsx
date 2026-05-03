@@ -422,7 +422,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
               </button>
             </div>
             {focusMode
-              ?<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop/>
+              ?<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop/>
               :<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>
             }
           </>)}
@@ -724,7 +724,7 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
       <div style={{paddingBottom:32}}>
         {view==="hoy"&&(<>
           {focusMode
-            ?<div style={{padding:"16px 20px 0"}}><FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet}/></div>
+            ?<div style={{padding:"16px 20px 0"}}><FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet}/></div>
             :<>
               {overdueWork.length>0&&(<>
                 <div style={{padding:"14px 20px 6px",display:"flex",alignItems:"center",gap:8}}>
@@ -1447,7 +1447,7 @@ function CerezoView({points, treeLevel, TREE_LEVELS, desktop}){
 }
 
 // ─── Focus Mode ───────────────────────────────────────────────────────────────
-function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelete,onOpen,desktop}){
+function FocusMode({overdueWork,todayWork,upcomingWork,tasks,projects,onToggle,onDelete,onOpen,desktop}){
   const typeOrder = t => (t.type||"normal")==="urgente"?0:(t.type||"normal")==="estrategica"?1:2;
   const allTasks = [
     // 1. Vencidas - más antigua primero
