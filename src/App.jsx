@@ -68,6 +68,7 @@ const NAV = [
   { id:"tareas",    label:"Tareas",    icon:"☐" },
   { id:"proyectos", label:"Proyectos", icon:"⊞" },
   { id:"metas",     label:"Metas",     icon:"◎" },
+  { id:"cerezo",    label:"🌸",         icon:"🌸" },
 ];
 
 const HORIZONS = {
