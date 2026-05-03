@@ -68,7 +68,7 @@ const NAV = [
   { id:"tareas",    label:"Tareas",    icon:"☐" },
   { id:"proyectos", label:"Proyectos", icon:"⊞" },
   { id:"metas",     label:"Metas",     icon:"◎" },
-  { id:"cerezo",    label:"🌸",         icon:"🌸" },
+  { id:"cerezo",    label:"🌱",         icon:"🌱" },
 ];
 
 const HORIZONS = {
@@ -1450,17 +1450,20 @@ function CerezoView({points, treeLevel, TREE_LEVELS, desktop}){
 function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelete,onOpen,desktop}){
   const typeOrder = t => (t.type||"normal")==="urgente"?0:(t.type||"normal")==="estrategica"?1:2;
   const allTasks = [
-    // 1. Overdue sorted by date asc (oldest first), then by type
+    // 1. Vencidas - más antigua primero
     ...overdueWork.filter(t=>!t.done).sort((a,b)=>{
       if(a.date!==b.date) return a.date<b.date?-1:1;
       return typeOrder(a)-typeOrder(b);
     }),
-    // 2. Today/tomorrow sorted by date then type
-    ...todayWork.filter(t=>!t.done&&!overdueWork.find(o=>o.id===t.id)).sort((a,b)=>{
+    // 2. Próximas a vencer (con fecha >= hoy) - más próxima primero
+    ...tasks.filter(t=>{
+      const p=projects.find(x=>x.id===t.projectId);
+      return p&&!t.done&&t.date&&t.date>=todayStr()&&!overdueWork.find(o=>o.id===t.id);
+    }).sort((a,b)=>{
       if(a.date!==b.date) return a.date<b.date?-1:1;
       return typeOrder(a)-typeOrder(b);
     }),
-    // 3. No date: urgente, estrategica, normal
+    // 3. Sin fecha (lo antes posible): prioritario > estratégico > normal
     ...upcomingWork.filter(t=>!t.done).sort((a,b)=>typeOrder(a)-typeOrder(b)),
   ];
 
