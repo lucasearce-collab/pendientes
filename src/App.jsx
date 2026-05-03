@@ -386,7 +386,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
           {view==="hoy"&&<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop/>}
           {view==="tareas"&&(
             <div style={{maxWidth:720}}>
-              <GroupedTasksView
+              <GroupedProjectsView
                 projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)}
                 tasksForProject={tasksForProject}
                 onToggle={toggleDone}
@@ -672,20 +672,19 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
       </div>
       <div style={{height:1,background:"#EAE6E0",margin:"0 20px"}}/>
       <div style={{paddingBottom:32}}>
-        {view==="hoy"&&(<>
-          {overdueWork.length>0&&(<>
-            <div style={{padding:"18px 20px 6px",display:"flex",alignItems:"center",gap:8}}>
-              <div style={{width:5,height:5,borderRadius:"50%",background:"#C4A882"}}/>
-              <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase"}}>De días anteriores · {overdueWork.length}</span>
-            </div>
-            <TaskRows tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} overdue reorderTasks={reorderTasks} {...sw}/>
-          </>)}
-          {todayWork.length>0?<TaskRows tasks={todayWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} {...sw}/>
-            :<div style={{textAlign:"center",padding:"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>{overdueWork.length===0?"Todo al día ·":""}</div>}
-          {upcomingWork.length>0&&<UpcomingSection tasks={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
-        </>)}
+        {view==="hoy"&&(
+          <FocusMode
+            overdueWork={overdueWork}
+            todayWork={todayWork}
+            upcomingWork={upcomingWork}
+            projects={projects}
+            onToggle={toggleDone}
+            onDelete={deleteTask}
+            onOpen={setSheet}
+          />
+        )}
         {view==="tareas"&&(<>
-          <GroupedTasksView
+          <GroupedProjectsView
             projects={projectsForArea(activeArea)}
             tasksForProject={tasksForProject}
             onToggle={toggleDone}
@@ -718,6 +717,52 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
   );
 }
 
+
+
+// ─── Grouped Projects View ────────────────────────────────────────────────────
+function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,reorderTasks,sw,desktop}){
+  const groups = [
+    {key:"estrategica", label:"Estratégicos", color:"#5B6BAF", bg:"#F0F1F8"},
+    {key:"urgente",     label:"Prioritarios", color:"#C49A7A", bg:"#FBF5F0"},
+    {key:"normal",      label:"Normales",     color:"#9B948C", bg:"#F5F3F1"},
+  ];
+  const [open,setOpen]=useState({estrategica:true,urgente:true,normal:false});
+
+  return(
+    <div>
+      {groups.map(g=>{
+        const gprojects=projects.filter(p=>(p.importance||"normal")===g.key);
+        if(gprojects.length===0) return null;
+        const isOpen=open[g.key];
+        const totalPending=gprojects.reduce((sum,p)=>sum+tasksForProject(p.id).filter(t=>!t.done).length,0);
+        return(
+          <div key={g.key} style={{marginBottom:4}}>
+            {/* Group header */}
+            <div onClick={()=>setOpen(o=>({...o,[g.key]:!o[g.key]}))}
+              style={{display:"flex",alignItems:"center",gap:10,padding:desktop?"12px 0":"12px 20px",cursor:"pointer",userSelect:"none",borderBottom:"1px solid #EAE6E0"}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:g.color,flexShrink:0}}/>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:g.color,flex:1}}>{g.label}</span>
+              {totalPending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:g.color,background:g.bg,padding:"2px 8px",borderRadius:99}}>{totalPending}</span>}
+              <span style={{fontFamily:"'DM Sans'",fontSize:14,color:"#C8C3BB",marginLeft:4}}>{isOpen?"▾":"›"}</span>
+            </div>
+            {/* Projects within group */}
+            {isOpen&&gprojects.map(proj=>(
+              desktop
+                ?<DProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
+                    onToggle={onToggle} onOpen={onOpen}
+                    onAddTask={()=>onAddTask(proj)}
+                    reorderTasks={reorderTasks} sw={sw}/>
+                :<ProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
+                    onToggle={onToggle} onDelete={onDelete} onOpen={onOpen}
+                    onAddTask={()=>onAddTask(proj)}
+                    reorderTasks={reorderTasks} {...(sw||{})}/>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // ─── Focus Mode ───────────────────────────────────────────────────────────────
 function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelete,onOpen,desktop}){
