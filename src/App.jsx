@@ -783,11 +783,24 @@ function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelet
   ];
 
   const [idx,setIdx] = useState(0);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
 
-  // Reset index if tasks change
   useEffect(()=>{
     if(idx>=allTasks.length) setIdx(Math.max(0,allTasks.length-1));
   },[allTasks.length]);
+
+  function handleSwipeStart(e){
+    touchStartX.current=e.touches[0].clientX;
+    touchStartY.current=e.touches[0].clientY;
+  }
+  function handleSwipeEnd(e){
+    const dx=e.changedTouches[0].clientX-touchStartX.current;
+    const dy=Math.abs(e.changedTouches[0].clientY-touchStartY.current);
+    if(dy>40) return; // vertical scroll, ignore
+    if(dx<-50&&idx<allTasks.length-1) setIdx(i=>i+1); // swipe left = next
+    if(dx>50&&idx>0) setIdx(i=>i-1); // swipe right = prev
+  }
 
   const task = allTasks[idx];
   const proj = task ? projects.find(p=>p.id===task.projectId) : null;
@@ -813,8 +826,11 @@ function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelet
   return(
     <div style={{padding:desktop?"0":"0 20px",maxWidth:desktop?560:undefined}}>
 
-      {/* Task card */}
-      <div style={{background:"white",borderRadius:14,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:12}}>
+      {/* Task card - swipeable */}
+      <div
+        onTouchStart={handleSwipeStart}
+        onTouchEnd={handleSwipeEnd}
+        style={{background:"white",borderRadius:14,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:12}}>
         {/* Type bar */}
         <div style={{height:3,background:
           (task.type||"normal")==="estrategica"?"#5B6BAF":
@@ -836,11 +852,11 @@ function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelet
           {/* Actions */}
           <div style={{display:"flex",gap:8,marginBottom:8}}>
             <button onClick={handleDone}
-              style={{flex:2,background:"#2C2825",color:"white",border:"none",borderRadius:10,padding:"12px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:"pointer"}}>
+              style={{flex:1,background:"#8FAF8A",color:"white",border:"none",borderRadius:10,padding:"13px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:"pointer"}}>
               ✓ Hecho
             </button>
             <button onClick={handleSkip}
-              style={{flex:1,background:"none",color:"#9B948C",border:"1px solid #E5E1DB",borderRadius:10,padding:"12px",fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer"}}>
+              style={{flex:1,background:"none",color:"#9B948C",border:"1px solid #E5E1DB",borderRadius:10,padding:"13px",fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer"}}>
               Más tarde
             </button>
           </div>
