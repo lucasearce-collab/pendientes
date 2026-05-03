@@ -668,7 +668,7 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
             <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",padding:0}}>↩</button>
           </div>
         </div>
-        <h1 style={{fontSize:28,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:14,fontFamily:"'DM Sans',sans-serif",lineHeight:1.1}}>
+        <h1 style={{fontSize:26,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:12,fontFamily:"'DM Sans',sans-serif",lineHeight:1.1}}>
           {view==="hoy"?"Hoy":view==="tareas"?"Tareas":view==="proyectos"?"Proyectos":view==="metas"?"Metas":""}
         </h1>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -784,9 +784,9 @@ function FocusProject({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTa
   }
 
   return(
-    <div style={{display:"flex",flexDirection:"column",minHeight:"75vh"}}>
+    <div style={{display:"flex",flexDirection:"column"}}>
       {/* Project card - centered, fills space */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",padding:"8px 20px"}}
+      <div style={{display:"flex",flexDirection:"column",padding:"8px 20px 16px"}}
         onTouchStart={swipeStart} onTouchEnd={swipeEnd}>
         
         {/* Header */}
@@ -799,12 +799,12 @@ function FocusProject({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTa
         </div>
 
         {/* Project name */}
-        <div style={{fontFamily:"'Lora',serif",fontSize:26,fontWeight:500,color:"#2C2825",lineHeight:1.2,marginBottom:20}}>
+        <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:22,fontWeight:300,color:"#2C2825",lineHeight:1.2,marginBottom:16}}>
           {proj.name}
         </div>
 
         {/* Tasks */}
-        <div style={{flex:1,background:"white",borderRadius:14,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:12}}>
+        <div style={{background:"white",borderRadius:14,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:12}}>
           {tasks.length===0
             ?<div style={{padding:"32px 20px",textAlign:"center",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin tareas pendientes</div>
             :tasks.map((task,i)=>(
@@ -881,7 +881,7 @@ function FocusPlan({projects,onEdit,onDelete}){
   }
 
   return(
-    <div style={{display:"flex",flexDirection:"column",minHeight:"75vh"}}>
+    <div style={{display:"flex",flexDirection:"column"}}>
       <div style={{flex:1,padding:"8px 20px"}} onTouchStart={swipeStart} onTouchEnd={swipeEnd}>
 
         {/* Importance */}
@@ -891,7 +891,7 @@ function FocusPlan({projects,onEdit,onDelete}){
         </div>
 
         {/* Name */}
-        <div style={{fontFamily:"'Lora',serif",fontSize:26,fontWeight:500,color:"#2C2825",lineHeight:1.2,marginBottom:20}}>
+        <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:22,fontWeight:300,color:"#2C2825",lineHeight:1.2,marginBottom:16}}>
           {proj.name}
         </div>
 
