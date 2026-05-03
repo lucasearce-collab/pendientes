@@ -766,11 +766,21 @@ function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,
 
 // ─── Focus Mode ───────────────────────────────────────────────────────────────
 function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelete,onOpen,desktop}){
+  const typeOrder = t => (t.type||"normal")==="urgente"?0:(t.type||"normal")==="estrategica"?1:2;
   const allTasks = [
-    ...overdueWork,
-    ...todayWork.filter(t=>!overdueWork.find(o=>o.id===t.id)),
-    ...upcomingWork,
-  ].filter(t=>!t.done);
+    // 1. Overdue sorted by date asc (oldest first), then by type
+    ...overdueWork.filter(t=>!t.done).sort((a,b)=>{
+      if(a.date!==b.date) return a.date<b.date?-1:1;
+      return typeOrder(a)-typeOrder(b);
+    }),
+    // 2. Today/tomorrow sorted by date then type
+    ...todayWork.filter(t=>!t.done&&!overdueWork.find(o=>o.id===t.id)).sort((a,b)=>{
+      if(a.date!==b.date) return a.date<b.date?-1:1;
+      return typeOrder(a)-typeOrder(b);
+    }),
+    // 3. No date: urgente, estrategica, normal
+    ...upcomingWork.filter(t=>!t.done).sort((a,b)=>typeOrder(a)-typeOrder(b)),
+  ];
 
   const [idx,setIdx] = useState(0);
 
@@ -810,15 +820,15 @@ function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelet
           (task.type||"normal")==="estrategica"?"#5B6BAF":
           (task.type||"normal")==="urgente"?"#C4896A":"#E5E1DB"
         }}/>
-        <div style={{padding:"18px 20px"}}>
-          {/* Meta info */}
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-            {proj&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B948C",fontWeight:500}}>{proj.name}</span>}
-            {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:isOverdue?"#C4896A":isToday?"#9B8878":"#B0AA9F"}}>{fmtDate(task.date)}</span>}
-            {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#8A9E8A"}}>→ {task.responsable}</span>}
-          </div>
+        <div style={{padding:"20px 20px 16px"}}>
+          {/* Project name - prominent */}
+          {proj&&<div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:600,color:isOverdue?"#C4896A":"#6B6258",marginBottom:6,display:"flex",alignItems:"center",gap:8}}>
+            {proj.name}
+            {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:400,color:isOverdue?"#C4896A":isToday?"#9B8878":"#B0AA9F"}}>{fmtDate(task.date)}</span>}
+            {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:400,color:"#8A9E8A"}}>→ {task.responsable}</span>}
+          </div>}
           {/* Title */}
-          <div style={{fontFamily:"'Lora',serif",fontSize:desktop?19:17,fontWeight:500,color:"#2C2825",lineHeight:1.4,marginBottom:task.notes?12:16}}>
+          <div style={{fontFamily:"'Lora',serif",fontSize:desktop?20:18,fontWeight:500,color:"#2C2825",lineHeight:1.4,marginBottom:task.notes?14:20}}>
             {task.title}
           </div>
           {/* Notes */}
