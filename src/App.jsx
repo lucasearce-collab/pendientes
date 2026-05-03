@@ -155,7 +155,28 @@ export default function App() {
   const [planSheet,setPlanSheet]=useState(null);
   const [goalSheet,setGoalSheet]=useState(null);
   const [swipedId, setSwipedId] = useState(null);
+  const [celebrate, setCelebrate] = useState(null); // {type:'task'|'project', points:N}
   const [focusMode, setFocusMode] = useState(false);
+  const [points, setPoints] = useState(()=>{ try{return parseInt(localStorage.getItem('clarity_points')||'0');}catch{return 0;} });
+
+  function addPoints(n){
+    setPoints(p=>{
+      const np=p+n;
+      try{localStorage.setItem('clarity_points',String(np));}catch{}
+      return np;
+    });
+  }
+
+  const TREE_LEVELS = [
+    {name:"Semilla",       min:0,     max:999},
+    {name:"Primer Brote",  min:1000,  max:4999},
+    {name:"Rama Joven",    min:5000,  max:14999},
+    {name:"Árbol en Flor", min:15000, max:39999},
+    {name:"Árbol Maduro",  min:40000, max:99999},
+    {name:"Cerezo Mayor",  min:100000,max:Infinity},
+  ];
+  const currentLevel = TREE_LEVELS.findIndex((l,i)=>points>=l.min&&points<=l.max);
+  const treeLevel = TREE_LEVELS[Math.max(0,currentLevel)];
   const touchStart = useRef(null);
 
   useEffect(()=>{
@@ -266,6 +287,7 @@ export default function App() {
     await Promise.all(reordered.map(g=>safeUpsert("goals",{...goalToDb(g,uid),sort_order:g.sortOrder||0})));
   }
   async function addGoal(g){
+    addPoints(500);
     const n={id:"g"+Date.now(),...g};
     setGoals(gs=>[...gs,n]); setGoalSheet(null);
     await safeUpsert("goals",goalToDb(n,uid));
@@ -299,7 +321,7 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,view,setView,focusMode,setFocusMode,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
+  const props={tasks,projects,goals,view,setView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
   return isDesktop?<DesktopLayout {...props}/>:<MobileLayout {...props}/>;
 }
 
@@ -316,7 +338,7 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESKTOP
 // ═══════════════════════════════════════════════════════════════════════════════
-function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{display:"flex",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",overflow:"hidden"}}>
       <DesktopStyles/>
@@ -428,6 +450,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
             </div>
           )}
           {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={true}/>}
+          {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop/>}
         </div>
       </div>
       {sheets}
@@ -625,6 +648,7 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
 function DesktopStyles(){return(<style>{`
   @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}body{background:#F7F5F2;overflow:hidden;}
+  @keyframes fadeSlideUp{from{opacity:0;transform:translateX(-50%) translateY(16px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
   .d-nav{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 10px;border-radius:8px;text-align:left;transition:all .15s;}
   .d-nav:hover{background:#E8E3DC;color:#3A3530!important;}
   .d-proj{display:flex;align-items:center;justify-content:space-between;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;border-radius:6px;transition:all .15s;gap:6px;}
@@ -653,7 +677,7 @@ function DesktopStyles(){return(<style>{`
 // ═══════════════════════════════════════════════════════════════════════════════
 // MOBILE
 // ═══════════════════════════════════════════════════════════════════════════════
-function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,focusMode,setFocusMode,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",position:"relative"}}>
       <MobileStyles/>
@@ -738,6 +762,7 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
           }
         </>)}
         {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={false}/>}
+        {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS}/>}
 
         {view==="estrategia"&&(<>
           <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
@@ -1148,6 +1173,274 @@ function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,
           </div>
         );
       })}
+    </div>
+  );
+}
+
+
+
+// ─── Celebration Toast ────────────────────────────────────────────────────────
+function CelebrationToast({celebrate}){
+  if(!celebrate) return null;
+  const isProject = celebrate.type==='project';
+  return(
+    <div style={{
+      position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)",
+      background:isProject?"#2C2825":"white",
+      color:isProject?"white":"#2C2825",
+      border:isProject?"none":"1px solid #EAE6E0",
+      borderRadius:99, padding:"12px 22px",
+      boxShadow:"0 4px 24px rgba(44,40,37,.14)",
+      fontFamily:"'DM Sans',sans-serif",
+      display:"flex", alignItems:"center", gap:10,
+      zIndex:9999,
+      animation:"fadeSlideUp .4s ease",
+      whiteSpace:"nowrap",
+    }}>
+      <span style={{fontSize:isProject?18:15}}>{isProject?"🌸":"✓"}</span>
+      <div>
+        <div style={{fontSize:13,fontWeight:500}}>
+          {isProject?`${celebrate.name}`:"Tarea completada"}
+        </div>
+        <div style={{fontSize:11,opacity:.7}}>
+          +{celebrate.points.toLocaleString()} puntos
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Cerezo View ──────────────────────────────────────────────────────────────
+const TREE_SVGS = [
+  // 0: Semilla
+  `<svg viewBox="0 0 80 100" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="40" cy="78" rx="20" ry="4" fill="#C4B5A5" opacity="0.3"/>
+    <path d="M40 52 C47 50 52 60 50 72 C48 80 44 84 40 84 C36 84 32 80 30 72 C28 60 33 50 40 52Z" fill="#8B6F5E" opacity="0.82"/>
+    <path d="M40 52 C41 44 38 38 40 32" stroke="#8B7355" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    <path d="M40 36 C36 32 33 28 35 24 C37 26 39 32 40 36Z" fill="#8FAF8A" opacity="0.7"/>
+  </svg>`,
+  // 1: Primer Brote
+  `<svg viewBox="0 0 80 110" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="40" cy="86" rx="22" ry="5" fill="#C4B5A5" opacity="0.3"/>
+    <path d="M40 86 C41 74 39 62 41 48 C42 40 41 32 40 26" stroke="#8B7355" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M41 46 C36 42 28 36 26 28 C30 26 36 32 39 40Z" fill="#8FAF8A" opacity="0.72"/>
+    <path d="M41 50 C47 44 55 40 56 32 C52 31 46 36 43 42Z" fill="#9BBF9B" opacity="0.68"/>
+    <circle cx="40" cy="24" r="3.5" fill="#E8B4C0" opacity="0.88"/>
+    <circle cx="34" cy="20" r="2.5" fill="#F2D0D8" opacity="0.82"/>
+    <circle cx="46" cy="20" r="2.5" fill="#ECC0C8" opacity="0.82"/>
+  </svg>`,
+  // 2: Rama Joven
+  `<svg viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="50" cy="94" rx="28" ry="6" fill="#C4B5A5" opacity="0.3"/>
+    <path d="M49 94 C48 80 49 66 51 52 C52 44 50 36 49 24" stroke="#8B7355" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+    <path d="M50 52 C43 46 34 40 28 30" stroke="#9B8060" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M50 44 C58 38 66 34 70 24" stroke="#9B8060" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path d="M28 30 C22 24 20 16 24 12 C28 14 30 22 30 30Z" fill="#8FAF8A" opacity="0.58"/>
+    <path d="M70 24 C74 18 72 10 66 8 C64 12 66 18 68 24Z" fill="#8FAF8A" opacity="0.58"/>
+    <circle cx="22" cy="12" r="3.5" fill="#E8B4C0" opacity="0.85"/>
+    <circle cx="30" cy="8" r="3" fill="#F2D0D8" opacity="0.8"/>
+    <circle cx="68" cy="8" r="3.5" fill="#E8B4C0" opacity="0.85"/>
+    <circle cx="50" cy="20" r="3" fill="#F2D0D8" opacity="0.8"/>
+  </svg>`,
+  // 3: Árbol en Flor
+  `<svg viewBox="0 0 130 140" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="65" cy="112" rx="40" ry="7" fill="#C4B5A5" opacity="0.3"/>
+    <path d="M63 112 C61 96 62 80 64 66 C65 56 64 44 62 30" stroke="#7A6248" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M63 58 C52 50 38 42 26 28" stroke="#8B7355" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+    <path d="M64 50 C76 42 90 36 100 22" stroke="#8B7355" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+    <path d="M63 72 C54 66 42 62 34 50" stroke="#9B8060" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M64 68 C74 62 86 58 92 46" stroke="#9B8060" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M26 28 C18 20 16 10 22 6 C28 8 30 18 30 28Z" fill="#8FAF8A" opacity="0.52"/>
+    <path d="M100 22 C106 14 106 4 100 2 C94 4 94 14 96 22Z" fill="#8FAF8A" opacity="0.52"/>
+    <path d="M34 50 C26 44 20 34 24 26 C30 24 36 34 38 44Z" fill="#9BBF9B" opacity="0.48"/>
+    <path d="M92 46 C100 40 104 30 100 22 C94 22 90 32 88 42Z" fill="#9BBF9B" opacity="0.48"/>
+    <path d="M62 30 C58 20 58 10 62 4 C66 8 66 18 64 28Z" fill="#8FAF8A" opacity="0.46"/>
+    <circle cx="18" cy="6" r="4.5" fill="#E8B4C0" opacity="0.9"/>
+    <circle cx="28" cy="2" r="4" fill="#F2D0D8" opacity="0.88"/>
+    <circle cx="36" cy="6" r="4" fill="#ECC0C8" opacity="0.86"/>
+    <circle cx="100" cy="2" r="4.5" fill="#E8B4C0" opacity="0.9"/>
+    <circle cx="108" cy="8" r="4" fill="#F2D0D8" opacity="0.88"/>
+    <circle cx="94" cy="4" r="4" fill="#ECC0C8" opacity="0.86"/>
+    <circle cx="58" cy="4" r="4.5" fill="#E8B4C0" opacity="0.9"/>
+    <circle cx="68" cy="2" r="4" fill="#F2D0D8" opacity="0.88"/>
+    <circle cx="22" cy="24" r="4" fill="#ECC0C8" opacity="0.84"/>
+    <circle cx="98" cy="20" r="4" fill="#E8B4C0" opacity="0.84"/>
+    <circle cx="34" cy="28" r="3.8" fill="#F2D0D8" opacity="0.82"/>
+    <circle cx="90" cy="26" r="3.8" fill="#ECC0C8" opacity="0.82"/>
+    <path d="M46 98 C48 94 52 96 50 100 C48 104 44 102 46 98Z" fill="#E8B4C0" opacity="0.42"/>
+    <path d="M78 102 C80 98 84 100 82 104 C80 108 76 106 78 102Z" fill="#F2D0D8" opacity="0.38"/>
+  </svg>`,
+  // 4: Árbol Maduro
+  `<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+    <path d="M74 148 C60 142 44 148 32 144" stroke="#5C4433" stroke-width="1.5" fill="none" opacity="0.3" stroke-linecap="round"/>
+    <path d="M86 148 C100 142 116 148 128 144" stroke="#5C4433" stroke-width="1.5" fill="none" opacity="0.3" stroke-linecap="round"/>
+    <ellipse cx="80" cy="150" rx="52" ry="9" fill="#C4B5A5" opacity="0.26"/>
+    <path d="M76 150 C74 134 75 116 77 98 C78 86 76 74 74 56" stroke="#5C4433" stroke-width="8" fill="none" stroke-linecap="round"/>
+    <path d="M85 150 C87 134 86 118 85 100 C84 88 82 76 80 58" stroke="#6B5240" stroke-width="4.5" fill="none" stroke-linecap="round" opacity="0.35"/>
+    <path d="M75 66 C60 56 42 48 28 30" stroke="#6B5240" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M77 58 C94 48 112 40 126 22" stroke="#6B5240" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M75 82 C62 74 46 68 34 56" stroke="#7A6248" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M77 76 C92 68 108 62 118 50" stroke="#7A6248" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M75 100 C64 94 50 88 42 76" stroke="#8B7355" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M77 96 C90 90 104 84 112 72" stroke="#8B7355" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M28 30 C18 18 14 4 20 -2 C28 2 32 16 32 30Z" fill="#6B9B6B" opacity="0.44"/>
+    <path d="M28 30 C16 24 8 14 10 2 C18 -2 26 10 28 24Z" fill="#7A9E7A" opacity="0.4"/>
+    <path d="M126 22 C136 10 140 -4 134 -10 C126 -6 122 8 122 22Z" fill="#6B9B6B" opacity="0.44"/>
+    <path d="M126 22 C138 16 146 6 144 -6 C136 -10 128 2 126 16Z" fill="#7A9E7A" opacity="0.4"/>
+    <path d="M34 56 C22 48 14 34 18 22 C26 18 34 32 36 48Z" fill="#7A9E7A" opacity="0.42"/>
+    <path d="M118 50 C130 42 136 28 132 16 C124 14 118 28 116 44Z" fill="#7A9E7A" opacity="0.42"/>
+    <path d="M74 56 C66 40 66 22 76 14 C84 18 84 36 80 54Z" fill="#8FAF8A" opacity="0.4"/>
+    <circle cx="18" cy="-4" r="5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="28" cy="-8" r="4.5" fill="#F2D0D8" opacity="0.9"/>
+    <circle cx="10" cy="8" r="4.5" fill="#ECC0C8" opacity="0.88"/>
+    <circle cx="134" cy="-8" r="5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="124" cy="-12" r="4.5" fill="#F2D0D8" opacity="0.9"/>
+    <circle cx="142" cy="2" r="4.5" fill="#ECC0C8" opacity="0.88"/>
+    <circle cx="16" cy="20" r="4.5" fill="#F5D8E0" opacity="0.86"/>
+    <circle cx="130" cy="14" r="4.5" fill="#E8B4C0" opacity="0.86"/>
+    <circle cx="72" cy="12" r="5" fill="#F2D0D8" opacity="0.92"/>
+    <circle cx="82" cy="8" r="4.5" fill="#ECC0C8" opacity="0.9"/>
+    <circle cx="36" cy="22" r="4.2" fill="#E8B4C0" opacity="0.84"/>
+    <circle cx="116" cy="16" r="4.2" fill="#F2D0D8" opacity="0.84"/>
+    <circle cx="40" cy="46" r="4.2" fill="#ECC0C8" opacity="0.82"/>
+    <circle cx="112" cy="40" r="4.2" fill="#E8B4C0" opacity="0.82"/>
+    <path d="M50 128 C52 124 56 126 54 130 C52 134 48 132 50 128Z" fill="#E8B4C0" opacity="0.44"/>
+    <path d="M80 132 C82 128 86 130 84 134 C82 138 78 136 80 132Z" fill="#F2D0D8" opacity="0.4"/>
+    <path d="M110 128 C112 124 116 126 114 130 C112 134 108 132 110 128Z" fill="#ECC0C8" opacity="0.4"/>
+  </svg>`,
+  // 5: Cerezo Mayor - full spectacular
+  `<svg viewBox="20 0 160 240" xmlns="http://www.w3.org/2000/svg">
+    <path d="M88 220 C78 216 62 220 50 216" stroke="#4A3428" stroke-width="1.8" fill="none" opacity="0.35" stroke-linecap="round"/>
+    <path d="M112 220 C122 216 138 220 150 216" stroke="#4A3428" stroke-width="1.8" fill="none" opacity="0.35" stroke-linecap="round"/>
+    <path d="M96 224 C92 230 96 238 100 235 C104 238 108 230 104 224" stroke="#5C4433" stroke-width="1.4" fill="none" opacity="0.28" stroke-linecap="round"/>
+    <ellipse cx="100" cy="220" rx="55" ry="8" fill="#C4B5A5" opacity="0.22"/>
+    <path d="M92 220 C89 200 90 178 92 158 C93 142 91 128 90 108" stroke="#4A3428" stroke-width="11" fill="none" stroke-linecap="round"/>
+    <path d="M106 220 C108 200 107 180 106 160 C105 144 104 130 102 110" stroke="#5C4433" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.35"/>
+    <path d="M93 175 C91 179 93 184 95 182" stroke="#3A2818" stroke-width="1.3" fill="none" opacity="0.18" stroke-linecap="round"/>
+    <path d="M91 118 C76 108 58 96 42 76" stroke="#5C4433" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M93 110 C110 98 128 88 144 68" stroke="#5C4433" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M91 132 C74 124 56 118 44 104" stroke="#6B5240" stroke-width="3.8" fill="none" stroke-linecap="round"/>
+    <path d="M93 126 C110 118 128 112 138 98" stroke="#6B5240" stroke-width="3.8" fill="none" stroke-linecap="round"/>
+    <path d="M91 150 C76 144 62 136 52 124" stroke="#7A6248" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+    <path d="M93 144 C108 138 122 130 130 118" stroke="#7A6248" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+    <path d="M92 108 C90 96 88 84 86 70" stroke="#6B5240" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <path d="M42 76 C34 66 28 54 24 42" stroke="#8B7355" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M42 76 C36 72 28 68 20 60" stroke="#8B7355" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M144 68 C150 58 154 46 156 34" stroke="#8B7355" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M144 68 C152 64 158 60 164 52" stroke="#8B7355" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M44 104 C34 98 24 90 18 78" stroke="#8B7355" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M138 98 C148 92 156 84 160 72" stroke="#8B7355" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M86 70 C80 58 76 46 74 32" stroke="#8B7355" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M86 70 C94 60 100 50 104 36" stroke="#8B7355" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M24 42 C18 34 16 24 18 16" stroke="#A89070" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <path d="M156 34 C160 24 158 14 154 8" stroke="#A89070" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <path d="M74 32 C70 22 72 12 76 6" stroke="#A89070" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+    <path d="M104 36 C108 26 108 16 104 8" stroke="#A89070" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+    <circle cx="76" cy="8" r="5.5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="88" cy="4" r="5" fill="#F2D0D8" opacity="0.92"/>
+    <circle cx="100" cy="2" r="5.5" fill="#ECC0C8" opacity="0.94"/>
+    <circle cx="112" cy="4" r="5" fill="#F5D8E0" opacity="0.92"/>
+    <circle cx="122" cy="8" r="5" fill="#E8B4C0" opacity="0.9"/>
+    <circle cx="20" cy="14" r="5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="14" cy="24" r="4.8" fill="#F2D0D8" opacity="0.9"/>
+    <circle cx="22" cy="28" r="5" fill="#ECC0C8" opacity="0.9"/>
+    <circle cx="152" cy="8" r="5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="162" cy="16" r="4.8" fill="#F2D0D8" opacity="0.9"/>
+    <circle cx="154" cy="22" r="5" fill="#ECC0C8" opacity="0.9"/>
+    <circle cx="10" cy="36" r="4.5" fill="#E8B4C0" opacity="0.88"/>
+    <circle cx="20" cy="40" r="4.8" fill="#F5D8E0" opacity="0.88"/>
+    <circle cx="168" cy="26" r="4.5" fill="#E8B4C0" opacity="0.88"/>
+    <circle cx="158" cy="32" r="4.8" fill="#F5D8E0" opacity="0.88"/>
+    <circle cx="12" cy="50" r="4.5" fill="#ECC0C8" opacity="0.86"/>
+    <circle cx="22" cy="54" r="4.8" fill="#E8B4C0" opacity="0.86"/>
+    <circle cx="168" cy="42" r="4.5" fill="#ECC0C8" opacity="0.86"/>
+    <circle cx="158" cy="46" r="4.8" fill="#E8B4C0" opacity="0.86"/>
+    <circle cx="16" cy="68" r="4.8" fill="#F2D0D8" opacity="0.86"/>
+    <circle cx="30" cy="62" r="4.5" fill="#ECC0C8" opacity="0.85"/>
+    <circle cx="162" cy="62" r="4.8" fill="#F2D0D8" opacity="0.86"/>
+    <circle cx="150" cy="68" r="4.5" fill="#ECC0C8" opacity="0.85"/>
+    <circle cx="52" cy="44" r="4.5" fill="#E8B4C0" opacity="0.84"/>
+    <circle cx="64" cy="36" r="4.5" fill="#F2D0D8" opacity="0.84"/>
+    <circle cx="130" cy="36" r="4.5" fill="#E8B4C0" opacity="0.84"/>
+    <circle cx="120" cy="28" r="4.5" fill="#F5D8E0" opacity="0.84"/>
+    <circle cx="74" cy="32" r="4.8" fill="#ECC0C8" opacity="0.86"/>
+    <circle cx="100" cy="10" r="5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="84" cy="12" r="4.5" fill="#ECC0C8" opacity="0.9"/>
+    <circle cx="116" cy="12" r="4.5" fill="#F5D8E0" opacity="0.9"/>
+    <circle cx="28" cy="100" r="4.5" fill="#E8B4C0" opacity="0.83"/>
+    <circle cx="40" cy="92" r="4.5" fill="#F2D0D8" opacity="0.83"/>
+    <circle cx="152" cy="98" r="4.5" fill="#E8B4C0" opacity="0.83"/>
+    <circle cx="142" cy="106" r="4.5" fill="#F2D0D8" opacity="0.83"/>
+    <path d="M46 196 C48 192 52 194 50 198 C48 202 44 200 46 196Z" fill="#E8B4C0" opacity="0.5" transform="rotate(-15,48,197)"/>
+    <path d="M68 204 C70 200 74 202 72 206 C70 210 66 208 68 204Z" fill="#F2D0D8" opacity="0.46" transform="rotate(10,70,204)"/>
+    <path d="M90 198 C92 194 96 196 94 200 C92 204 88 202 90 198Z" fill="#ECC0C8" opacity="0.46" transform="rotate(-8,92,198)"/>
+    <path d="M112 202 C114 198 118 200 116 204 C114 208 110 206 112 202Z" fill="#E8B4C0" opacity="0.46" transform="rotate(12,114,202)"/>
+    <path d="M134 196 C136 192 140 194 138 198 C136 202 132 200 134 196Z" fill="#F5D8E0" opacity="0.48" transform="rotate(-20,136,196)"/>
+    <path d="M156 204 C158 200 162 202 160 206 C158 210 154 208 156 204Z" fill="#ECC0C8" opacity="0.44" transform="rotate(8,158,204)"/>
+  </svg>`,
+];
+
+function CerezoView({points, treeLevel, TREE_LEVELS, desktop}){
+  const levelIdx = TREE_LEVELS.findIndex(l=>l.name===treeLevel?.name);
+  const nextLevel = TREE_LEVELS[levelIdx+1];
+  const progress = nextLevel
+    ? Math.min(100, ((points - treeLevel.min) / (nextLevel.min - treeLevel.min)) * 100)
+    : 100;
+
+  return(
+    <div style={{
+      padding: desktop ? "0" : "24px 20px",
+      maxWidth: desktop ? 560 : undefined,
+      display:"flex", flexDirection:"column", alignItems:"center",
+      textAlign:"center"
+    }}>
+      {/* Tree illustration */}
+      <div
+        style={{width: desktop?220:180, height: desktop?220:180, marginBottom:16}}
+        dangerouslySetInnerHTML={{__html: TREE_SVGS[Math.max(0,Math.min(5,levelIdx))]}}
+      />
+
+      {/* Level name */}
+      <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase",marginBottom:6}}>
+        {treeLevel?.name}
+      </div>
+
+      {/* Points */}
+      <div style={{fontFamily:"'DM Sans'",fontSize:28,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:4}}>
+        {points.toLocaleString()}
+      </div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",marginBottom:20}}>puntos</div>
+
+      {/* Progress to next level */}
+      {nextLevel&&(
+        <div style={{width:"100%",maxWidth:220,marginBottom:8}}>
+          <div style={{height:3,background:"#EAE6E0",borderRadius:99,overflow:"hidden",marginBottom:8}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"linear-gradient(to right,#C4A882,#8FAF8A)",borderRadius:99,transition:"width .4s ease"}}/>
+          </div>
+          <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>
+            {(nextLevel.min - points).toLocaleString()} puntos para {nextLevel.name}
+          </div>
+        </div>
+      )}
+      {!nextLevel&&(
+        <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontStyle:"italic"}}>
+          Has alcanzado el nivel más alto
+        </div>
+      )}
+
+      {/* All levels */}
+      <div style={{width:"100%",maxWidth:280,marginTop:28}}>
+        {TREE_LEVELS.map((l,i)=>(
+          <div key={l.name} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:"1px solid #F5F2EE",opacity:i<=levelIdx?1:0.4}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:i<=levelIdx?"#9B8878":"#E5E1DB",flexShrink:0}}/>
+            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:i===levelIdx?"#2C2825":"#B0AA9F",fontWeight:i===levelIdx?500:400,flex:1,textAlign:"left"}}>{l.name}</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>{l.min.toLocaleString()}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Clarity wordmark at bottom */}
+      <div style={{marginTop:24,fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".2em",textTransform:"uppercase",color:"#D5CFC8"}}>Clarity</div>
     </div>
   );
 }
