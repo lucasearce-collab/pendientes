@@ -749,6 +749,9 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
           <button className="m-newp" onClick={()=>setNewProjSheet({area:activeArea})}><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</button>
         </>)}
       </div>
+      <div style={{textAlign:"center",padding:"16px 0 28px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8",fontWeight:400,userSelect:"none"}}>
+        Clarity
+      </div>
       {sheets}
     </div>
   );
