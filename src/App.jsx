@@ -152,6 +152,7 @@ export default function App() {
   const [planSheet,setPlanSheet]=useState(null);
   const [goalSheet,setGoalSheet]=useState(null);
   const [swipedId, setSwipedId] = useState(null);
+  const [focusMode, setFocusMode] = useState(false);
   const touchStart = useRef(null);
 
   useEffect(()=>{
@@ -295,7 +296,7 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
+  const props={tasks,projects,goals,view,setView,focusMode,setFocusMode,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
   return isDesktop?<DesktopLayout {...props}/>:<MobileLayout {...props}/>;
 }
 
@@ -312,7 +313,7 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESKTOP
 // ═══════════════════════════════════════════════════════════════════════════════
-function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{display:"flex",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",overflow:"hidden"}}>
       <DesktopStyles/>
@@ -383,7 +384,22 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
 
         {/* Content */}
         <div style={{flex:1,overflowY:"auto",padding:"28px 32px 40px"}}>
-          {view==="hoy"&&<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop/>}
+          {view==="hoy"&&(<>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:20}}>
+              <button onClick={()=>setFocusMode(false)}
+                style={{fontFamily:"'DM Sans'",fontSize:12,padding:"5px 14px",borderRadius:99,border:"none",cursor:"pointer",background:!focusMode?"#2C2825":"transparent",color:!focusMode?"white":"#B0AA9F",transition:"all .2s"}}>
+                Lista
+              </button>
+              <button onClick={()=>setFocusMode(true)}
+                style={{fontFamily:"'DM Sans'",fontSize:12,padding:"5px 14px",borderRadius:99,border:"none",cursor:"pointer",background:focusMode?"#2C2825":"transparent",color:focusMode?"white":"#B0AA9F",transition:"all .2s"}}>
+                Modo foco
+              </button>
+            </div>
+            {focusMode
+              ?<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop/>
+              :<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>
+            }
+          </>)}
           {view==="tareas"&&(
             <div style={{maxWidth:720}}>
               <GroupedProjectsView
@@ -634,7 +650,7 @@ function DesktopStyles(){return(<style>{`
 // ═══════════════════════════════════════════════════════════════════════════════
 // MOBILE
 // ═══════════════════════════════════════════════════════════════════════════════
-function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,focusMode,setFocusMode,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",position:"relative"}}>
       <MobileStyles/>
@@ -672,17 +688,40 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
       </div>
       <div style={{height:1,background:"#EAE6E0",margin:"0 20px"}}/>
       <div style={{paddingBottom:32}}>
-        {view==="hoy"&&(
-          <FocusMode
-            overdueWork={overdueWork}
-            todayWork={todayWork}
-            upcomingWork={upcomingWork}
-            projects={projects}
-            onToggle={toggleDone}
-            onDelete={deleteTask}
-            onOpen={setSheet}
-          />
-        )}
+        {view==="hoy"&&(<>
+          {/* Mode toggle */}
+          <div style={{display:"flex",alignItems:"center",gap:6,padding:"12px 20px 8px"}}>
+            <button onClick={()=>setFocusMode(false)}
+              style={{fontFamily:"'DM Sans'",fontSize:12,padding:"5px 12px",borderRadius:99,border:"none",cursor:"pointer",background:!focusMode?"#2C2825":"transparent",color:!focusMode?"white":"#B0AA9F",transition:"all .2s"}}>
+              Lista
+            </button>
+            <button onClick={()=>setFocusMode(true)}
+              style={{fontFamily:"'DM Sans'",fontSize:12,padding:"5px 12px",borderRadius:99,border:"none",cursor:"pointer",background:focusMode?"#2C2825":"transparent",color:focusMode?"white":"#B0AA9F",transition:"all .2s"}}>
+              Modo foco
+            </button>
+          </div>
+          {focusMode
+            ?<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet}/>
+            :<>
+              {overdueWork.length>0&&(<>
+                <div style={{padding:"8px 20px 6px",display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:5,height:5,borderRadius:"50%",background:"#C4A882"}}/>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase"}}>De días anteriores · {overdueWork.length}</span>
+                </div>
+                <TaskRows tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} overdue reorderTasks={reorderTasks} {...sw}/>
+              </>)}
+              {todayWork.length>0&&<>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 20px 6px"}}>
+                  <div style={{width:5,height:5,borderRadius:"50%",background:"#9B8878"}}/>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B8878",letterSpacing:".08em",textTransform:"uppercase"}}>Para hoy</span>
+                </div>
+                <TaskRows tasks={todayWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} {...sw}/>
+              </>}
+              {overdueWork.length===0&&todayWork.length===0&&<div style={{textAlign:"center",padding:"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>}
+              {upcomingWork.length>0&&<UpcomingSection tasks={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>}
+            </>
+          }
+        </>)}
         {view==="tareas"&&(<>
           <GroupedProjectsView
             projects={projectsForArea(activeArea)}
