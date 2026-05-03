@@ -793,84 +793,74 @@ function FocusMode({overdueWork,todayWork,upcomingWork,projects,onToggle,onDelet
   }
 
   if(allTasks.length===0) return(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"80px 32px",textAlign:"center"}}>
-      <div style={{fontSize:28,marginBottom:16,color:"#C8C3BB"}}>◈</div>
-      <div style={{fontFamily:"'DM Sans'",fontSize:16,color:"#9B948C",marginBottom:4}}>Todo al día</div>
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 32px",textAlign:"center"}}>
+      <div style={{fontSize:24,marginBottom:12,color:"#C8C3BB"}}>◈</div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:15,color:"#9B948C",marginBottom:4}}>Todo al día</div>
       <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB"}}>No hay tareas pendientes para hoy</div>
     </div>
   );
 
-  const pad = desktop ? "0" : "0 20px";
-
   return(
-    <div style={{padding:desktop?"0":"0",maxWidth:desktop?600:undefined}}>
-      {/* Progress indicator */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:desktop?"16px 0 24px":pad?"16px 20px 24px":"16px 20px 24px"}}>
-        <div style={{display:"flex",gap:4}}>
-          {allTasks.map((_,i)=>(
-            <div key={i} onClick={()=>setIdx(i)} style={{width:i===idx?20:6,height:6,borderRadius:99,background:i===idx?"#6B6258":"#E5E1DB",transition:"width .2s,background .2s",cursor:"pointer"}}/>
-          ))}
-        </div>
-        <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F"}}>{idx+1} de {allTasks.length}</div>
-      </div>
+    <div style={{padding:desktop?"0":"0 20px",maxWidth:desktop?560:undefined}}>
 
       {/* Task card */}
-      <div style={{margin:desktop?"0":"0 20px",background:"white",borderRadius:16,border:"1px solid #EAE6E0",overflow:"hidden",boxShadow:"0 2px 12px rgba(44,40,37,.06)"}}>
-        {/* Type indicator */}
+      <div style={{background:"white",borderRadius:14,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:12}}>
+        {/* Type bar */}
         <div style={{height:3,background:
           (task.type||"normal")==="estrategica"?"#5B6BAF":
           (task.type||"normal")==="urgente"?"#C4896A":"#E5E1DB"
         }}/>
-
-        <div style={{padding:"24px"}}>
-          {/* Project + date */}
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+        <div style={{padding:"18px 20px"}}>
+          {/* Meta info */}
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
             {proj&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B948C",fontWeight:500}}>{proj.name}</span>}
             {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:isOverdue?"#C4896A":isToday?"#9B8878":"#B0AA9F"}}>{fmtDate(task.date)}</span>}
             {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#8A9E8A"}}>→ {task.responsable}</span>}
           </div>
-
-          {/* Task title */}
-          <div style={{fontFamily:"'Lora',serif",fontSize:desktop?20:18,fontWeight:500,color:"#2C2825",lineHeight:1.4,marginBottom:task.notes?16:24}}>
+          {/* Title */}
+          <div style={{fontFamily:"'Lora',serif",fontSize:desktop?19:17,fontWeight:500,color:"#2C2825",lineHeight:1.4,marginBottom:task.notes?12:16}}>
             {task.title}
           </div>
-
           {/* Notes */}
-          {task.notes&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B948C",lineHeight:1.6,marginBottom:24,padding:"12px 14px",background:"#F7F5F2",borderRadius:8}}>{task.notes}</div>}
-
+          {task.notes&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B948C",lineHeight:1.5,marginBottom:14,padding:"10px 12px",background:"#F7F5F2",borderRadius:8}}>{task.notes}</div>}
           {/* Actions */}
-          <div style={{display:"flex",gap:10}}>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
             <button onClick={handleDone}
-              style={{flex:1,background:"#2C2825",color:"white",border:"none",borderRadius:12,padding:"14px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:"pointer",transition:"background .2s"}}>
+              style={{flex:2,background:"#2C2825",color:"white",border:"none",borderRadius:10,padding:"12px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:"pointer"}}>
               ✓ Hecho
             </button>
             <button onClick={handleSkip}
-              style={{flex:1,background:"none",color:"#9B948C",border:"1px solid #E5E1DB",borderRadius:12,padding:"14px",fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer",transition:"all .2s"}}>
+              style={{flex:1,background:"none",color:"#9B948C",border:"1px solid #E5E1DB",borderRadius:10,padding:"12px",fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer"}}>
               Más tarde
             </button>
           </div>
-
-          {/* Edit link */}
           <button onClick={()=>onOpen(task)}
-            style={{width:"100%",background:"none",border:"none",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:12,padding:"12px 0 0",cursor:"pointer",textAlign:"center"}}>
+            style={{width:"100%",background:"none",border:"none",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:11,padding:"4px 0",cursor:"pointer",textAlign:"center"}}>
             Editar tarea
           </button>
         </div>
       </div>
 
-      {/* Nav arrows */}
-      {allTasks.length>1&&(
-        <div style={{display:"flex",justifyContent:"space-between",padding:desktop?"16px 0":"16px 20px"}}>
-          <button onClick={handlePrev} disabled={idx===0}
-            style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#9B948C",padding:"4px 0"}}>
-            ← Anterior
-          </button>
-          <button onClick={handleNext} disabled={idx===allTasks.length-1}
-            style={{background:"none",border:"none",cursor:idx===allTasks.length-1?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===allTasks.length-1?"#E5E1DB":"#9B948C",padding:"4px 0"}}>
-            Siguiente →
-          </button>
+      {/* Progress + nav */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0"}}>
+        <button onClick={handlePrev} disabled={idx===0}
+          style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#9B948C",padding:"4px 0"}}>
+          ← Anterior
+        </button>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <div style={{display:"flex",gap:3}}>
+            {allTasks.slice(0,Math.min(allTasks.length,12)).map((_,i)=>(
+              <div key={i} onClick={()=>setIdx(i)} style={{width:i===idx?14:5,height:5,borderRadius:99,background:i===idx?"#6B6258":"#E5E1DB",transition:"width .2s",cursor:"pointer"}}/>
+            ))}
+            {allTasks.length>12&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C8C3BB",marginLeft:2}}>+{allTasks.length-12}</span>}
+          </div>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F"}}>{idx+1}/{allTasks.length}</span>
         </div>
-      )}
+        <button onClick={handleNext} disabled={idx===allTasks.length-1}
+          style={{background:"none",border:"none",cursor:idx===allTasks.length-1?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===allTasks.length-1?"#E5E1DB":"#9B948C",padding:"4px 0"}}>
+          Siguiente →
+        </button>
+      </div>
     </div>
   );
 }
