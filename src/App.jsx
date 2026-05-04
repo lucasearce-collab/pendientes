@@ -48,6 +48,21 @@ async function safeDelete(table, id) {
   }
 }
 
+async function trackEvent(eventType, entityId=null, entityType=null, metadata={}) {
+  try {
+    const { data:{ session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) return;
+    await supabase.from("events").insert({
+      user_id: session.user.id,
+      event_type: eventType,
+      entity_id: entityId || undefined,
+      entity_type: entityType || undefined,
+      metadata,
+      occurred_at: new Date().toISOString(),
+    });
+  } catch(e) { console.warn("trackEvent failed:", e); }
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const AREAS = {
   trabajo:  { label:"Trabajo",       color:"#9B8878", dot:"#C4896A" },
@@ -289,6 +304,7 @@ export default function App() {
   }
   async function addGoal(g){
     addPoints(500);
+    trackEvent("goal_created", g.id, "goal", {horizon:g.horizon});
     const n={id:"g"+Date.now(),...g};
     setGoals(gs=>[...gs,n]); setGoalSheet(null);
     await safeUpsert("goals",goalToDb(n,uid));
@@ -689,7 +705,7 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
-            <button onClick={()=>setFocusMode(f=>!f)}
+            <button onClick={()=>{const nf=!focusMode;setFocusMode(nf);trackEvent(nf?"focus_mode_on":"focus_mode_off",null,null,{tab:view});}}
               style={{background:focusMode?"#2C2825":"none",color:focusMode?"white":"#C8C3BB",border:`1px solid ${focusMode?"#2C2825":"#E5E1DB"}`,borderRadius:99,padding:"3px 12px",fontFamily:"'DM Sans'",fontSize:10,cursor:"pointer",transition:"all .2s",letterSpacing:".06em"}}>
               {focusMode?"◈ Foco":"◈"}
             </button>
