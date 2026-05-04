@@ -364,119 +364,117 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
-    <div style={{display:"flex",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",overflow:"hidden"}}>
+    <div style={{minHeight:"100vh",background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex",flexDirection:"column"}}>
       <DesktopStyles/>
 
-      {/* Sidebar */}
-      <div style={{width:220,background:"#F0EDE8",borderRight:"1px solid #E5E1DB",display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
-        <div style={{padding:"24px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,color:"#9B948C",letterSpacing:".1em",textTransform:"uppercase"}}>Clarity</div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882"}}>·</span>}
-            <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:0}} title="Cerrar sesión">↩</button>
+      {/* Header */}
+      <div style={{padding:"28px 0 0",maxWidth:720,margin:"0 auto",width:"100%",paddingLeft:24,paddingRight:24,boxSizing:"border-box"}}>
+        {/* Top row */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>
+            {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
+            <button onClick={()=>{const nf=!focusMode;setFocusMode(nf);}}
+              style={{background:focusMode?"#2C2825":"none",color:focusMode?"white":"#C8C3BB",border:`1px solid ${focusMode?"#2C2825":"#E5E1DB"}`,borderRadius:99,padding:"3px 12px",fontFamily:"'DM Sans'",fontSize:10,cursor:"pointer",transition:"all .2s",letterSpacing:".06em"}}>
+              {focusMode?"◈ Foco":"◈"}
+            </button>
+            <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",padding:0}}>↩</button>
           </div>
         </div>
 
-        {/* Main nav */}
-        <div style={{padding:"0 8px",display:"flex",flexDirection:"column",gap:1}}>
+        {/* Page title */}
+        <h1 style={{fontSize:32,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:16,fontFamily:"'DM Sans',sans-serif",lineHeight:1.1}}>
+          {view==="hoy"?"Hoy":view==="tareas"?"Tareas":view==="proyectos"?"Proyectos":view==="metas"?"Metas":""}
+        </h1>
+
+        {/* Nav tabs */}
+        <div style={{display:"flex",gap:3,marginBottom:0,flexWrap:"wrap"}}>
           {NAV.map(n=>(
-            <button key={n.id} className="d-nav" onClick={()=>{setView(n.id);setActiveProjId(null);}}
-              style={{background:view===n.id?"#E8E3DC":"none",color:view===n.id?"#3A3530":"#9B948C"}}>
+            <button key={n.id} onClick={()=>{setView(n.id);setActiveProjId(null);}}
+              style={{padding:"6px 16px",borderRadius:99,border:"none",cursor:"pointer",
+                background:view===n.id?"#2C2825":"transparent",
+                color:view===n.id?"#F5F2EE":"#B0AA9F",
+                fontFamily:"'DM Sans'",fontSize:13,fontWeight:view===n.id?500:400,
+                transition:"all .2s"}}>
               {n.label}
             </button>
           ))}
         </div>
 
-        <div style={{height:1,background:"#E5E1DB",margin:"10px 14px"}}/>
-
-        {/* Projects list - only trabajo */}
-        <div style={{flex:1,overflowY:"auto",padding:"0 8px 16px"}}>
-          <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".1em",textTransform:"uppercase",padding:"4px 8px 6px",fontWeight:500}}>Trabajo</div>
-          {projectsForArea("trabajo").map(proj=>{
-            const pending=tasks.filter(t=>t.projectId===proj.id&&!t.done).length;
-            const isAct=activeProjId===proj.id;
-            return(
-              <button key={proj.id} className="d-proj" onClick={()=>{setView("tareas");setActiveArea("trabajo");setActiveProjId(proj.id);}}
-                style={{background:isAct?"#E8E3DC":"none",color:isAct?"#3A3530":"#7A736C"}}>
-                <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,textAlign:"left",fontSize:13}}>{proj.name}</span>
-                {proj.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#9B8878",flexShrink:0}}>{proj.monto}</span>}
-                {pending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",flexShrink:0}}>{pending}</span>}
+        {/* Area pills */}
+        {(view==="tareas"||view==="proyectos")&&(
+          <div style={{display:"flex",gap:6,marginTop:14}}>
+            {Object.entries(AREAS).map(([k,a])=>(
+              <button key={k} onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
+                style={{padding:"5px 14px",borderRadius:99,border:"none",cursor:"pointer",
+                  background:activeArea===k?a.color:"transparent",
+                  color:activeArea===k?"white":a.color,
+                  fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,transition:"all .2s"}}>
+                {a.label}
               </button>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Main content */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        {/* Header */}
-        <div style={{padding:"20px 32px 12px",borderBottom:"1px solid #EAE6E0",background:"#F7F5F2",flexShrink:0}}>
-          <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".1em",textTransform:"uppercase",marginBottom:3}}>
-            {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
-          </div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <h1 style={{fontSize:22,fontWeight:600,color:"#2C2825",letterSpacing:"-.02em"}}>
-              {view==="hoy"?"Hoy":view==="tareas"?(activeProjId?projects.find(q=>q.id===activeProjId)?.name:`Tareas · ${AREAS[activeArea].label}`):view==="proyectos"?`Proyectos · ${AREAS[activeArea]?.label}`:"Metas"}
-            </h1>
-            {(view==="tareas"||view==="proyectos")&&(
-              <div style={{display:"flex",gap:6}}>
-                {Object.entries(AREAS).map(([k,a])=>(
-                  <button key={k} className="d-apill" onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
-                    style={{background:activeArea===k?a.color:"white",color:activeArea===k?"white":a.color,border:`1px solid ${activeArea===k?a.color:"#E5E1DB"}`}}>
-                    {a.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+      {/* Divider */}
+      <div style={{height:1,background:"#EAE6E0",maxWidth:720,margin:"16px auto 0",width:"100%"}}/>
 
-        {/* Content */}
-        <div style={{flex:1,overflowY:"auto",padding:"28px 32px 40px"}}>
-          {view==="hoy"&&(<>
-            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:20}}>
-              <button onClick={()=>setFocusMode(false)}
-                style={{fontFamily:"'DM Sans'",fontSize:12,padding:"5px 14px",borderRadius:99,border:"none",cursor:"pointer",background:!focusMode?"#2C2825":"transparent",color:!focusMode?"white":"#B0AA9F",transition:"all .2s"}}>
-                Lista
-              </button>
-              <button onClick={()=>setFocusMode(true)}
-                style={{fontFamily:"'DM Sans'",fontSize:12,padding:"5px 14px",borderRadius:99,border:"none",cursor:"pointer",background:focusMode?"#2C2825":"transparent",color:focusMode?"white":"#B0AA9F",transition:"all .2s"}}>
-                Modo foco
-              </button>
-            </div>
-            {focusMode
-              ?<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop/>
-              :<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>
-            }
-          </>)}
-          {view==="tareas"&&(
-            <div style={{maxWidth:720}}>
-              <GroupedProjectsView
-                projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)}
-                tasksForProject={tasksForProject}
-                onToggle={toggleDone}
-                onDelete={deleteTask}
-                onOpen={setSheet}
-                onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
-                reorderTasks={reorderTasks}
-                sw={sw}
-                desktop
-              />
-              {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos. Creá uno desde Proyectos.</div>}
-            </div>
-          )}
-          {view==="proyectos"&&(
-            <div style={{maxWidth:860}}>
-              <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:20,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
-              <DraggableProjectGrid projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onReorder={reorderProjects}/>
-              {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
-              <button className="d-newp" style={{marginTop:16}} onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea].label}</button>
-            </div>
-          )}
-          {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={true}/>}
-          {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop/>}
-        </div>
+      {/* Content */}
+      <div style={{flex:1,maxWidth:720,margin:"0 auto",width:"100%",padding:"24px 24px 48px",boxSizing:"border-box"}}>
+
+        {view==="hoy"&&(<>
+          <div style={{marginBottom:16}}>
+            <button onClick={()=>setFocusMode(false)}
+              style={{fontFamily:"'DM Sans'",fontSize:12,padding:"5px 14px",borderRadius:99,border:"none",cursor:"pointer",background:!focusMode?"#2C2825":"transparent",color:!focusMode?"white":"#B0AA9F",transition:"all .2s",marginRight:4}}>
+              Lista
+            </button>
+            <button onClick={()=>setFocusMode(true)}
+              style={{fontFamily:"'DM Sans'",fontSize:12,padding:"5px 14px",borderRadius:99,border:"none",cursor:"pointer",background:focusMode?"#2C2825":"transparent",color:focusMode?"white":"#B0AA9F",transition:"all .2s"}}>
+              Modo foco
+            </button>
+          </div>
+          {focusMode
+            ?<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop/>
+            :<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>
+          }
+        </>)}
+
+        {view==="tareas"&&(
+          <GroupedProjectsView
+            projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)}
+            tasksForProject={tasksForProject}
+            onToggle={toggleDone}
+            onDelete={deleteTask}
+            onOpen={setSheet}
+            onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
+            reorderTasks={reorderTasks}
+            sw={sw}
+            desktop
+          />
+        )}
+
+        {view==="proyectos"&&(<>
+          <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:20,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
+          {focusMode
+            ?<FocusStrategyMode projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject}/>
+            :<DraggableProjectGrid projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onReorder={reorderProjects}/>
+          }
+          {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
+          <button className="d-newp" style={{marginTop:16}} onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea]?.label}</button>
+        </>)}
+
+        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={true}/>}
+
+        {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop/>}
       </div>
+
+      {/* Clarity wordmark */}
+      <div style={{textAlign:"center",padding:"0 0 24px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8"}}>Clarity</div>
+
+      <CelebrationToast celebrate={celebrate}/>
       {sheets}
     </div>
   );
