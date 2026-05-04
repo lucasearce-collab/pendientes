@@ -443,7 +443,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
             :<DTareasDesktop projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} reorderTasks={reorderTasks}/>
         )}
 
-        {view==="proyectos"&&(<div style={{maxWidth:860}}>
+        {view==="proyectos"&&(<div>
           <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:20,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
           {focusMode
             ?<FocusStrategyMode projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject}/>
@@ -1487,7 +1487,7 @@ function DHoyDesktop({overdueWork,todayWork,projects,tasks,toggleDone,onDelete,o
   );
 
   return(
-    <div style={{display:"flex",gap:48,alignItems:"flex-start"}}>
+    <div style={{display:"flex",gap:48,alignItems:"flex-start",paddingRight:48}}>
       {/* Left column - overdue */}
       <div style={colStyle}>
         {overdueWork.length>0&&<>
@@ -1512,11 +1512,11 @@ function DHoyDesktop({overdueWork,todayWork,projects,tasks,toggleDone,onDelete,o
 
 // ─── Desktop Tareas - Two Column ──────────────────────────────────────────────
 function DTareasDesktop({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,reorderTasks}){
-  const estrategicos = projects.filter(p=>(p.importance||"normal")==="estrategica");
   const prioritarios = projects.filter(p=>(p.importance||"normal")==="urgente");
+  const estrategicos = projects.filter(p=>(p.importance||"normal")==="estrategica");
   const normales = projects.filter(p=>(p.importance||"normal")==="normal");
 
-  const groupHeader = (label,color,bg) => (
+  const groupHeader = (label,color) => (
     <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0 8px",borderBottom:"1px solid #EAE6E0",marginBottom:4}}>
       <div style={{width:7,height:7,borderRadius:"50%",background:color}}/>
       <span style={{fontFamily:"'DM Sans'",fontSize:11,fontWeight:500,letterSpacing:".1em",textTransform:"uppercase",color}}>{label}</span>
@@ -1531,20 +1531,27 @@ function DTareasDesktop({projects,tasksForProject,onToggle,onDelete,onOpen,onAdd
   ));
 
   return(
-    <div style={{display:"flex",gap:48,alignItems:"flex-start"}}>
-      {/* Left column - estratégicos + prioritarios */}
-      <div style={{flex:1,minWidth:0}}>
-        {estrategicos.length>0&&<>{groupHeader("Estratégicos","#5B6BAF","#F0F1F8")}{renderProjects(estrategicos)}</>}
-        {prioritarios.length>0&&<div style={{marginTop:estrategicos.length>0?20:0}}>{groupHeader("Prioritarios","#C49A7A","#FBF5F0")}{renderProjects(prioritarios)}</div>}
-        {estrategicos.length===0&&prioritarios.length===0&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin proyectos estratégicos ni prioritarios</div>}
+    <div>
+      {/* Top row - prioritarios left, estrategicos right */}
+      <div style={{display:"flex",gap:40,alignItems:"flex-start",marginBottom:normales.length>0?32:0}}>
+        <div style={{flex:1,minWidth:0}}>
+          {prioritarios.length>0&&<>{groupHeader("Prioritarios","#C49A7A")}{renderProjects(prioritarios)}</>}
+          {prioritarios.length===0&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin proyectos prioritarios</div>}
+        </div>
+        <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
+        <div style={{flex:1,minWidth:0}}>
+          {estrategicos.length>0&&<>{groupHeader("Estratégicos","#5B6BAF")}{renderProjects(estrategicos)}</>}
+          {estrategicos.length===0&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin proyectos estratégicos</div>}
+        </div>
       </div>
-      {/* Divider */}
-      <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
-      {/* Right column - normales */}
-      <div style={{flex:1,minWidth:0}}>
-        {normales.length>0&&<>{groupHeader("Normales","#9B948C","#F5F3F1")}{renderProjects(normales)}</>}
-        {normales.length===0&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin proyectos normales</div>}
-      </div>
+      {/* Bottom - normales full width */}
+      {normales.length>0&&<>
+        <div style={{height:1,background:"#EAE6E0",marginBottom:16}}/>
+        {groupHeader("Normales","#9B948C")}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          {renderProjects(normales)}
+        </div>
+      </>}
     </div>
   );
 }
