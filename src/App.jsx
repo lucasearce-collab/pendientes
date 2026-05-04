@@ -373,7 +373,10 @@ export default function App() {
     setOnboarding(false);
     setView("metas");
   }} isDesktop={isDesktop}/>;
-  return isDesktop?<DesktopLayout {...props}/>:<MobileLayout {...props}/>;
+  return <>
+    {isDesktop?<DesktopLayout {...props}/>:<MobileLayout {...props}/>}
+    <CelebrationToast celebrate={celebrate}/>
+  </>;
 }
 
 function Loader(){
@@ -481,7 +484,6 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
 
       {/* Clarity wordmark */}
       <div style={{textAlign:"center",padding:"0 0 24px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8"}}>Clarity</div>
-
       <CelebrationToast celebrate={celebrate}/>
       {sheets}
     </div>
@@ -490,6 +492,18 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
 
 
 function DHoy({overdueWork,todayWork,upcomingWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw}){
+  const today = todayStr();
+  // Tasks with dates >= today, sorted by date
+  const datedTasks = (tasks||[]).filter(t=>{
+    const p=projects.find(x=>x.id===t.projectId);
+    return p&&!t.done&&t.date&&t.date>=today;
+  }).sort((a,b)=>a.date<b.date?-1:1);
+  // Group by date
+  const byDate = {};
+  datedTasks.forEach(t=>{
+    const d=t.date; if(!byDate[d]) byDate[d]=[]; byDate[d].push(t);
+  });
+  const dates = Object.keys(byDate).sort();
   return(
     <div style={{maxWidth:680}}>
       {overdueWork.length>0&&(<div style={{marginBottom:8}}>
@@ -1390,35 +1404,24 @@ function CelebrationToast({celebrate}){
   const isProject = celebrate.type==='project';
   return(
     <div style={{
-      position:"fixed", bottom:100, left:"50%", transform:"translateX(-50%)",
-      background:isProject?"#2C2825":"white",
-      color:isProject?"white":"#2C2825",
-      border:isProject?"none":"1px solid #EAE6E0",
-      borderRadius:16, padding:"14px 24px",
-      boxShadow:"0 8px 32px rgba(44,40,37,.18)",
+      position:"fixed",
+      bottom:96,
+      left:"50%",
+      transform:"translateX(-50%)",
+      background:isProject?"#2C2825":"#FFFFFF",
+      color:isProject?"#FFFFFF":"#2C2825",
+      borderRadius:14,
+      padding:"12px 20px",
+      boxShadow:"0 4px 20px rgba(0,0,0,0.15)",
       fontFamily:"'DM Sans',sans-serif",
-      display:"flex", alignItems:"center", gap:12,
-      zIndex:9999,
-      animation:"fadeSlideUp .35s cubic-bezier(.34,1.56,.64,1)",
+      fontSize:14,
+      fontWeight:500,
+      zIndex:99999,
+      pointerEvents:"none",
       whiteSpace:"nowrap",
-      minWidth:200,
+      border:isProject?"none":"1px solid #EAE6E0",
     }}>
-      <div style={{
-        width:32, height:32, borderRadius:"50%",
-        background:isProject?"rgba(255,255,255,.15)":"#F5F2EE",
-        display:"flex", alignItems:"center", justifyContent:"center",
-        fontSize:isProject?16:14, flexShrink:0,
-      }}>
-        {isProject?"🌸":"✓"}
-      </div>
-      <div>
-        <div style={{fontSize:13,fontWeight:500,marginBottom:2}}>
-          {isProject?celebrate.name:"Tarea completada"}
-        </div>
-        <div style={{fontSize:11,opacity:.6,letterSpacing:".02em"}}>
-          +{celebrate.points.toLocaleString()} puntos
-        </div>
-      </div>
+      {isProject?"🌸 ":"✓ "}{isProject?celebrate.name:"Tarea completada"} · <span style={{fontWeight:300,opacity:.7}}>+{celebrate.points.toLocaleString()} pts</span>
     </div>
   );
 }
