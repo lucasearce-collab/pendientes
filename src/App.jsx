@@ -186,6 +186,7 @@ export default function App() {
   const [swipedId, setSwipedId] = useState(null);
   const [celebrate, setCelebrate] = useState(null); // {type:'task'|'project', points:N}
   const [focusMode, setFocusMode] = useState(false);
+  const [onboarding, setOnboarding] = useState(false);
   const [points, setPoints] = useState(()=>{ try{return parseInt(localStorage.getItem('clarity_points')||'0');}catch{return 0;} });
 
   function addPoints(n){
@@ -242,10 +243,16 @@ export default function App() {
         supabase.from("tasks").select("*").order("sort_order").order("created_at"),
         supabase.from("goals").select("*").order("sort_order").order("created_at"),
       ]);
-      setProjects((ps.data||[]).map(projFromDb));
-      setTasks((ts.data||[]).map(taskFromDb));
-      setGoals((gs.data||[]).map(goalFromDb));
+      const userProjects=(ps.data||[]).map(projFromDb);
+      const userTasks=(ts.data||[]).map(taskFromDb);
+      const userGoals=(gs.data||[]).map(goalFromDb);
+      setProjects(userProjects);
+      setTasks(userTasks);
+      setGoals(userGoals);
       setLoading(false);
+      if(userProjects.length===0&&userTasks.length===0&&userGoals.length===0){
+        setOnboarding(true);
+      }
     }
     load();
   },[session]);
