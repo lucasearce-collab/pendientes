@@ -1388,24 +1388,32 @@ function CelebrationToast({celebrate}){
   const isProject = celebrate.type==='project';
   return(
     <div style={{
-      position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)",
+      position:"fixed", bottom:100, left:"50%", transform:"translateX(-50%)",
       background:isProject?"#2C2825":"white",
       color:isProject?"white":"#2C2825",
       border:isProject?"none":"1px solid #EAE6E0",
-      borderRadius:99, padding:"12px 22px",
-      boxShadow:"0 4px 24px rgba(44,40,37,.14)",
+      borderRadius:16, padding:"14px 24px",
+      boxShadow:"0 8px 32px rgba(44,40,37,.18)",
       fontFamily:"'DM Sans',sans-serif",
-      display:"flex", alignItems:"center", gap:10,
+      display:"flex", alignItems:"center", gap:12,
       zIndex:9999,
-      animation:"fadeSlideUp .4s ease",
+      animation:"fadeSlideUp .35s cubic-bezier(.34,1.56,.64,1)",
       whiteSpace:"nowrap",
+      minWidth:200,
     }}>
-      <span style={{fontSize:isProject?18:15}}>{isProject?"🌸":"✓"}</span>
+      <div style={{
+        width:32, height:32, borderRadius:"50%",
+        background:isProject?"rgba(255,255,255,.15)":"#F5F2EE",
+        display:"flex", alignItems:"center", justifyContent:"center",
+        fontSize:isProject?16:14, flexShrink:0,
+      }}>
+        {isProject?"🌸":"✓"}
+      </div>
       <div>
-        <div style={{fontSize:13,fontWeight:500}}>
-          {isProject?`${celebrate.name}`:"Tarea completada"}
+        <div style={{fontSize:13,fontWeight:500,marginBottom:2}}>
+          {isProject?celebrate.name:"Tarea completada"}
         </div>
-        <div style={{fontSize:11,opacity:.7}}>
+        <div style={{fontSize:11,opacity:.6,letterSpacing:".02em"}}>
           +{celebrate.points.toLocaleString()} puntos
         </div>
       </div>
