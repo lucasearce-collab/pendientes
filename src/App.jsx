@@ -699,6 +699,10 @@ function DesktopStyles(){return(<style>{`
   @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}body{background:#F7F5F2;overflow:hidden;}
   @keyframes fadeSlideUp{from{opacity:0;transform:translateX(-50%) translateY(16px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+  @keyframes particle{0%{transform:translate(0,0) scale(1);opacity:1;}100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0;}}
+  @keyframes flyUp{0%{transform:translateY(0) scale(1);opacity:1;}100%{transform:translateY(-110px) scale(.94);opacity:0;}}
+  @keyframes slideInCard{0%{transform:translateY(28px);opacity:0;}100%{transform:translateY(0);opacity:1;}}
+  .clarity-particle{position:fixed;border-radius:50%;pointer-events:none;z-index:99999;animation:particle .55s cubic-bezier(.25,.46,.45,.94) forwards;}
   .d-nav{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 10px;border-radius:8px;text-align:left;transition:all .15s;}
   .d-nav:hover{background:#E8E3DC;color:#3A3530!important;}
   .d-proj{display:flex;align-items:center;justify-content:space-between;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;border-radius:6px;transition:all .15s;gap:6px;}
@@ -1426,6 +1430,24 @@ function CelebrationToast({celebrate}){
   );
 }
 
+
+// ─── Particle Burst ───────────────────────────────────────────────────────────
+const BURST_COLORS = ['#E8B4C0','#9B8878','#8FAF8A','#C49A7A','#5B6BAF','#D4896A','#B0AA9F'];
+function particleBurst(x, y, count=11){
+  for(let i=0;i<count;i++){
+    const p = document.createElement('div');
+    p.className = 'clarity-particle';
+    const angle = (Math.PI*2/count)*i + Math.random()*.5;
+    const dist = 26 + Math.random()*34;
+    const tx = Math.cos(angle)*dist;
+    const ty = Math.sin(angle)*dist - 12;
+    const size = 4 + Math.random()*5;
+    p.style.cssText = `left:${x-size/2}px;top:${y-size/2}px;width:${size}px;height:${size}px;background:${BURST_COLORS[i%BURST_COLORS.length]};--tx:${tx}px;--ty:${ty}px;animation-delay:${Math.random()*0.05}s;`;
+    document.body.appendChild(p);
+    setTimeout(()=>p.remove(), 700);
+  }
+}
+
 // ─── Cerezo View ──────────────────────────────────────────────────────────────
 const TREE_SVGS = [
   `<svg viewBox="0 0 80 90" width="100%" xmlns="http://www.w3.org/2000/svg">
@@ -1817,7 +1839,7 @@ function FocusMode({overdueWork,todayWork,upcomingWork,tasks,projects,onToggle,o
         <div style={{fontFamily:"'DM Sans'",fontSize:17,fontWeight:400,color:"#2C2825",lineHeight:1.55,marginBottom:task.notes?14:20}}>{task.title}</div>
         {task.notes&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B948C",lineHeight:1.6,marginBottom:16,padding:"10px 12px",background:"#F7F5F2",borderRadius:10}}>{task.notes}</div>}
         <div style={{display:"flex",gap:10,marginBottom:8}}>
-          <button onClick={handleDone} style={{flex:1,background:"#2C2825",color:"white",border:"1px solid #2C2825",borderRadius:12,padding:"13px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:400,cursor:"pointer"}}>✓ Hecho</button>
+          <button onClick={(e)=>handleDone(e)} style={{flex:1,background:"#2C2825",color:"white",border:"1px solid #2C2825",borderRadius:12,padding:"13px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:400,cursor:"pointer"}}>✓ Hecho</button>
           <button onClick={handleSkip} style={{flex:1,background:"none",color:"#9B948C",border:"1px solid #E5E1DB",borderRadius:12,padding:"13px",fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer"}}>Más tarde</button>
         </div>
         <button onClick={()=>onOpen(task)} style={{width:"100%",background:"none",border:"none",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:11,padding:"2px 0",cursor:"pointer"}}>Editar tarea</button>
