@@ -198,12 +198,12 @@ export default function App() {
   }
 
   const TREE_LEVELS = [
-    {name:"Semilla",        min:0,     max:999},
-    {name:"Brote",          min:1000,  max:4999},
-    {name:"Retoño",         min:5000,  max:14999},
-    {name:"Cerezo en Flor", min:15000, max:39999},
-    {name:"Cerezo Maduro",  min:40000, max:99999},
-    {name:"Cerezo Mayor",   min:100000,max:Infinity},
+    {name:"Semilla",        min:0,      max:4999},
+    {name:"Brote",          min:5000,   max:19999},
+    {name:"Retoño",         min:20000,  max:59999},
+    {name:"Cerezo en Flor", min:60000,  max:149999},
+    {name:"Cerezo Maduro",  min:150000, max:399999},
+    {name:"Cerezo Mayor",   min:400000, max:Infinity},
   ];
   const currentLevel = TREE_LEVELS.findIndex((l,i)=>points>=l.min&&points<=l.max);
   const treeLevel = TREE_LEVELS[Math.max(0,currentLevel)];
@@ -279,7 +279,9 @@ export default function App() {
     setTasks(ts=>ts.map(t=>t.id===id?u:t)); setSwipedId(null);
     if(u.done){
       addPoints(500);
-      setCelebrate({type:'task',points:500});
+      const cel={type:'task',points:500};
+      console.log('celebrate:', cel);
+      setCelebrate(cel);
       setTimeout(()=>setCelebrate(null),2200);
       trackEvent("task_completed",id,"task",{type:task.type||"normal",projectId:task.projectId});
     }
