@@ -368,7 +368,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
       <DesktopStyles/>
 
       {/* Header */}
-      <div style={{padding:"28px 0 0",maxWidth:720,margin:"0 auto",width:"100%",paddingLeft:24,paddingRight:24,boxSizing:"border-box"}}>
+      <div style={{padding:"28px 48px 0",boxSizing:"border-box"}}>
         {/* Top row */}
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
           <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>
@@ -420,10 +420,10 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
       </div>
 
       {/* Divider */}
-      <div style={{height:1,background:"#EAE6E0",maxWidth:720,margin:"16px auto 0",width:"100%"}}/>
+      <div style={{height:1,background:"#EAE6E0",margin:"16px 0 0"}}/>
 
       {/* Content */}
-      <div style={{flex:1,maxWidth:720,margin:"0 auto",width:"100%",padding:"24px 24px 48px",boxSizing:"border-box"}}>
+      <div style={{flex:1,overflowY:"auto",padding:"24px 48px 48px",boxSizing:"border-box"}}>
 
         {view==="hoy"&&(<>
           <div style={{marginBottom:16}}>
@@ -1234,12 +1234,30 @@ function CelebrationToast({celebrate}){
 
 // ─── Cerezo View ──────────────────────────────────────────────────────────────
 const TREE_SVGS = [
-  `<svg viewBox="0 0 80 90" width="100%" xmlns="http://www.w3.org/2000/svg">
-    <ellipse cx="40" cy="76" rx="18" ry="4" fill="#C4B5A5" opacity="0.3"/>
-    <path d="M40 50 C47 48 53 58 51 70 C49 78 45 82 40 82 C35 82 31 78 29 70 C27 58 33 48 40 50Z" fill="#8B6F5E" opacity="0.82"/>
-    <path d="M38 68 C36 72 38 76 40 74 C42 76 44 72 42 68" stroke="#7A5C4A" stroke-width="1" fill="none" opacity="0.4"/>
-    <path d="M40 50 C41 42 38 36 40 30" stroke="#8B7355" stroke-width="1.2" fill="none" stroke-linecap="round"/>
-    <path d="M40 34 C35 30 32 26 34 22 C37 24 39 30 40 34Z" fill="#8FAF8A" opacity="0.72"/>
+  `<svg viewBox="0 0 120 130" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <!-- soil hint -->
+    <ellipse cx="60" cy="108" rx="28" ry="5" fill="#C4B5A5" opacity="0.25"/>
+    <!-- small cracks in soil -->
+    <path d="M48 108 C50 106 52 107 50 109" stroke="#B5A898" stroke-width="0.8" fill="none" opacity="0.4"/>
+    <path d="M66 107 C68 105 70 106 69 108" stroke="#B5A898" stroke-width="0.8" fill="none" opacity="0.35"/>
+    <!-- seed - rounded, organic, warm -->
+    <path d="M60 68 C72 65 80 76 78 90 C76 101 69 108 60 108 C51 108 44 101 42 90 C40 76 48 65 60 68Z" fill="#9B7B5E" opacity="0.85"/>
+    <!-- seed highlight - gives it depth -->
+    <path d="M60 68 C68 66 74 72 74 80 C74 74 68 68 60 68Z" fill="#B8956E" opacity="0.4"/>
+    <!-- seed texture line -->
+    <path d="M55 78 C57 90 58 100 58 108" stroke="#7A5C42" stroke-width="0.8" fill="none" opacity="0.3" stroke-linecap="round"/>
+    <!-- tiny root peeking below -->
+    <path d="M58 108 C56 114 58 120 60 118 C62 120 64 114 62 108" stroke="#8B7355" stroke-width="1.2" fill="none" opacity="0.35" stroke-linecap="round"/>
+    <path d="M55 110 C51 116 52 122 54 120" stroke="#8B7355" stroke-width="0.9" fill="none" opacity="0.25" stroke-linecap="round"/>
+    <!-- tiny sprout emerging - delicate -->
+    <path d="M60 68 C59 58 60 48 60 40" stroke="#8B9E78" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <!-- first leaf - tender, small -->
+    <path d="M60 46 C54 40 48 34 50 26 C56 28 60 36 60 46Z" fill="#8FAF8A" opacity="0.78"/>
+    <!-- second tiny leaf opposite -->
+    <path d="M60 50 C66 44 72 38 70 30 C64 32 60 40 60 50Z" fill="#9BBF9B" opacity="0.68"/>
+    <!-- tiny dew drop on tip -->
+    <ellipse cx="50" cy="24" rx="2.5" ry="3" fill="#B8D4E8" opacity="0.55"/>
+    <ellipse cx="49.5" cy="23" rx="1" ry="1.2" fill="white" opacity="0.4"/>
   </svg>`,
   `<svg viewBox="0 0 80 100" width="100%" xmlns="http://www.w3.org/2000/svg">
     <ellipse cx="40" cy="82" rx="20" ry="5" fill="#C4B5A5" opacity="0.3"/>
