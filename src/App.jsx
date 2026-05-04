@@ -270,6 +270,12 @@ export default function App() {
     const task=tasks.find(t=>t.id===id); if(!task) return;
     const u={...task,done:!task.done};
     setTasks(ts=>ts.map(t=>t.id===id?u:t)); setSwipedId(null);
+    if(u.done){
+      addPoints(500);
+      setCelebrate({type:'task',points:500});
+      setTimeout(()=>setCelebrate(null),2200);
+      trackEvent("task_completed",id,"task",{type:task.type||"normal",projectId:task.projectId});
+    }
     await safeUpsert("tasks",taskToDb(u,uid));
   }
   async function deleteTask(id){
@@ -352,6 +358,12 @@ export default function App() {
   );
 
   const props={tasks,projects,goals,view,setView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
+  if(onboarding) return <OnboardingFlow uid={uid} supabase={supabase} onComplete={(gs,ps)=>{
+    setGoals(gs.map(goalFromDb));
+    setProjects(ps.map(projFromDb));
+    setOnboarding(false);
+    setView("metas");
+  }} isDesktop={isDesktop}/>;
   return isDesktop?<DesktopLayout {...props}/>:<MobileLayout {...props}/>;
 }
 
@@ -439,14 +451,14 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
 
         {view==="tareas"&&(
           focusMode
-            ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}/>
+            ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} desktop/>
             :<DTareasDesktop projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} reorderTasks={reorderTasks}/>
         )}
 
         {view==="proyectos"&&(<div>
           <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:20,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
           {focusMode
-            ?<FocusStrategyMode projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject}/>
+            ?<FocusStrategyMode projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} desktop/>
             :<DraggableProjectGrid projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onReorder={reorderProjects}/>
           }
           {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
@@ -992,7 +1004,7 @@ function FocusPlan({projects,onEdit,onDelete}){
 
 
 // ─── Focus Project Mode (Tareas) ─────────────────────────────────────────────
-function FocusProjectMode({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask}){
+function FocusProjectMode({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,desktop}){
   const [idx,setIdx]=useState(0);
   const touchStartX=useRef(0);
 
@@ -1060,7 +1072,7 @@ function FocusProjectMode({projects,tasksForProject,onToggle,onDelete,onOpen,onA
       </div>
 
       {/* Nav */}
-      <div style={{display:"flex",justifyContent:"space-between"}}>
+      <div style={{display:"flex",justifyContent:"space-between",padding:desktop?"0":"0 20px"}}>
         <button onClick={()=>setIdx(i=>Math.max(i-1,0))} disabled={idx===0}
           style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#9B948C"}}>← Anterior</button>
         <button onClick={()=>setIdx(i=>Math.min(i+1,projects.length-1))} disabled={idx===projects.length-1}
@@ -1071,7 +1083,7 @@ function FocusProjectMode({projects,tasksForProject,onToggle,onDelete,onOpen,onA
 }
 
 // ─── Focus Strategy Mode (Proyectos) ─────────────────────────────────────────
-function FocusStrategyMode({projects,onEdit,onDelete}){
+function FocusStrategyMode({projects,onEdit,onDelete,desktop}){
   const [idx,setIdx]=useState(0);
   const touchStartX=useRef(0);
   const [conf,setConf]=useState(false);
@@ -1194,6 +1206,175 @@ function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,
 
 
 
+
+// ─── Onboarding Flow ──────────────────────────────────────────────────────────
+function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
+  const [step, setStep] = useState(0);
+  const [goals, setGoals] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [input, setInput] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const steps = [
+    {
+      horizon: "largo",
+      label: "5+ años",
+      sub: "2031+",
+      color: "#5B6BAF",
+      title: "Tu visión a largo plazo",
+      question: "¿Dónde querés estar en 5 años o más?",
+      hint: "Libertad financiera, trabajar en VC, vivir plenamente...",
+      icon: "◎",
+    },
+    {
+      horizon: "medio",
+      label: "2–5 años",
+      sub: "2026–30",
+      color: "#8A8EA8",
+      title: "Tus metas de mediano plazo",
+      question: "¿Qué querés lograr en los próximos 2 a 5 años?",
+      hint: "Ascender a manager, alcanzar 1.2M net worth...",
+      icon: "◎",
+    },
+    {
+      horizon: "anio",
+      label: "Este año",
+      sub: "2025",
+      color: "#9B8878",
+      title: "Tus metas para este año",
+      question: "¿Qué querés conseguir este año?",
+      hint: "Overachievement FY26, aprender AI, mejorar networking...",
+      icon: "◎",
+    },
+    {
+      horizon: null,
+      label: "Proyectos",
+      sub: null,
+      color: "#8FAF8A",
+      title: "Tus proyectos actuales",
+      question: "¿En qué proyectos estás trabajando ahora?",
+      hint: "Galicia, Workshop BCP, Aprender tenis...",
+      icon: "⊞",
+      isProject: true,
+    },
+  ];
+
+  const current = steps[step];
+  const isLast = step === steps.length - 1;
+
+  function addItem(){
+    if(!input.trim()) return;
+    if(current.isProject){
+      setProjects(ps=>[...ps,{id:"p"+Date.now()+Math.random(),name:input.trim(),area:"trabajo",importance:"normal",user_id:uid,sort_order:ps.length}]);
+    } else {
+      setGoals(gs=>[...gs,{id:"g"+Date.now()+Math.random(),title:input.trim(),horizon:current.horizon,user_id:uid,sort_order:gs.filter(g=>g.horizon===current.horizon).length}]);
+    }
+    setInput("");
+  }
+
+  function handleKey(e){ if(e.key==="Enter") addItem(); }
+
+  function removeItem(id){
+    if(current.isProject) setProjects(ps=>ps.filter(p=>p.id!==id));
+    else setGoals(gs=>gs.filter(g=>g.id!==id));
+  }
+
+  async function next(){
+    if(isLast){
+      setSaving(true);
+      try{
+        if(goals.length>0) await supabase.from("goals").insert(goals.map(g=>({id:g.id,user_id:uid,title:g.title,horizon:g.horizon,sort_order:g.sort_order||0,created_at:new Date().toISOString()})));
+        if(projects.length>0) await supabase.from("projects").insert(projects.map(p=>({id:p.id,user_id:uid,name:p.name,area:p.area||"trabajo",importance:p.importance||"normal",sort_order:p.sort_order||0,created_at:new Date().toISOString(),monto:"",description:"",main_goal:"",secondary_goals:[]})));
+        onComplete(goals,projects);
+      } catch(e){ console.error(e); setSaving(false); }
+    } else {
+      setStep(s=>s+1);
+    }
+  }
+
+  const currentItems = current.isProject
+    ? projects
+    : goals.filter(g=>g.horizon===current.horizon);
+
+  return(
+    <div style={{minHeight:"100vh",background:"#F5F2EE",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"'DM Sans',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}`}</style>
+
+      <div style={{width:"100%",maxWidth:480}}>
+        {/* Progress dots */}
+        <div style={{display:"flex",gap:6,justifyContent:"center",marginBottom:32}}>
+          {steps.map((_,i)=>(
+            <div key={i} style={{width:i===step?24:6,height:6,borderRadius:99,background:i<=step?"#9B8878":"#E5E1DB",transition:"all .3s"}}/>
+          ))}
+        </div>
+
+        {/* Horizon badge */}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:current.color}}/>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,fontWeight:500,color:current.color,letterSpacing:".1em",textTransform:"uppercase"}}>{current.label}</span>
+          {current.sub&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>{current.sub}</span>}
+        </div>
+
+        {/* Title */}
+        <div style={{fontFamily:"'DM Sans'",fontSize:26,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:6}}>{current.title}</div>
+        <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:24,lineHeight:1.6}}>{current.question}</div>
+
+        {/* Input */}
+        <div style={{display:"flex",gap:8,marginBottom:16}}>
+          <input
+            value={input}
+            onChange={e=>setInput(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder={current.hint}
+            style={{flex:1,padding:"12px 16px",borderRadius:12,border:"1px solid #E5E1DB",background:"white",fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",outline:"none"}}
+            autoFocus
+          />
+          <button onClick={addItem} disabled={!input.trim()}
+            style={{padding:"12px 18px",borderRadius:12,border:"none",background:input.trim()?"#2C2825":"#E5E1DB",color:"white",cursor:input.trim()?"pointer":"default",fontFamily:"'DM Sans'",fontSize:14,transition:"all .2s"}}>
+            +
+          </button>
+        </div>
+
+        {/* Items added */}
+        {currentItems.length>0&&(
+          <div style={{background:"white",borderRadius:12,border:"1px solid #EAE6E0",marginBottom:24,overflow:"hidden"}}>
+            {currentItems.map((item,i)=>(
+              <div key={item.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<currentItems.length-1?"1px solid #F5F2EE":"none"}}>
+                <div style={{width:6,height:6,borderRadius:"50%",background:current.color,flexShrink:0}}/>
+                <span style={{flex:1,fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825"}}>{item.title||item.name}</span>
+                <button onClick={()=>removeItem(item.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#D5CFC8",fontSize:16,padding:0,lineHeight:1}}>×</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          {step>0
+            ?<button onClick={()=>setStep(s=>s-1)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",padding:0}}>← Anterior</button>
+            :<div/>
+          }
+          <button onClick={next} disabled={saving}
+            style={{background:currentItems.length>0?"#2C2825":"#9B8878",color:"white",border:"none",borderRadius:12,padding:"13px 28px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:"pointer",opacity:saving?.6:1}}>
+            {saving?"Guardando...":(isLast?"Empezar →":(currentItems.length===0?"Saltar →":"Siguiente →"))}
+          </button>
+        </div>
+
+        {/* Skip all */}
+        {step===0&&(
+          <div style={{textAlign:"center",marginTop:16}}>
+            <button onClick={()=>onComplete([],[])} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB"}}>
+              Prefiero empezar desde cero
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div style={{position:"fixed",bottom:24,fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".2em",textTransform:"uppercase",color:"#D5CFC8"}}>Clarity</div>
+    </div>
+  );
+}
+
 // ─── Celebration Toast ────────────────────────────────────────────────────────
 function CelebrationToast({celebrate}){
   if(!celebrate) return null;
@@ -1227,25 +1408,12 @@ function CelebrationToast({celebrate}){
 
 // ─── Cerezo View ──────────────────────────────────────────────────────────────
 const TREE_SVGS = [
-  `<svg viewBox="0 0 120 140" width="100%" xmlns="http://www.w3.org/2000/svg">
-    <ellipse cx="60" cy="118" rx="24" ry="4" fill="#C4B5A5" opacity="0.22"/>
-    <path d="M56 116 C52 122 54 130 60 128 C66 130 68 122 64 116" stroke="#8B7355" stroke-width="1.1" fill="none" opacity="0.3" stroke-linecap="round"/>
-    <path d="M54 118 C50 124 50 130 52 128" stroke="#8B7355" stroke-width="0.8" fill="none" opacity="0.2" stroke-linecap="round"/>
-    <!-- seed - elongated, asymmetric, organic -->
-    <path d="M60 60 C70 56 78 62 80 74 C82 86 78 100 72 110 C68 116 64 118 60 118 C56 118 52 116 48 110 C42 100 38 86 40 74 C42 62 50 56 60 60Z" fill="#9B7B5E" opacity="0.8"/>
-    <!-- subtle ridge down the center -->
-    <path d="M58 66 C57 80 56 96 56 112" stroke="#7A5C42" stroke-width="0.9" fill="none" opacity="0.28" stroke-linecap="round"/>
-    <!-- highlight on upper left -->
-    <path d="M52 64 C56 60 64 60 68 66 C64 62 56 60 52 64Z" fill="#B8956E" opacity="0.35"/>
-    <!-- sprout stem -->
-    <path d="M60 60 C58 50 58 38 60 28" stroke="#8B9E78" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-    <!-- first leaf - left, unfurling -->
-    <path d="M59 36 C52 30 44 26 42 18 C48 16 56 22 60 32 C60 34 60 36 59 36Z" fill="#8FAF8A" opacity="0.8"/>
-    <!-- second leaf - right, smaller -->
-    <path d="M61 42 C68 36 76 34 78 26 C72 24 64 30 61 40 C61 41 61 42 61 42Z" fill="#9BBF9B" opacity="0.7"/>
-    <!-- dew drop -->
-    <ellipse cx="42" cy="17" rx="2.2" ry="2.8" fill="#B8D4E8" opacity="0.5"/>
-    <ellipse cx="41.5" cy="16" rx="0.9" ry="1.1" fill="white" opacity="0.45"/>
+  `<svg viewBox="0 0 80 90" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="40" cy="76" rx="18" ry="4" fill="#C4B5A5" opacity="0.3"/>
+    <path d="M40 50 C47 48 53 58 51 70 C49 78 45 82 40 82 C35 82 31 78 29 70 C27 58 33 48 40 50Z" fill="#8B6F5E" opacity="0.82"/>
+    <path d="M38 68 C36 72 38 76 40 74 C42 76 44 72 42 68" stroke="#7A5C4A" stroke-width="1" fill="none" opacity="0.4"/>
+    <path d="M40 50 C41 42 38 36 40 30" stroke="#8B7355" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    <path d="M40 34 C35 30 32 26 34 22 C37 24 39 30 40 34Z" fill="#8FAF8A" opacity="0.72"/>
   </svg>`,
   `<svg viewBox="0 0 80 100" width="100%" xmlns="http://www.w3.org/2000/svg">
     <ellipse cx="40" cy="82" rx="20" ry="5" fill="#C4B5A5" opacity="0.3"/>
