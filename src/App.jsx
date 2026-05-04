@@ -147,10 +147,16 @@ function LoginScreen() {
         <div style={{fontSize:32,color:"#C8C3BB",marginBottom:16}}>◈</div>
         <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase"}}>Clarity</div>
       </div>
-      <button onClick={login} style={{display:"flex",alignItems:"center",gap:12,background:"#2C2825",color:"white",border:"none",borderRadius:12,padding:"14px 28px",fontSize:15,fontFamily:"'DM Sans'",fontWeight:500,cursor:"pointer",opacity:loading?.6:1}}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-        {loading ? "Conectando..." : "Continuar con GitHub"}
-      </button>
+      <div style={{display:"flex",flexDirection:"column",gap:10,width:"100%",maxWidth:280}}>
+        <button onClick={login} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,background:"#2C2825",color:"white",border:"none",borderRadius:12,padding:"14px 28px",fontSize:14,fontFamily:"'DM Sans'",fontWeight:500,cursor:"pointer",opacity:loading?.6:1,width:"100%"}}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          {loading ? "Conectando..." : "Continuar con GitHub"}
+        </button>
+        <button onClick={loginGoogle} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,background:"white",color:"#2C2825",border:"1px solid #E5E1DB",borderRadius:12,padding:"14px 28px",fontSize:14,fontFamily:"'DM Sans'",fontWeight:500,cursor:"pointer",width:"100%"}}>
+          <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+          Continuar con Google
+        </button>
+      </div>
       <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",textAlign:"center",fontStyle:"italic",lineHeight:1.7,maxWidth:220,margin:"0 auto"}}>
   "La calidad de tus pensamientos determina la calidad de tu vida."
   <div style={{fontStyle:"normal",fontSize:11,color:"#D5CFC8",marginTop:6,letterSpacing:".04em"}}>— Marco Aurelio</div>
@@ -364,7 +370,7 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
-    <div style={{minHeight:"100vh",background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex",flexDirection:"column"}}>
+    <div style={{height:"100vh",background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <DesktopStyles/>
 
       {/* Header */}
@@ -425,38 +431,22 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
       {/* Content */}
       <div style={{flex:1,overflowY:"auto",padding:"24px 48px 48px",boxSizing:"border-box"}}>
 
-        {view==="hoy"&&(<>
-          <div style={{marginBottom:16}}>
-            <button onClick={()=>setFocusMode(false)}
-              style={{fontFamily:"'DM Sans'",fontSize:12,padding:"5px 14px",borderRadius:99,border:"none",cursor:"pointer",background:!focusMode?"#2C2825":"transparent",color:!focusMode?"white":"#B0AA9F",transition:"all .2s",marginRight:4}}>
-              Lista
-            </button>
-            <button onClick={()=>setFocusMode(true)}
-              style={{fontFamily:"'DM Sans'",fontSize:12,padding:"5px 14px",borderRadius:99,border:"none",cursor:"pointer",background:focusMode?"#2C2825":"transparent",color:focusMode?"white":"#B0AA9F",transition:"all .2s"}}>
-              Modo foco
-            </button>
-          </div>
-          {focusMode
+        {view==="hoy"&&(
+          focusMode
             ?<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop/>
-            :<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>
-          }
-        </>)}
-
-        {view==="tareas"&&(
-          <GroupedProjectsView
-            projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)}
-            tasksForProject={tasksForProject}
-            onToggle={toggleDone}
-            onDelete={deleteTask}
-            onOpen={setSheet}
-            onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
-            reorderTasks={reorderTasks}
-            sw={sw}
-            desktop
-          />
+            :<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>
         )}
 
-        {view==="proyectos"&&(<>
+        {view==="tareas"&&(
+          <div style={{maxWidth:680}}>
+            {focusMode
+              ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}/>
+              :<GroupedProjectsView projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} reorderTasks={reorderTasks} sw={sw} desktop/>
+            }
+          </div>
+        )}
+
+        {view==="proyectos"&&(<div style={{maxWidth:860}}>
           <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:20,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
           {focusMode
             ?<FocusStrategyMode projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject}/>
@@ -464,7 +454,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
           }
           {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
           <button className="d-newp" style={{marginTop:16}} onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea]?.label}</button>
-        </>)}
+        </div>)}
 
         {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={true}/>}
 
@@ -481,7 +471,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
 }
 
 
-function DHoy({overdueWork,todayWork,upcomingWork,projects,toggleDone,onDelete,onOpen,reorderTasks,sw}){
+function DHoy({overdueWork,todayWork,upcomingWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw}){
   return(
     <div style={{maxWidth:680}}>
       {overdueWork.length>0&&(<div style={{marginBottom:8}}>
@@ -496,7 +486,13 @@ function DHoy({overdueWork,todayWork,upcomingWork,projects,toggleDone,onDelete,o
         <DTaskList tasks={todayWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
       </div>)}
       {overdueWork.length===0&&todayWork.length===0&&<div style={{padding:"24px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>}
-      {upcomingWork.length>0&&<UpcomingSection tasks={upcomingWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} sw={sw} desktop/>}
+      {(()=>{const pv=(tasks||[]).filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p&&!t.done&&t.date&&t.date>=todayStr()&&!overdueWork.find(o=>o.id===t.id);}).sort((a,b)=>a.date<b.date?-1:1);return pv.length>0&&<>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid #EAE6E0",marginTop:8}}>
+          <div style={{width:5,height:5,borderRadius:"50%",background:"#B0AA9F"}}/>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>Próximos a vencer</span>
+        </div>
+        <DTaskList tasks={pv} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
+      </>})()}
     </div>
   );
 }
