@@ -434,16 +434,13 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
         {view==="hoy"&&(
           focusMode
             ?<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop/>
-            :<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>
+            :<DHoyDesktop overdueWork={overdueWork} todayWork={todayWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks}/>
         )}
 
         {view==="tareas"&&(
-          <div style={{maxWidth:680}}>
-            {focusMode
-              ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}/>
-              :<GroupedProjectsView projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} reorderTasks={reorderTasks} sw={sw} desktop/>
-            }
-          </div>
+          focusMode
+            ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}/>
+            :<DTareasDesktop projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} reorderTasks={reorderTasks}/>
         )}
 
         {view==="proyectos"&&(<div style={{maxWidth:860}}>
@@ -1230,30 +1227,25 @@ function CelebrationToast({celebrate}){
 
 // ─── Cerezo View ──────────────────────────────────────────────────────────────
 const TREE_SVGS = [
-  `<svg viewBox="0 0 120 130" width="100%" xmlns="http://www.w3.org/2000/svg">
-    <!-- soil hint -->
-    <ellipse cx="60" cy="108" rx="28" ry="5" fill="#C4B5A5" opacity="0.25"/>
-    <!-- small cracks in soil -->
-    <path d="M48 108 C50 106 52 107 50 109" stroke="#B5A898" stroke-width="0.8" fill="none" opacity="0.4"/>
-    <path d="M66 107 C68 105 70 106 69 108" stroke="#B5A898" stroke-width="0.8" fill="none" opacity="0.35"/>
-    <!-- seed - rounded, organic, warm -->
-    <path d="M60 68 C72 65 80 76 78 90 C76 101 69 108 60 108 C51 108 44 101 42 90 C40 76 48 65 60 68Z" fill="#9B7B5E" opacity="0.85"/>
-    <!-- seed highlight - gives it depth -->
-    <path d="M60 68 C68 66 74 72 74 80 C74 74 68 68 60 68Z" fill="#B8956E" opacity="0.4"/>
-    <!-- seed texture line -->
-    <path d="M55 78 C57 90 58 100 58 108" stroke="#7A5C42" stroke-width="0.8" fill="none" opacity="0.3" stroke-linecap="round"/>
-    <!-- tiny root peeking below -->
-    <path d="M58 108 C56 114 58 120 60 118 C62 120 64 114 62 108" stroke="#8B7355" stroke-width="1.2" fill="none" opacity="0.35" stroke-linecap="round"/>
-    <path d="M55 110 C51 116 52 122 54 120" stroke="#8B7355" stroke-width="0.9" fill="none" opacity="0.25" stroke-linecap="round"/>
-    <!-- tiny sprout emerging - delicate -->
-    <path d="M60 68 C59 58 60 48 60 40" stroke="#8B9E78" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-    <!-- first leaf - tender, small -->
-    <path d="M60 46 C54 40 48 34 50 26 C56 28 60 36 60 46Z" fill="#8FAF8A" opacity="0.78"/>
-    <!-- second tiny leaf opposite -->
-    <path d="M60 50 C66 44 72 38 70 30 C64 32 60 40 60 50Z" fill="#9BBF9B" opacity="0.68"/>
-    <!-- tiny dew drop on tip -->
-    <ellipse cx="50" cy="24" rx="2.5" ry="3" fill="#B8D4E8" opacity="0.55"/>
-    <ellipse cx="49.5" cy="23" rx="1" ry="1.2" fill="white" opacity="0.4"/>
+  `<svg viewBox="0 0 120 140" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="60" cy="118" rx="24" ry="4" fill="#C4B5A5" opacity="0.22"/>
+    <path d="M56 116 C52 122 54 130 60 128 C66 130 68 122 64 116" stroke="#8B7355" stroke-width="1.1" fill="none" opacity="0.3" stroke-linecap="round"/>
+    <path d="M54 118 C50 124 50 130 52 128" stroke="#8B7355" stroke-width="0.8" fill="none" opacity="0.2" stroke-linecap="round"/>
+    <!-- seed - elongated, asymmetric, organic -->
+    <path d="M60 60 C70 56 78 62 80 74 C82 86 78 100 72 110 C68 116 64 118 60 118 C56 118 52 116 48 110 C42 100 38 86 40 74 C42 62 50 56 60 60Z" fill="#9B7B5E" opacity="0.8"/>
+    <!-- subtle ridge down the center -->
+    <path d="M58 66 C57 80 56 96 56 112" stroke="#7A5C42" stroke-width="0.9" fill="none" opacity="0.28" stroke-linecap="round"/>
+    <!-- highlight on upper left -->
+    <path d="M52 64 C56 60 64 60 68 66 C64 62 56 60 52 64Z" fill="#B8956E" opacity="0.35"/>
+    <!-- sprout stem -->
+    <path d="M60 60 C58 50 58 38 60 28" stroke="#8B9E78" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <!-- first leaf - left, unfurling -->
+    <path d="M59 36 C52 30 44 26 42 18 C48 16 56 22 60 32 C60 34 60 36 59 36Z" fill="#8FAF8A" opacity="0.8"/>
+    <!-- second leaf - right, smaller -->
+    <path d="M61 42 C68 36 76 34 78 26 C72 24 64 30 61 40 C61 41 61 42 61 42Z" fill="#9BBF9B" opacity="0.7"/>
+    <!-- dew drop -->
+    <ellipse cx="42" cy="17" rx="2.2" ry="2.8" fill="#B8D4E8" opacity="0.5"/>
+    <ellipse cx="41.5" cy="16" rx="0.9" ry="1.1" fill="white" opacity="0.45"/>
   </svg>`,
   `<svg viewBox="0 0 80 100" width="100%" xmlns="http://www.w3.org/2000/svg">
     <ellipse cx="40" cy="82" rx="20" ry="5" fill="#C4B5A5" opacity="0.3"/>
@@ -1469,6 +1461,90 @@ function CerezoView({points, treeLevel, TREE_LEVELS, desktop}){
 
       {/* Clarity wordmark at bottom */}
       <div style={{marginTop:24,fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".2em",textTransform:"uppercase",color:"#D5CFC8"}}>Clarity</div>
+    </div>
+  );
+}
+
+
+// ─── Desktop Hoy - Two Column ─────────────────────────────────────────────────
+function DHoyDesktop({overdueWork,todayWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks}){
+  const upcoming = tasks.filter(t=>{
+    const p=projects.find(x=>x.id===t.projectId);
+    return p&&!t.done&&t.date&&t.date>=todayStr()&&!overdueWork.find(o=>o.id===t.id);
+  }).sort((a,b)=>a.date<b.date?-1:1);
+
+  const colStyle = {flex:1,minWidth:0};
+  const secHeader = (label,color,count) => (
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid #EAE6E0"}}>
+      <div style={{width:5,height:5,borderRadius:"50%",background:color}}/>
+      <span style={{fontFamily:"'DM Sans'",fontSize:11,color,letterSpacing:".08em",textTransform:"uppercase"}}>{label}</span>
+      {count>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginLeft:"auto"}}>{count}</span>}
+    </div>
+  );
+
+  if(overdueWork.length===0&&upcoming.length===0) return(
+    <div style={{textAlign:"center",padding:"60px 0",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
+  );
+
+  return(
+    <div style={{display:"flex",gap:48,alignItems:"flex-start"}}>
+      {/* Left column - overdue */}
+      <div style={colStyle}>
+        {overdueWork.length>0&&<>
+          {secHeader("De días anteriores","#C4A882",overdueWork.length)}
+          <DTaskList tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue reorderTasks={reorderTasks}/>
+        </>}
+        {overdueWork.length===0&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin tareas vencidas ·</div>}
+      </div>
+      {/* Divider */}
+      <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
+      {/* Right column - upcoming */}
+      <div style={colStyle}>
+        {upcoming.length>0&&<>
+          {secHeader("Próximos a vencer","#9B8878",upcoming.length)}
+          <DTaskList tasks={upcoming} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
+        </>}
+        {upcoming.length===0&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin tareas próximas ·</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Desktop Tareas - Two Column ──────────────────────────────────────────────
+function DTareasDesktop({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,reorderTasks}){
+  const estrategicos = projects.filter(p=>(p.importance||"normal")==="estrategica");
+  const prioritarios = projects.filter(p=>(p.importance||"normal")==="urgente");
+  const normales = projects.filter(p=>(p.importance||"normal")==="normal");
+
+  const groupHeader = (label,color,bg) => (
+    <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0 8px",borderBottom:"1px solid #EAE6E0",marginBottom:4}}>
+      <div style={{width:7,height:7,borderRadius:"50%",background:color}}/>
+      <span style={{fontFamily:"'DM Sans'",fontSize:11,fontWeight:500,letterSpacing:".1em",textTransform:"uppercase",color}}>{label}</span>
+    </div>
+  );
+
+  const renderProjects = (projs) => projs.map(proj=>(
+    <DProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
+      onToggle={onToggle} onOpen={onOpen}
+      onAddTask={()=>onAddTask(proj)}
+      reorderTasks={reorderTasks} sw={{swipedId:null,setSwipedId:()=>{}}}/>
+  ));
+
+  return(
+    <div style={{display:"flex",gap:48,alignItems:"flex-start"}}>
+      {/* Left column - estratégicos + prioritarios */}
+      <div style={{flex:1,minWidth:0}}>
+        {estrategicos.length>0&&<>{groupHeader("Estratégicos","#5B6BAF","#F0F1F8")}{renderProjects(estrategicos)}</>}
+        {prioritarios.length>0&&<div style={{marginTop:estrategicos.length>0?20:0}}>{groupHeader("Prioritarios","#C49A7A","#FBF5F0")}{renderProjects(prioritarios)}</div>}
+        {estrategicos.length===0&&prioritarios.length===0&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin proyectos estratégicos ni prioritarios</div>}
+      </div>
+      {/* Divider */}
+      <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
+      {/* Right column - normales */}
+      <div style={{flex:1,minWidth:0}}>
+        {normales.length>0&&<>{groupHeader("Normales","#9B948C","#F5F3F1")}{renderProjects(normales)}</>}
+        {normales.length===0&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin proyectos normales</div>}
+      </div>
     </div>
   );
 }
