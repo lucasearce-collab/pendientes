@@ -674,7 +674,7 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
               transition:"opacity .1s,background .1s"
             }}
             onClick={()=>{ if(!draggingId) onOpen(task); }}>
-            <button className={`d-ci${task.done?" done":""}`} onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
+            <button className={`d-ci${task.done?" done":""}`} onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
               {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
             </button>
             <div style={{flex:1,minWidth:0}}>
@@ -892,7 +892,7 @@ function FocusProject({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTa
               <div key={task.id} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderTop:i>0?"1px solid #F5F2EE":"none",cursor:"pointer"}}
                 onClick={()=>onOpen(task)}>
                 <button style={{width:24,height:24,borderRadius:"50%",border:"1.5px solid #C8C3BB",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
-                  onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
+                  onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
                 </button>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
@@ -1082,7 +1082,7 @@ function FocusProjectMode({projects,tasksForProject,onToggle,onDelete,onOpen,onA
               <div key={task.id} onClick={()=>onOpen(task)}
                 style={{display:"flex",alignItems:"center",gap:12,padding:"13px 20px",borderBottom:i<tasks.length-1?"1px solid #F5F2EE":"none",cursor:"pointer"}}>
                 <button style={{width:22,height:22,borderRadius:"50%",border:"1.5px solid #C8C3BB",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
-                  onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
+                  onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
                 </button>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",lineHeight:1.4}}>{task.title}</div>
@@ -1812,7 +1812,23 @@ function FocusMode({overdueWork,todayWork,upcomingWork,tasks,projects,onToggle,o
   const isOverdue = task ? (task.date && task.date < todayStr()) : false;
   const isToday = task ? task.date===todayStr() : false;
 
-  function handleDone(){ onToggle(task.id); }
+  function handleDone(e){
+    const btn = e ? e.currentTarget : null;
+    if(btn){ const r=btn.getBoundingClientRect(); particleBurst(r.left+r.width/2,r.top+r.height/2,13); }
+    const card = btn ? btn.closest('[data-focus-card]') : null;
+    if(card){
+      card.style.animation='flyUp .38s cubic-bezier(.4,0,.2,1) forwards';
+      setTimeout(()=>{
+        onToggle(task.id);
+        setIdx(i=>i<allTasks.length-1?i+1:0);
+        card.style.animation='slideInCard .32s cubic-bezier(.34,1.56,.64,1) forwards';
+        setTimeout(()=>{ if(card) card.style.animation=''; },350);
+      },370);
+    } else {
+      onToggle(task.id);
+      setIdx(i=>i<allTasks.length-1?i+1:0);
+    }
+  }
   function handleNext(){ setIdx(i=>Math.min(i+1,allTasks.length-1)); }
   function handlePrev(){ setIdx(i=>Math.max(i-1,0)); }
   function handleSkip(){
@@ -1901,7 +1917,7 @@ function GroupedTasksView({projects,tasksForProject,onToggle,onDelete,onOpen,onA
                       style={{display:"flex",alignItems:"center",gap:12,padding:desktop?"12px 0 12px 20px":"12px 20px",borderBottom:"1px solid #F5F2EE",cursor:"pointer"}}
                       onClick={()=>onOpen(task)}>
                       <button style={{width:22,height:22,borderRadius:"50%",border:`1.5px solid ${task.done?"#B5A99A":"#C8C3BB"}`,background:task.done?"#B5A99A":"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
-                        onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
+                        onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
                         {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
                       </button>
                       <div style={{flex:1,minWidth:0}}>
@@ -2039,13 +2055,13 @@ function TaskRows({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorder
             onTouchMove={handleRowTouchMove}
             onTouchEnd={e=>handleRowTouchEnd(e,idx,task.id)}>
             <div style={{position:"absolute",right:0,top:0,height:"100%",display:"flex",alignItems:"stretch",zIndex:0}}>
-              <button style={{border:"none",cursor:"pointer",fontSize:12,fontWeight:500,width:54,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:3,background:"#8FAF8A",color:"white"}} onClick={()=>onToggle(task.id)}><span style={{fontSize:15}}>✓</span><span>{task.done?"Reabrir":"Listo"}</span></button>
+              <button style={{border:"none",cursor:"pointer",fontSize:12,fontWeight:500,width:54,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:3,background:"#8FAF8A",color:"white"}} onClick={(e)=>{const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}><span style={{fontSize:15}}>✓</span><span>{task.done?"Reabrir":"Listo"}</span></button>
               <button style={{border:"none",cursor:"pointer",fontSize:12,fontWeight:500,width:54,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:3,background:"#C4997A",color:"white"}} onClick={()=>onDelete(task.id)}><span style={{fontSize:15}}>✕</span><span>Borrar</span></button>
             </div>
             <div style={{background:isDragging?"#EDE9E4":overdue?"#FBF8F4":"#F7F5F2",position:"relative",zIndex:1,transform:swiped?"translateX(-108px)":"translateX(0)",transition:"transform .25s cubic-bezier(.4,0,.2,1)",padding:"13px 20px",borderBottom:"1px solid #EAE6E0",display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}
               onClick={()=>{if(swiped){setSwipedId(null);return;}if(!touchMoved.current)onOpen(task);}}>
               <button style={{width:24,height:24,borderRadius:"50%",border:`1.5px solid ${task.done?"#B5A99A":"#C8C3BB"}`,background:task.done?"#B5A99A":"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
-                onClick={e=>{e.stopPropagation();onToggle(task.id);}}>
+                onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
                 {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
               </button>
               <div style={{flex:1,minWidth:0}}>
