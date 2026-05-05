@@ -1252,7 +1252,7 @@ function AnaliticaView({tasks, projects, goals, desktop}){
   const DAY_LABELS = ['L','M','X','J','V','S','D'];
 
   const completedByDay = weekDays.map(d=>
-    tasks.filter(t=>t.completed_at&&t.completed_at.slice(0,10)===d).length
+    tasks.filter(t=>(t.completed_at&&t.completed_at.slice(0,10)===d)).length
   );
   const maxDay = Math.max(...completedByDay, 1);
 
@@ -1265,19 +1265,24 @@ function AnaliticaView({tasks, projects, goals, desktop}){
   const maxHour = Math.max(...hourCounts, 1);
   const peakHour = hourCounts.indexOf(Math.max(...hourCounts));
   const peakLabel = peakHour===0?'12am':peakHour<12?`${peakHour}am`:peakHour===12?'12pm':`${peakHour-12}pm`;
+  const hasHourData = tasks.some(t=>t.completed_at);
 
   // ── Tareas a tiempo ──
-  const completedWithDate = tasks.filter(t=>t.done&&t.date&&t.completed_at);
-  const onTime = completedWithDate.filter(t=>t.completed_at.slice(0,10)<=t.date).length;
+  const completedWithDate = tasks.filter(t=>t.done&&t.date);
+  const onTime = completedWithDate.filter(t=>
+    !t.completed_at || t.completed_at.slice(0,10)<=t.date
+  ).length;
   const onTimePct = completedWithDate.length>0 ? Math.round((onTime/completedWithDate.length)*100) : null;
 
   // ── Tasa postergación ──
   const totalSnoozed = tasks.reduce((acc,t)=>acc+(t.snoozed_count||0),0);
   const totalCompleted = tasks.filter(t=>t.done).length;
-  const snoozeRate = totalCompleted>0 ? Math.round((totalSnoozed/(totalCompleted+totalSnoozed))*100) : null;
+  const snoozeRate = (totalCompleted+totalSnoozed)>0 ? Math.round((totalSnoozed/(totalCompleted+totalSnoozed))*100) : null;
 
   // ── CEO indicator ──
-  const completedThisWeek = tasks.filter(t=>t.done&&t.completed_at&&t.completed_at.slice(0,10)>=weekDays[0]);
+  const completedThisWeek = tasks.filter(t=>t.done&&(
+    (t.completed_at&&t.completed_at.slice(0,10)>=weekDays[0]) || (!t.completed_at)
+  ));
   const getImportance = t => {
     const p = projects.find(x=>x.id===t.projectId);
     return p ? (p.importance||'normal') : 'normal';
@@ -1308,7 +1313,7 @@ function AnaliticaView({tasks, projects, goals, desktop}){
   const noData = <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#D5CFC8',fontStyle:'italic'}}>Acumulando datos...</span>;
 
   return(
-    <div style={{paddingBottom:48,padding:'0 20px 48px'}}>
+    <div style={{paddingBottom:48,padding:'0 20px 48px',fontFamily:"'DM Sans',sans-serif"}}>
 
       {/* ── Visión semanal ── */}
       <SectionLabel mt={0}>Visión semanal</SectionLabel>
@@ -1369,20 +1374,23 @@ function AnaliticaView({tasks, projects, goals, desktop}){
       <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 14px',marginBottom:12,marginBottom:12}}>
         <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Ventanas de claridad</div>
         <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Horas de mayor ejecución</div>
-        <div style={{display:'flex',gap:3,flexWrap:'nowrap'}}>
-          {hourCounts.map((val,i)=>{
-            const intensity = val/maxHour;
-            const bg = intensity===0?'#F5F2EE':intensity<0.3?'#E8E2DB':intensity<0.6?'#C4B5A5':intensity<0.85?'#9B8878':'#2C2825';
-            return(
-              <div key={i} style={{flex:1,height:28,borderRadius:4,background:bg,minWidth:0}}/>
-            );
-          })}
-        </div>
-        <div style={{display:'flex',justifyContent:'space-between',marginTop:6}}>
-          {['6am','12pm','6pm','12am'].map(l=>(
-            <span key={l} style={{fontSize:9,color:'#C8C3BB'}}>{l}</span>
-          ))}
-        </div>
+        {hasHourData
+          ? <>
+            <div style={{display:'flex',gap:3,flexWrap:'nowrap'}}>
+              {hourCounts.map((val,i)=>{
+                const intensity = val/maxHour;
+                const bg = intensity===0?'#F5F2EE':intensity<0.3?'#E8E2DB':intensity<0.6?'#C4B5A5':intensity<0.85?'#9B8878':'#2C2825';
+                return(<div key={i} style={{flex:1,height:28,borderRadius:4,background:bg,minWidth:0}}/>);
+              })}
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',marginTop:6}}>
+              {['6am','12pm','6pm','12am'].map(l=>(
+                <span key={l} style={{fontSize:9,color:'#C8C3BB'}}>{l}</span>
+              ))}
+            </div>
+          </>
+          : <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#D5CFC8',fontStyle:'italic',padding:'8px 0'}}>Acumulando datos...</div>
+        }
       </div>
 
       {/* ── Rendimiento ── */}
