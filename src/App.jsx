@@ -116,7 +116,7 @@ const fmtDate = (d) => {
 const projToDb  = (p,uid) => ({ id:p.id, area:p.area, name:p.name, monto:p.monto||"", importance:p.importance||"normal", description:p.description||"", main_goal:p.mainGoal||"", secondary_goals:p.secondaryGoals||[], goal_id:p.goal_id||null, sort_order:p.sortOrder||0, user_id:uid });
 const projFromDb = r => ({ id:r.id, area:r.area, name:r.name, monto:r.monto||"", importance:r.importance||"normal", description:r.description||"", mainGoal:r.main_goal||"", secondaryGoals:r.secondary_goals||[], goal_id:r.goal_id||null, sortOrder:r.sort_order||0 });
 const taskToDb  = (t,uid) => ({ id:t.id, project_id:t.projectId, title:t.title, type:t.type||"normal", date:t.date||"", responsable:t.responsable||"", notes:t.notes||"", done:t.done||false, sort_order:t.sortOrder||0, user_id:uid });
-const taskFromDb = r => ({ id:r.id, projectId:r.project_id, title:r.title, type:r.type||"normal", date:r.date||"", responsable:r.responsable||"", notes:r.notes||"", done:r.done||false, sortOrder:r.sort_order||0 });
+const taskFromDb = r => ({ id:r.id, projectId:r.project_id, title:r.title, type:r.type||"normal", date:r.date||"", responsable:r.responsable||"", notes:r.notes||"", done:r.done||false, sortOrder:r.sort_order||0, completed_at:r.completed_at||null, snoozed_count:r.snoozed_count||0 });
 
 function TypeDot({ type, done }) {
   const t = TASK_TYPE[type||"normal"];
@@ -1297,29 +1297,28 @@ function AnaliticaView({tasks, projects, goals, desktop}){
   const cogLoadStatus = openPriority>=5?'red':openPriority>=3?'yellow':'green';
   const portfolioStatus = openTotal>15?'red':openTotal>10?'yellow':'green';
 
-  const pad = desktop ? '0' : '0 20px';
+  const pad = '0';
 
   const SectionLabel = ({children, mt}) => (
-    <div style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',
-      color:'#B0AA9F',marginBottom:14,marginTop:mt||28,padding:pad}}>
+    <div style={{fontFamily:"'DM Sans'",fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#B0AA9F',marginBottom:14,marginTop:mt||28}}>
       {children}
     </div>
   );
 
-  const noData = <span style={{fontSize:12,color:'#D5CFC8'}}>acumulando datos...</span>;
+  const noData = <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#D5CFC8',fontStyle:'italic'}}>Acumulando datos...</span>;
 
   return(
-    <div style={{paddingBottom:48}}>
+    <div style={{paddingBottom:48,padding:'0 20px 48px'}}>
 
       {/* ── Visión semanal ── */}
       <SectionLabel mt={0}>Visión semanal</SectionLabel>
 
       {/* Bar chart */}
-      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 16px',marginBottom:12,margin:desktop?'0 0 12px':' 0 20px 12px'}}>
+      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 16px',marginBottom:12,marginBottom:12}}>
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:20}}>
           <div>
             <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Tareas completadas</div>
-            <div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>Últimos 7 días</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F',marginTop:2}}>Últimos 7 días</div>
           </div>
           {peakHour>0&&<div style={{fontSize:10,color:'#9B8878',background:'#F5F1ED',padding:'3px 8px',borderRadius:99}}>
             Pico: {peakLabel}
@@ -1367,8 +1366,8 @@ function AnaliticaView({tasks, projects, goals, desktop}){
       </div>
 
       {/* Hours heatmap */}
-      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 14px',marginBottom:12,margin:desktop?'0 0 12px':' 0 20px 12px'}}>
-        <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Ventanas de claridad</div>
+      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 14px',marginBottom:12,marginBottom:12}}>
+        <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Ventanas de claridad</div>
         <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Horas de mayor ejecución</div>
         <div style={{display:'flex',gap:3,flexWrap:'nowrap'}}>
           {hourCounts.map((val,i)=>{
@@ -1389,7 +1388,7 @@ function AnaliticaView({tasks, projects, goals, desktop}){
       {/* ── Rendimiento ── */}
       <SectionLabel>Rendimiento</SectionLabel>
 
-      <div style={{display:'flex',gap:10,marginBottom:10,padding:desktop?'0':'0 20px'}}>
+      <div style={{display:'flex',gap:10,marginBottom:10,}}>
         <div style={{flex:1,background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 14px'}}>
           <div style={{fontSize:28,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',lineHeight:1,marginBottom:4}}>
             {onTimePct!==null?<>{onTimePct}<span style={{fontSize:16,color:'#B0AA9F'}}>%</span></>:noData}
@@ -1411,7 +1410,7 @@ function AnaliticaView({tasks, projects, goals, desktop}){
       </div>
 
       {/* CEO indicator */}
-      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px',marginBottom:10,margin:desktop?'0 0 10px':'0 20px 10px'}}>
+      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px',marginBottom:10,marginBottom:10}}>
         <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Indicador CEO</div>
         <div style={{fontSize:11,color:'#B0AA9F',marginBottom:18}}>¿Dónde está tu tiempo esta semana?</div>
         {totalCEO===1&&completedThisWeek.length===0
@@ -1459,7 +1458,7 @@ function AnaliticaView({tasks, projects, goals, desktop}){
       ].map(({status,icon,title,value})=>(
         <div key={title} style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',
           padding:'16px',marginBottom:10,display:'flex',alignItems:'center',gap:14,
-          margin:desktop?'0 0 10px':'0 20px 10px'}}>
+          marginBottom:10}}>
           <div style={{
             width:44,height:44,borderRadius:'50%',display:'flex',alignItems:'center',
             justifyContent:'center',fontSize:18,flexShrink:0,
