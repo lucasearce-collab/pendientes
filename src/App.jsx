@@ -188,6 +188,7 @@ export default function App() {
   const [celebrate, setCelebrate] = useState(null); // {type:'task'|'project', points:N}
   const [focusMode, setFocusMode] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
+  const [rescheduledCount, setRescheduledCount] = useState(0);
   const [points, setPoints] = useState(0);
 
   // Load points from Supabase only
@@ -265,6 +266,8 @@ export default function App() {
       setGoals(userGoals);
       setLoading(false);
       loadPoints(session.user.id);
+      // Load rescheduled count for analytics
+      supabase.from('events').select('id',{count:'exact'}).eq('user_id',session.user.id).eq('event_type','task_rescheduled').then(({count})=>setRescheduledCount(count||0));
       if(userProjects.length===0&&userTasks.length===0&&userGoals.length===0){
         setOnboarding(true);
       }
@@ -307,6 +310,16 @@ export default function App() {
     await safeDelete("tasks",id);
   }
   async function updateTask(u){
+    const prev = tasks.find(t=>t.id===u.id);
+    // Detect rescheduling: task was overdue and got a new future date
+    if(prev&&prev.date&&u.date&&u.date>prev.date&&prev.date<todayStr()&&!u.done){
+      trackEvent("task_rescheduled", u.id, "task", {
+        oldDate: prev.date,
+        newDate: u.date,
+        projectId: u.projectId,
+        type: u.type||"normal",
+      });
+    }
     setTasks(ts=>ts.map(t=>t.id===u.id?u:t)); setSheet(null);
     await safeUpsert("tasks",taskToDb(u,uid));
   }
@@ -381,7 +394,7 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,view,setView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
+  const props={tasks,projects,goals,view,setView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
   if(onboarding) return <OnboardingFlow uid={uid} supabase={supabase} onComplete={(gs,ps)=>{
     setGoals(gs.map(goalFromDb));
     setProjects(ps.map(projFromDb));
@@ -407,7 +420,7 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESKTOP
 // ═══════════════════════════════════════════════════════════════════════════════
-function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{height:"100vh",background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <DesktopStyles/>
@@ -750,7 +763,7 @@ function DesktopStyles(){return(<style>{`
 // ═══════════════════════════════════════════════════════════════════════════════
 // MOBILE
 // ═══════════════════════════════════════════════════════════════════════════════
-function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",position:"relative"}}>
       <MobileStyles/>
@@ -820,7 +833,7 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
         </>)}
         {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={false}/>}
         {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS}/>}
-        {view==="analitica"&&<AnaliticaView tasks={tasks} projects={projects} goals={goals}/>}
+        {view==="analitica"&&<AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount}/>}
 
         {view==="estrategia"&&(<>
           <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
@@ -1240,7 +1253,7 @@ function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,
 
 
 // ─── Analitica View ───────────────────────────────────────────────────────────
-function AnaliticaView({tasks, projects, goals, desktop}){
+function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
   const today = todayStr();
 
   // ── Week data ──
@@ -1275,9 +1288,8 @@ function AnaliticaView({tasks, projects, goals, desktop}){
   const onTimePct = completedWithDate.length>0 ? Math.round((onTime/completedWithDate.length)*100) : null;
 
   // ── Tasa postergación ──
-  const totalSnoozed = tasks.reduce((acc,t)=>acc+(t.snoozed_count||0),0);
-  const totalCompleted = tasks.filter(t=>t.done).length;
-  const snoozeRate = (totalCompleted+totalSnoozed)>0 ? Math.round((totalSnoozed/(totalCompleted+totalSnoozed))*100) : null;
+  const totalWithDate = tasks.filter(t=>t.date).length;
+  const snoozeRate = totalWithDate>0 ? Math.round((rescheduledCount/totalWithDate)*100) : null;
 
   // ── CEO indicator ──
   const completedThisWeek = tasks.filter(t=>t.done&&(
@@ -1411,8 +1423,8 @@ function AnaliticaView({tasks, projects, goals, desktop}){
             {snoozeRate!==null?<>{snoozeRate}<span style={{fontSize:16,color:'#B0AA9F'}}>%</span></>:noData}
           </div>
           <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.4}}>Postergación de tareas</div>
-          {snoozeRate!==null&&<div style={{fontSize:10,marginTop:8,color:snoozeRate<=20?'#8FAF8A':snoozeRate<=40?'#C4A882':'#C4896A'}}>
-            {snoozeRate<=20?'↑ Muy bajo':'→ Normal'}
+          {snoozeRate!==null&&<div style={{fontSize:10,marginTop:8,color:snoozeRate<=15?'#8FAF8A':snoozeRate<=35?'#C4A882':'#C4896A'}}>
+            {snoozeRate<=15?'↑ Muy bajo':snoozeRate<=35?'→ Moderado':'↓ Alto'}
           </div>}
         </div>
       </div>
