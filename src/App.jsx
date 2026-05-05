@@ -187,14 +187,36 @@ export default function App() {
   const [celebrate, setCelebrate] = useState(null); // {type:'task'|'project', points:N}
   const [focusMode, setFocusMode] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
-  const [points, setPoints] = useState(()=>{ try{return parseInt(localStorage.getItem('clarity_points')||'0');}catch{return 0;} });
+  const [points, setPoints] = useState(0);
 
-  function addPoints(n){
-    setPoints(p=>{
-      const np=p+n;
-      try{localStorage.setItem('clarity_points',String(np));}catch{}
-      return np;
-    });
+  // Sync points with Supabase on load
+  async function loadPoints(userId){
+    const {data} = await supabase.from('user_profiles').select('points').eq('id',userId).single();
+    if(data){
+      // Take max of Supabase and localStorage (don't lose local points)
+      const localPts = parseInt(localStorage.getItem('clarity_points')||'0');
+      const serverPts = data.points||0;
+      const finalPts = Math.max(localPts, serverPts);
+      if(finalPts > serverPts){
+        // Upload local points to Supabase
+        await supabase.from('user_profiles').upsert({id:userId, points:finalPts, updated_at:new Date().toISOString()});
+      }
+      localStorage.removeItem('clarity_points');
+      setPoints(finalPts);
+    } else {
+      // First time - migrate localStorage points to Supabase
+      const localPts = parseInt(localStorage.getItem('clarity_points')||'0');
+      await supabase.from('user_profiles').upsert({id:userId, points:localPts, updated_at:new Date().toISOString()});
+      localStorage.removeItem('clarity_points');
+      setPoints(localPts);
+    }
+  }
+
+  async function addPoints(n){
+    setPoints(p=>p+n);
+    if(session?.user?.id){
+      await supabase.rpc('increment_points',{user_id:session.user.id, amount:n});
+    }
   }
 
   const TREE_LEVELS = [
@@ -250,6 +272,7 @@ export default function App() {
       setTasks(userTasks);
       setGoals(userGoals);
       setLoading(false);
+      loadPoints(session.user.id);
       if(userProjects.length===0&&userTasks.length===0&&userGoals.length===0){
         setOnboarding(true);
       }
@@ -1697,44 +1720,52 @@ function CerezoView({points, treeLevel, TREE_LEVELS, desktop}){
 
 // ─── Desktop Hoy - Two Column ─────────────────────────────────────────────────
 function DHoyDesktop({overdueWork,todayWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks}){
-  const upcoming = tasks.filter(t=>{
+  const today = todayStr();
+  const allDated = (tasks||[]).filter(t=>{
     const p=projects.find(x=>x.id===t.projectId);
-    return p&&!t.done&&t.date&&t.date>=todayStr()&&!overdueWork.find(o=>o.id===t.id);
-  }).sort((a,b)=>a.date<b.date?-1:1);
+    return p&&!t.done&&t.date;
+  });
+  const todayTasks = allDated.filter(t=>t.date===today).sort((a,b)=>a.date<b.date?-1:1);
+  const upcomingTasks = allDated.filter(t=>t.date>today).sort((a,b)=>a.date<b.date?-1:1);
 
-  const colStyle = {flex:1,minWidth:0};
   const secHeader = (label,color,count) => (
-    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid #EAE6E0"}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,paddingBottom:8,borderBottom:"1px solid #EAE6E0"}}>
       <div style={{width:5,height:5,borderRadius:"50%",background:color}}/>
       <span style={{fontFamily:"'DM Sans'",fontSize:11,color,letterSpacing:".08em",textTransform:"uppercase"}}>{label}</span>
       {count>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginLeft:"auto"}}>{count}</span>}
     </div>
   );
 
-  if(overdueWork.length===0&&upcoming.length===0) return(
+  if(todayTasks.length===0&&upcomingTasks.length===0&&overdueWork.length===0) return(
     <div style={{textAlign:"center",padding:"60px 0",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
   );
 
   return(
-    <div style={{display:"flex",gap:48,alignItems:"flex-start",paddingRight:48}}>
-      {/* Left column - overdue */}
-      <div style={colStyle}>
-        {overdueWork.length>0&&<>
-          {secHeader("De días anteriores","#C4A882",overdueWork.length)}
-          <DTaskList tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue reorderTasks={reorderTasks}/>
-        </>}
-        {overdueWork.length===0&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin tareas vencidas ·</div>}
+    <div>
+      {/* Main two columns: hoy left, próximamente right */}
+      <div style={{display:"flex",gap:48,alignItems:"flex-start",marginBottom:overdueWork.length>0?40:0}}>
+        <div style={{flex:1,minWidth:0}}>
+          {secHeader("Vencen hoy","#9B8878",todayTasks.length)}
+          {todayTasks.length>0
+            ?<DTaskList tasks={todayTasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
+            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas para hoy ·</div>
+          }
+        </div>
+        <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
+        <div style={{flex:1,minWidth:0}}>
+          {secHeader("Próximamente","#B0AA9F",upcomingTasks.length)}
+          {upcomingTasks.length>0
+            ?<DTaskList tasks={upcomingTasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
+            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas próximas ·</div>
+          }
+        </div>
       </div>
-      {/* Divider */}
-      <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
-      {/* Right column - upcoming */}
-      <div style={colStyle}>
-        {upcoming.length>0&&<>
-          {secHeader("Próximos a vencer","#9B8878",upcoming.length)}
-          <DTaskList tasks={upcoming} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
-        </>}
-        {upcoming.length===0&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin tareas próximas ·</div>}
-      </div>
+      {/* Vencidas - discreta abajo */}
+      {overdueWork.length>0&&<>
+        <div style={{height:1,background:"#EAE6E0",marginBottom:20}}/>
+        {secHeader("Vencidas","#C4A882",overdueWork.length)}
+        <DTaskList tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue reorderTasks={reorderTasks}/>
+      </>}
     </div>
   );
 }
