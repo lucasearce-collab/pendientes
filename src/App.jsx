@@ -512,36 +512,40 @@ function DHoy({overdueWork,todayWork,upcomingWork,projects,tasks,toggleDone,onDe
     const p=projects.find(x=>x.id===t.projectId);
     return p&&!t.done&&t.date&&t.date>=today;
   }).sort((a,b)=>a.date<b.date?-1:1);
-  // Group by date
-  const byDate = {};
-  datedTasks.forEach(t=>{
-    const d=t.date; if(!byDate[d]) byDate[d]=[]; byDate[d].push(t);
-  });
-  const dates = Object.keys(byDate).sort();
+  const todayTasks = datedTasks.filter(t=>t.date===today);
+  const upcomingTasks = datedTasks.filter(t=>t.date>today);
+
   return(
-    <div style={{maxWidth:680}}>
-      {overdueWork.length>0&&(<div style={{marginBottom:8}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid #EAE6E0"}}>
-          <div style={{width:5,height:5,borderRadius:"50%",background:"#C4A882"}}/>
-          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase"}}>De días anteriores · {overdueWork.length}</span>
+    <div style={{paddingBottom:16}}>
+      {/* Vencen hoy */}
+      {todayTasks.length>0&&(<>
+        <div style={{padding:"14px 20px 6px",display:"flex",alignItems:"center",gap:8}}>
+          <div style={{width:5,height:5,borderRadius:"50%",background:"#9B8878"}}/>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B8878",letterSpacing:".08em",textTransform:"uppercase"}}>Vencen hoy · {todayTasks.length}</span>
         </div>
-        <DTaskList tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue reorderTasks={reorderTasks}/>
-      </div>)}
-      {todayWork.length>0&&(<div style={{marginBottom:8}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid #EAE6E0"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#9B8878",flexShrink:0}}/><span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B8878",letterSpacing:".08em",textTransform:"uppercase"}}>Para hoy</span></div>
-        <DTaskList tasks={todayWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
-      </div>)}
-      {overdueWork.length===0&&todayWork.length===0&&<div style={{padding:"24px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>}
-      {(()=>{const pv=(tasks||[]).filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p&&!t.done&&t.date&&t.date>=todayStr()&&!overdueWork.find(o=>o.id===t.id);}).sort((a,b)=>a.date<b.date?-1:1);return pv.length>0&&<>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid #EAE6E0",marginTop:8}}>
+        <TaskRows tasks={todayTasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...sw}/>
+      </>)}
+      {/* Próximamente */}
+      {upcomingTasks.length>0&&(<>
+        <div style={{padding:"14px 20px 6px",display:"flex",alignItems:"center",gap:8}}>
           <div style={{width:5,height:5,borderRadius:"50%",background:"#B0AA9F"}}/>
-          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>Próximos a vencer</span>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>Próximamente · {upcomingTasks.length}</span>
         </div>
-        <DTaskList tasks={pv} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
-      </>})()}
+        <TaskRows tasks={upcomingTasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...sw}/>
+      </>)}
+      {/* Vencidas - discreta al final */}
+      {overdueWork.length>0&&(<>
+        <div style={{padding:"14px 20px 6px",display:"flex",alignItems:"center",gap:8}}>
+          <div style={{width:5,height:5,borderRadius:"50%",background:"#C4A882"}}/>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase"}}>Vencidas · {overdueWork.length}</span>
+        </div>
+        <TaskRows tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue reorderTasks={reorderTasks} {...sw}/>
+      </>)}
+      {todayTasks.length===0&&upcomingTasks.length===0&&overdueWork.length===0&&<div style={{textAlign:"center",padding:"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>}
     </div>
   );
 }
+
 
 function UpcomingSection({tasks,projects,onToggle,onDelete,onOpen,reorderTasks,sw,desktop}){
   // Group by project
