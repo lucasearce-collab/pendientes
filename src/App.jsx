@@ -84,6 +84,7 @@ const NAV = [
   { id:"proyectos", label:"Proyectos", icon:"⊞" },
   { id:"metas",     label:"Metas",     icon:"◎" },
   { id:"cerezo",    label:"🌱",         icon:"🌱" },
+  { id:"analitica",  label:"◎",          icon:"◎" },
 ];
 
 const HORIZONS = {
@@ -819,6 +820,7 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
         </>)}
         {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={false}/>}
         {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS}/>}
+        {view==="analitica"&&<AnaliticaView tasks={tasks} projects={projects} goals={goals}/>}
 
         {view==="estrategia"&&(<>
           <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
@@ -1235,6 +1237,244 @@ function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,
 
 
 
+
+
+// ─── Analitica View ───────────────────────────────────────────────────────────
+function AnaliticaView({tasks, projects, goals, desktop}){
+  const today = todayStr();
+
+  // ── Week data ──
+  const weekDays = [];
+  for(let i=6;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    weekDays.push(d.toISOString().slice(0,10));
+  }
+  const DAY_LABELS = ['L','M','X','J','V','S','D'];
+
+  const completedByDay = weekDays.map(d=>
+    tasks.filter(t=>t.completed_at&&t.completed_at.slice(0,10)===d).length
+  );
+  const maxDay = Math.max(...completedByDay, 1);
+
+  // ── Peak hour ──
+  const hourCounts = Array(24).fill(0);
+  tasks.filter(t=>t.completed_at).forEach(t=>{
+    const h = new Date(t.completed_at).getHours();
+    hourCounts[h]++;
+  });
+  const maxHour = Math.max(...hourCounts, 1);
+  const peakHour = hourCounts.indexOf(Math.max(...hourCounts));
+  const peakLabel = peakHour===0?'12am':peakHour<12?`${peakHour}am`:peakHour===12?'12pm':`${peakHour-12}pm`;
+
+  // ── Tareas a tiempo ──
+  const completedWithDate = tasks.filter(t=>t.done&&t.date&&t.completed_at);
+  const onTime = completedWithDate.filter(t=>t.completed_at.slice(0,10)<=t.date).length;
+  const onTimePct = completedWithDate.length>0 ? Math.round((onTime/completedWithDate.length)*100) : null;
+
+  // ── Tasa postergación ──
+  const totalSnoozed = tasks.reduce((acc,t)=>acc+(t.snoozed_count||0),0);
+  const totalCompleted = tasks.filter(t=>t.done).length;
+  const snoozeRate = totalCompleted>0 ? Math.round((totalSnoozed/(totalCompleted+totalSnoozed))*100) : null;
+
+  // ── CEO indicator ──
+  const completedThisWeek = tasks.filter(t=>t.done&&t.completed_at&&t.completed_at.slice(0,10)>=weekDays[0]);
+  const getImportance = t => {
+    const p = projects.find(x=>x.id===t.projectId);
+    return p ? (p.importance||'normal') : 'normal';
+  };
+  const estrategicas = completedThisWeek.filter(t=>getImportance(t)==='estrategica').length;
+  const prioritarias = completedThisWeek.filter(t=>getImportance(t)==='urgente').length;
+  const normales = completedThisWeek.filter(t=>getImportance(t)==='normal').length;
+  const totalCEO = estrategicas+prioritarias+normales||1;
+  const estrategicasPct = Math.round((estrategicas/totalCEO)*100);
+  const prioritariasPct = Math.round((prioritarias/totalCEO)*100);
+  const normalesPct = Math.round((normales/totalCEO)*100);
+
+  // ── Salud ──
+  const overdueCount = tasks.filter(t=>!t.done&&t.date&&t.date<today).length;
+  const openPriority = projects.filter(p=>!p.completed_at&&(p.importance==='urgente'||p.importance==='estrategica')).length;
+  const openTotal = projects.filter(p=>!p.completed_at).length;
+  const cogLoadStatus = openPriority>=5?'red':openPriority>=3?'yellow':'green';
+  const portfolioStatus = openTotal>15?'red':openTotal>10?'yellow':'green';
+
+  const pad = desktop ? '0' : '0 20px';
+
+  const SectionLabel = ({children, mt}) => (
+    <div style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',
+      color:'#B0AA9F',marginBottom:14,marginTop:mt||28,padding:pad}}>
+      {children}
+    </div>
+  );
+
+  const noData = <span style={{fontSize:12,color:'#D5CFC8'}}>acumulando datos...</span>;
+
+  return(
+    <div style={{paddingBottom:48}}>
+
+      {/* ── Visión semanal ── */}
+      <SectionLabel mt={0}>Visión semanal</SectionLabel>
+
+      {/* Bar chart */}
+      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 16px',marginBottom:12,margin:desktop?'0 0 12px':' 0 20px 12px'}}>
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:20}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Tareas completadas</div>
+            <div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>Últimos 7 días</div>
+          </div>
+          {peakHour>0&&<div style={{fontSize:10,color:'#9B8878',background:'#F5F1ED',padding:'3px 8px',borderRadius:99}}>
+            Pico: {peakLabel}
+          </div>}
+        </div>
+        {/* Bars */}
+        <div style={{display:'flex',alignItems:'flex-end',gap:8,height:80}}>
+          {completedByDay.map((count,i)=>{
+            const pct = (count/maxDay)*100;
+            const isToday = weekDays[i]===today;
+            return(
+              <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+                <div style={{flex:1,display:'flex',alignItems:'flex-end',width:'100%'}}>
+                  <div style={{
+                    width:'100%',borderRadius:'6px 6px 0 0',
+                    height:Math.max(pct,4)+'%',
+                    background:isToday?'#2C2825':pct>50?'#C4B5A5':'#EAE6E0',
+                    position:'relative',
+                  }}>
+                    {count>0&&<span style={{
+                      position:'absolute',top:-18,left:'50%',transform:'translateX(-50%)',
+                      fontSize:10,color:'#9B8878',fontWeight:500,whiteSpace:'nowrap'
+                    }}>{count}</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {/* Day labels */}
+        <div style={{display:'flex',gap:8,marginTop:8}}>
+          {weekDays.map((d,i)=>{
+            const isToday = d===today;
+            const dow = new Date(d+'T12:00:00').getDay();
+            const label = ['D','L','M','X','J','V','S'][dow];
+            return(
+              <div key={i} style={{flex:1,textAlign:'center',fontSize:10,
+                color:isToday?'#2C2825':'#C8C3BB',
+                fontWeight:isToday?500:400,letterSpacing:'.06em',textTransform:'uppercase'}}>
+                {label}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Hours heatmap */}
+      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 14px',marginBottom:12,margin:desktop?'0 0 12px':' 0 20px 12px'}}>
+        <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Ventanas de claridad</div>
+        <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Horas de mayor ejecución</div>
+        <div style={{display:'flex',gap:3,flexWrap:'nowrap'}}>
+          {hourCounts.map((val,i)=>{
+            const intensity = val/maxHour;
+            const bg = intensity===0?'#F5F2EE':intensity<0.3?'#E8E2DB':intensity<0.6?'#C4B5A5':intensity<0.85?'#9B8878':'#2C2825';
+            return(
+              <div key={i} style={{flex:1,height:28,borderRadius:4,background:bg,minWidth:0}}/>
+            );
+          })}
+        </div>
+        <div style={{display:'flex',justifyContent:'space-between',marginTop:6}}>
+          {['6am','12pm','6pm','12am'].map(l=>(
+            <span key={l} style={{fontSize:9,color:'#C8C3BB'}}>{l}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Rendimiento ── */}
+      <SectionLabel>Rendimiento</SectionLabel>
+
+      <div style={{display:'flex',gap:10,marginBottom:10,padding:desktop?'0':'0 20px'}}>
+        <div style={{flex:1,background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 14px'}}>
+          <div style={{fontSize:28,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',lineHeight:1,marginBottom:4}}>
+            {onTimePct!==null?<>{onTimePct}<span style={{fontSize:16,color:'#B0AA9F'}}>%</span></>:noData}
+          </div>
+          <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.4}}>Tareas a tiempo</div>
+          {onTimePct!==null&&<div style={{fontSize:10,marginTop:8,color:onTimePct>=70?'#8FAF8A':onTimePct>=50?'#C4A882':'#C4896A'}}>
+            {onTimePct>=70?'↑ Buen ritmo':onTimePct>=50?'→ En proceso':'↓ Revisar fechas'}
+          </div>}
+        </div>
+        <div style={{flex:1,background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 14px'}}>
+          <div style={{fontSize:28,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',lineHeight:1,marginBottom:4}}>
+            {snoozeRate!==null?<>{snoozeRate}<span style={{fontSize:16,color:'#B0AA9F'}}>%</span></>:noData}
+          </div>
+          <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.4}}>Postergación de tareas</div>
+          {snoozeRate!==null&&<div style={{fontSize:10,marginTop:8,color:snoozeRate<=20?'#8FAF8A':snoozeRate<=40?'#C4A882':'#C4896A'}}>
+            {snoozeRate<=20?'↑ Muy bajo':'→ Normal'}
+          </div>}
+        </div>
+      </div>
+
+      {/* CEO indicator */}
+      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px',marginBottom:10,margin:desktop?'0 0 10px':'0 20px 10px'}}>
+        <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Indicador CEO</div>
+        <div style={{fontSize:11,color:'#B0AA9F',marginBottom:18}}>¿Dónde está tu tiempo esta semana?</div>
+        {totalCEO===1&&completedThisWeek.length===0
+          ? <div style={{fontSize:12,color:'#D5CFC8'}}>Completá tareas esta semana para ver el indicador</div>
+          : <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {[
+              {label:'Estratégico',pct:estrategicasPct,color:'#5B6BAF'},
+              {label:'Prioritario',pct:prioritariasPct,color:'#C49A7A'},
+              {label:'Normal',pct:normalesPct,color:'#9B948C'},
+            ].map(({label,pct,color})=>(
+              <div key={label} style={{display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:11,color,width:80,flexShrink:0}}>{label}</span>
+                <div style={{flex:1,height:6,background:'#F5F2EE',borderRadius:99,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:pct+'%',background:color,opacity:.75,borderRadius:99,transition:'width .6s cubic-bezier(.34,1,.64,1)'}}/>
+                </div>
+                <span style={{fontSize:11,color:'#C8C3BB',width:32,textAlign:'right',flexShrink:0}}>{pct}%</span>
+              </div>
+            ))}
+          </div>
+        }
+      </div>
+
+      {/* ── Salud ── */}
+      <SectionLabel>Salud del sistema</SectionLabel>
+
+      {[
+        {
+          status: overdueCount===0?'green':overdueCount<=3?'yellow':'red',
+          icon: overdueCount===0?'✓':overdueCount<=3?'⚡':'⚠',
+          title: 'Tareas vencidas',
+          value: overdueCount===0?'Todo al día':`${overdueCount} ${overdueCount===1?'tarea':'tareas'} sin fecha actualizada`,
+        },
+        {
+          status: cogLoadStatus,
+          icon: cogLoadStatus==='green'?'✓':cogLoadStatus==='yellow'?'⚡':'⚠',
+          title: 'Carga cognitiva',
+          value: `${openPriority} proyectos prioritarios/estratégicos abiertos`,
+        },
+        {
+          status: portfolioStatus,
+          icon: portfolioStatus==='green'?'✓':portfolioStatus==='yellow'?'⚡':'⚠',
+          title: 'Portafolio',
+          value: `${openTotal} proyectos activos`,
+        },
+      ].map(({status,icon,title,value})=>(
+        <div key={title} style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',
+          padding:'16px',marginBottom:10,display:'flex',alignItems:'center',gap:14,
+          margin:desktop?'0 0 10px':'0 20px 10px'}}>
+          <div style={{
+            width:44,height:44,borderRadius:'50%',display:'flex',alignItems:'center',
+            justifyContent:'center',fontSize:18,flexShrink:0,
+            background:status==='green'?'#F0F7EE':status==='yellow'?'#FBF8EE':'#FBF0EE',
+          }}>{icon}</div>
+          <div>
+            <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:2}}>{title}</div>
+            <div style={{fontSize:12,color:'#B0AA9F'}}>{value}</div>
+          </div>
+        </div>
+      ))}
+
+    </div>
+  );
+}
 
 // ─── Onboarding Flow ──────────────────────────────────────────────────────────
 function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
