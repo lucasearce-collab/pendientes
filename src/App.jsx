@@ -189,27 +189,18 @@ export default function App() {
   const [onboarding, setOnboarding] = useState(false);
   const [points, setPoints] = useState(0);
 
-  // Sync points with Supabase on load
+  // Load points from Supabase only
   async function loadPoints(userId){
     const {data} = await supabase.from('user_profiles').select('points').eq('id',userId).single();
     if(data){
-      // Take max of Supabase and localStorage (don't lose local points)
-      const localPts = parseInt(localStorage.getItem('clarity_points')||'0');
-      const serverPts = data.points||0;
-      const finalPts = Math.max(localPts, serverPts);
-      if(finalPts > serverPts){
-        // Upload local points to Supabase
-        await supabase.from('user_profiles').upsert({id:userId, points:finalPts, updated_at:new Date().toISOString()});
-      }
-      localStorage.removeItem('clarity_points');
-      setPoints(finalPts);
+      setPoints(data.points||0);
     } else {
-      // First time - migrate localStorage points to Supabase
-      const localPts = parseInt(localStorage.getItem('clarity_points')||'0');
-      await supabase.from('user_profiles').upsert({id:userId, points:localPts, updated_at:new Date().toISOString()});
-      localStorage.removeItem('clarity_points');
-      setPoints(localPts);
+      // First time user - create profile with 0 points
+      await supabase.from('user_profiles').insert({id:userId, points:0, updated_at:new Date().toISOString()});
+      setPoints(0);
     }
+    // Clean up any leftover localStorage
+    localStorage.removeItem('clarity_points');
   }
 
   async function addPoints(n){
