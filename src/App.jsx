@@ -1325,7 +1325,7 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
 
   return(
     <div style={{minHeight:"100vh",background:"#F5F2EE",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"'DM Sans',sans-serif"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
 
       <div style={{width:"100%",maxWidth:480}}>
         {/* Progress dots */}
