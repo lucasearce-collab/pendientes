@@ -1433,18 +1433,37 @@ function CelebrationToast({celebrate}){
 
 // ─── Particle Burst ───────────────────────────────────────────────────────────
 const BURST_COLORS = ['#E8B4C0','#9B8878','#8FAF8A','#C49A7A','#5B6BAF','#D4896A','#B0AA9F'];
+// Inject particle CSS once into document head
 function particleBurst(x, y, count=11){
   for(let i=0;i<count;i++){
     const p = document.createElement('div');
-    p.className = 'clarity-particle';
     const angle = (Math.PI*2/count)*i + Math.random()*.5;
-    const dist = 26 + Math.random()*34;
-    const tx = Math.cos(angle)*dist;
-    const ty = Math.sin(angle)*dist - 12;
-    const size = 4 + Math.random()*5;
-    p.style.cssText = `left:${x-size/2}px;top:${y-size/2}px;width:${size}px;height:${size}px;background:${BURST_COLORS[i%BURST_COLORS.length]};--tx:${tx}px;--ty:${ty}px;animation-delay:${Math.random()*0.05}s;`;
+    const dist = 28 + Math.random()*36;
+    const tx = Math.round(Math.cos(angle)*dist);
+    const ty = Math.round(Math.sin(angle)*dist - 14);
+    const size = Math.round(5 + Math.random()*5);
+    const color = BURST_COLORS[i%BURST_COLORS.length];
+    const delay = Math.round(Math.random()*60);
+    p.style.position = 'fixed';
+    p.style.left = (x - size/2) + 'px';
+    p.style.top = (y - size/2) + 'px';
+    p.style.width = size + 'px';
+    p.style.height = size + 'px';
+    p.style.background = color;
+    p.style.borderRadius = '50%';
+    p.style.pointerEvents = 'none';
+    p.style.zIndex = '999999';
+    p.style.transition = `transform ${550+delay}ms cubic-bezier(.25,.46,.45,.94), opacity ${550+delay}ms ease`;
+    p.style.transform = 'translate(0,0) scale(1)';
+    p.style.opacity = '1';
     document.body.appendChild(p);
-    setTimeout(()=>p.remove(), 700);
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        p.style.transform = `translate(${tx}px,${ty}px) scale(0)`;
+        p.style.opacity = '0';
+      });
+    });
+    setTimeout(()=>{ if(p.parentNode) p.remove(); }, 650);
   }
 }
 
@@ -2050,7 +2069,7 @@ function TaskRows({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorder
         const swiped=swipedId===task.id,isDragging=dragIdx===idx,isOver=overIdx===idx&&dragIdx!==null&&dragIdx!==idx;
         return(
           <div key={task.id} ref={el=>rowRefs.current[idx]=el}
-            style={{position:"relative",overflow:"hidden",opacity:isDragging?.35:1,borderTop:isOver?"2px solid #9B8878":"none"}}
+            style={{position:"relative",overflow:"visible",opacity:isDragging?.35:1,borderTop:isOver?"2px solid #9B8878":"none"}}
             onTouchStart={e=>handleRowTouchStart(e,idx,task.id)}
             onTouchMove={handleRowTouchMove}
             onTouchEnd={e=>handleRowTouchEnd(e,idx,task.id)}>
