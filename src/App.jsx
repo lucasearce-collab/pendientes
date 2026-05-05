@@ -796,23 +796,7 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
         {view==="hoy"&&(<>
           {focusMode
             ?<div style={{padding:"16px 20px 0"}}><FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet}/></div>
-            :<>
-              {overdueWork.length>0&&(<>
-                <div style={{padding:"14px 20px 6px",display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{width:5,height:5,borderRadius:"50%",background:"#C4A882"}}/>
-                  <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase"}}>De días anteriores · {overdueWork.length}</span>
-                </div>
-                <TaskRows tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} overdue reorderTasks={reorderTasks} {...sw}/>
-              </>)}
-              {(()=>{const upcoming=tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p&&!t.done&&t.date&&t.date>=todayStr();}).sort((a,b)=>a.date<b.date?-1:1);return upcoming.length>0&&<>
-                <div style={{display:"flex",alignItems:"center",gap:8,padding:"14px 20px 6px"}}>
-                  <div style={{width:5,height:5,borderRadius:"50%",background:"#9B8878"}}/>
-                  <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B8878",letterSpacing:".08em",textTransform:"uppercase"}}>Próximos a vencer</span>
-                </div>
-                <TaskRows tasks={upcoming} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} {...sw}/>
-              </>;})()}
-              {overdueWork.length===0&&tasks.filter(t=>!t.done&&t.date&&t.date>=todayStr()).length===0&&<div style={{textAlign:"center",padding:"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>}
-            </>
+            :<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>
           }
         </>)}
         {view==="tareas"&&(<>
