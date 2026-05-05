@@ -1460,33 +1460,42 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
         {
           status: overdueCount===0?'green':overdueCount<=3?'yellow':'red',
           icon: overdueCount===0?'✓':overdueCount<=3?'⚡':'⚠',
-          title: 'Tareas vencidas',
-          value: overdueCount===0?'Todo al día':`${overdueCount} ${overdueCount===1?'tarea':'tareas'} sin fecha actualizada`,
+          title: overdueCount===0?'Sin tareas vencidas':overdueCount<=3?'Tareas por actualizar':'Atención: tareas vencidas',
+          value: overdueCount===0?'Todo al día — buen ritmo.'
+            :overdueCount<=3?`${overdueCount} ${overdueCount===1?'tarea':'tareas'} con fecha vencida. Actualizá las fechas o completalas.`
+            :`${overdueCount} tareas vencidas acumuladas. Revisá y reagendá para despejar el camino.`,
         },
         {
           status: cogLoadStatus,
           icon: cogLoadStatus==='green'?'✓':cogLoadStatus==='yellow'?'⚡':'⚠',
-          title: 'Carga cognitiva',
-          value: `${openPriority} proyectos prioritarios/estratégicos abiertos`,
+          title: cogLoadStatus==='green'?'Carga cognitiva saludable':cogLoadStatus==='yellow'?'Carga cognitiva elevada':'Carga cognitiva crítica',
+          value: cogLoadStatus==='green'
+            ?`${openPriority} proyectos de alta prioridad. Dentro del rango recomendado.`
+            :cogLoadStatus==='yellow'
+            ?`${openPriority} proyectos prioritarios/estratégicos abiertos. Considerá cerrar o delegar alguno.`
+            :`${openPriority} proyectos de alta prioridad simultáneos. Demasiados frentes abiertos. Elegí los más importantes y pausá el resto.`,
         },
         {
           status: portfolioStatus,
           icon: portfolioStatus==='green'?'✓':portfolioStatus==='yellow'?'⚡':'⚠',
-          title: 'Portafolio',
-          value: `${openTotal} proyectos activos`,
+          title: portfolioStatus==='green'?'Portafolio equilibrado':portfolioStatus==='yellow'?'Portafolio amplio':'Portafolio sobrecargado',
+          value: portfolioStatus==='green'
+            ?`${openTotal} proyectos activos. Manejable y enfocado.`
+            :portfolioStatus==='yellow'
+            ?`${openTotal} proyectos activos. Estás cerca del límite para mantener claridad.`
+            :`${openTotal} proyectos activos. Difícil avanzar en todos. Cerrá los que terminaron o no son prioridad ahora.`,
         },
       ].map(({status,icon,title,value})=>(
         <div key={title} style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',
-          padding:'16px',marginBottom:10,display:'flex',alignItems:'center',gap:14,
-          marginBottom:10}}>
+          padding:'16px',marginBottom:10,display:'flex',alignItems:'flex-start',gap:14}}>
           <div style={{
             width:44,height:44,borderRadius:'50%',display:'flex',alignItems:'center',
-            justifyContent:'center',fontSize:18,flexShrink:0,
+            justifyContent:'center',fontSize:18,flexShrink:0,marginTop:2,
             background:status==='green'?'#F0F7EE':status==='yellow'?'#FBF8EE':'#FBF0EE',
           }}>{icon}</div>
           <div>
-            <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:2}}>{title}</div>
-            <div style={{fontSize:12,color:'#B0AA9F'}}>{value}</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>{title}</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:'#9B8878',lineHeight:1.6}}>{value}</div>
           </div>
         </div>
       ))}
