@@ -115,7 +115,7 @@ const fmtDate = (d) => {
 
 const projToDb  = (p,uid) => ({ id:p.id, area:p.area, name:p.name, monto:p.monto||"", importance:p.importance||"normal", description:p.description||"", main_goal:p.mainGoal||"", secondary_goals:p.secondaryGoals||[], goal_id:p.goal_id||null, sort_order:p.sortOrder||0, user_id:uid });
 const projFromDb = r => ({ id:r.id, area:r.area, name:r.name, monto:r.monto||"", importance:r.importance||"normal", description:r.description||"", mainGoal:r.main_goal||"", secondaryGoals:r.secondary_goals||[], goal_id:r.goal_id||null, sortOrder:r.sort_order||0 });
-const taskToDb  = (t,uid) => ({ id:t.id, project_id:t.projectId, title:t.title, type:t.type||"normal", date:t.date||"", responsable:t.responsable||"", notes:t.notes||"", done:t.done||false, sort_order:t.sortOrder||0, user_id:uid });
+const taskToDb  = (t,uid) => ({ id:t.id, project_id:t.projectId, title:t.title, type:t.type||"normal", date:t.date||"", responsable:t.responsable||"", notes:t.notes||"", done:t.done||false, sort_order:t.sortOrder||0, user_id:uid, completed_at:t.completed_at||null, snoozed_count:t.snoozed_count||0 });
 const taskFromDb = r => ({ id:r.id, projectId:r.project_id, title:r.title, type:r.type||"normal", date:r.date||"", responsable:r.responsable||"", notes:r.notes||"", done:r.done||false, sortOrder:r.sort_order||0, completed_at:r.completed_at||null, snoozed_count:r.snoozed_count||0 });
 
 function TypeDot({ type, done }) {
@@ -297,6 +297,7 @@ export default function App() {
     const u={...task,done:!task.done};
     setTasks(ts=>ts.map(t=>t.id===id?u:t)); setSwipedId(null);
     if(u.done){
+      u.completed_at = new Date().toISOString();
       addPoints(500);
       const cel={type:'task',points:500};
       console.log('celebrate:', cel);
@@ -2224,7 +2225,7 @@ function AppStyles(){return(<style>{`
 
 
   @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0;}body{background:#F7F5F2;overflow:hidden;}
+  *{box-sizing:border-box;margin:0;padding:0;}body{background:#F5F2EE;overflow:auto;}
   @keyframes fadeSlideUp{from{opacity:0;transform:translateX(-50%) translateY(16px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
   @keyframes particle{0%{transform:translate(0,0) scale(1);opacity:1;}100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0;}}
   @keyframes flyUp{0%{transform:translateY(0) scale(1);opacity:1;}100%{transform:translateY(-110px) scale(.94);opacity:0;}}
@@ -3086,7 +3087,7 @@ function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,a
       <div style={{height:1,background:"#EAE6E0",margin:desktop?"16px 0 0":"0 20px"}}/>
 
       {/* Content */}
-      <div style={{flex:1,overflowY:"auto",padding:contentPadding,boxSizing:"border-box",WebkitOverflowScrolling:"touch"}}>
+      <div style={{flex:1,overflowY:desktop?"auto":"visible",padding:contentPadding,boxSizing:"border-box",WebkitOverflowScrolling:"touch"}}>
 
         {view==="hoy"&&(
           focusMode
