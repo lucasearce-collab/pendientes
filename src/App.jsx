@@ -427,7 +427,7 @@ export default function App() {
     setView("metas");
   }} isDesktop={isDesktop}/>;
   return <>
-    {isDesktop?<DesktopLayout {...props}/>:<MobileLayout {...props}/>}
+    <AppLayout {...props} desktop={isDesktop}/>
     <CelebrationToast celebrate={celebrate}/>
   </>;
 }
@@ -445,21 +445,28 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESKTOP
 // ═══════════════════════════════════════════════════════════════════════════════
-function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline,desktop}){
+  const pad = desktop ? "48px" : "20px";
+  const titleSize = desktop ? 32 : 26;
+  const headerPadding = desktop ? "28px 48px 0" : "52px 20px 12px";
+  const contentPadding = desktop ? "24px 48px 48px" : "0";
+
   return(
-    <div style={{height:"100vh",background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      <DesktopStyles/>
+    <div style={{
+      ...(desktop ? {height:"100vh",overflow:"hidden"} : {maxWidth:430,margin:"0 auto",minHeight:"100vh"}),
+      background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex",flexDirection:"column",position:"relative"
+    }}>
+      <AppStyles/>
 
       {/* Header */}
-      <div style={{padding:"28px 48px 0",boxSizing:"border-box"}}>
-        {/* Top row */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+      <div style={{padding:headerPadding,boxSizing:"border-box"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
           <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>
             {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
             {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
-            <button onClick={()=>{const nf=!focusMode;setFocusMode(nf);}}
+            <button onClick={()=>{const nf=!focusMode;setFocusMode(nf);if(!desktop)trackEvent(nf?"focus_mode_on":"focus_mode_off",null,null,{tab:view});}}
               style={{background:focusMode?"#2C2825":"none",color:focusMode?"white":"#C8C3BB",border:`1px solid ${focusMode?"#2C2825":"#E5E1DB"}`,borderRadius:99,padding:"3px 12px",fontFamily:"'DM Sans'",fontSize:10,cursor:"pointer",transition:"all .2s",letterSpacing:".06em"}}>
               {focusMode?"◈ Foco":"◈"}
             </button>
@@ -467,20 +474,23 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
           </div>
         </div>
 
-        {/* Page title */}
-        <h1 style={{fontSize:32,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:16,fontFamily:"'DM Sans',sans-serif",lineHeight:1.1}}>
+        <h1 style={{fontSize:titleSize,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:desktop?16:12,fontFamily:"'DM Sans',sans-serif",lineHeight:1.1}}>
           {view==="hoy"?"Hoy":view==="tareas"?"Tareas":view==="proyectos"?"Proyectos":view==="metas"?"Metas":""}
         </h1>
 
         {/* Nav tabs */}
-        <div style={{display:"flex",gap:3,marginBottom:0,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:desktop?3:4,flexWrap:desktop?"wrap":"nowrap",overflowX:desktop?"visible":"auto"}}>
           {NAV.map(n=>(
-            <button key={n.id} onClick={()=>{setView(n.id);setActiveProjId(null);}}
-              style={{padding:"6px 16px",borderRadius:99,border:"none",cursor:"pointer",
+            <button key={n.id} onClick={()=>{setView(n.id);if(desktop)setActiveProjId(null);}}
+              className={desktop?"":"m-np"}
+              style={{
+                padding:desktop?"6px 16px":"5px 10px",
+                borderRadius:99,border:"none",cursor:"pointer",
                 background:view===n.id?"#2C2825":"transparent",
                 color:view===n.id?"#F5F2EE":"#B0AA9F",
-                fontFamily:"'DM Sans'",fontSize:13,fontWeight:view===n.id?500:400,
-                transition:"all .2s"}}>
+                fontFamily:"'DM Sans'",fontSize:desktop?13:12,fontWeight:view===n.id?500:400,
+                transition:"all .2s",whiteSpace:"nowrap",flexShrink:0
+              }}>
               {n.label}
             </button>
           ))}
@@ -488,13 +498,18 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
 
         {/* Area pills */}
         {(view==="tareas"||view==="proyectos")&&(
-          <div style={{display:"flex",gap:6,marginTop:14}}>
+          <div style={{display:"flex",gap:desktop?6:4,marginTop:desktop?14:12,overflowX:"auto",paddingBottom:2}}>
             {Object.entries(AREAS).map(([k,a])=>(
-              <button key={k} onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
-                style={{padding:"5px 14px",borderRadius:99,border:"none",cursor:"pointer",
+              <button key={k} onClick={()=>{setActiveArea(k);if(desktop)setActiveProjId(null);}}
+                className={desktop?"":"m-at"}
+                style={{
+                  padding:desktop?"5px 14px":"4px 10px",
+                  borderRadius:99,border:desktop?"none":`1px solid ${activeArea===k?a.color:"transparent"}`,
+                  cursor:"pointer",
                   background:activeArea===k?a.color:"transparent",
                   color:activeArea===k?"white":a.color,
-                  fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,transition:"all .2s"}}>
+                  fontFamily:"'DM Sans'",fontSize:desktop?12:11,fontWeight:500,transition:"all .2s",whiteSpace:"nowrap",flexShrink:0
+                }}>
                 {a.label}
               </button>
             ))}
@@ -503,411 +518,65 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
       </div>
 
       {/* Divider */}
-      <div style={{height:1,background:"#EAE6E0",margin:"16px 0 0"}}/>
+      <div style={{height:1,background:"#EAE6E0",margin:desktop?"16px 0 0":"0 20px"}}/>
 
       {/* Content */}
-      <div style={{flex:1,overflowY:"auto",padding:"24px 48px 48px",boxSizing:"border-box"}}>
+      <div style={{flex:1,overflowY:"auto",padding:contentPadding,boxSizing:"border-box"}}>
 
         {view==="hoy"&&(
           focusMode
-            ?<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop/>
-            :<HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} desktop/>
+            ?<div style={desktop?{}:{padding:"16px 20px 0"}}>
+               <FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop={desktop}/>
+             </div>
+            :<HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop}/>
         )}
 
-        {view==="tareas"&&(
-          focusMode
-            ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} desktop/>
-            :<GroupedProjectsView projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} onComplete={completeProject} reorderTasks={reorderTasks} desktop/>
-        )}
-
-        {view==="proyectos"&&(<div>
-          <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:20,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
+        {view==="tareas"&&(<>
           {focusMode
-            ?<ProjectFocusView projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} desktop/>
-            :<DraggableProjectGrid projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} onReorder={reorderProjects}/>
+            ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} desktop={desktop}/>
+            :<GroupedProjectsView projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} onComplete={completeProject} reorderTasks={reorderTasks} sw={sw} desktop={desktop}/>
           }
-          {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
-          <button className="d-newp" style={{marginTop:16}} onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea]?.label}</button>
+          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
+        </>)}
+
+        {view==="proyectos"&&(<div style={desktop?{}:{paddingBottom:0}}>
+          <div style={{padding:desktop?"0 0 20px":"14px 20px 4px"}}>
+            <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
+          </div>
+          {focusMode
+            ?<ProjectFocusView projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} desktop={desktop}/>
+            :(desktop
+              ?<DraggableProjectGrid projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} onReorder={reorderProjects}/>
+              :<DraggableProjectList projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} onReorder={reorderProjects}/>
+            )
+          }
+          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
+          <button className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:16}:{}}
+            onClick={()=>setNewProjSheet({area:activeArea})}>
+            {desktop?`+ Nuevo proyecto en ${AREAS[activeArea]?.label}`:<><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</>}
+          </button>
         </div>)}
 
-        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={true}/>}
+        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={desktop}/>}
 
-        {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop/>}
+        {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop={desktop}/>}
+
+        {view==="analitica"&&(
+          <div style={desktop?{maxWidth:900,width:"100%"}:{}}>
+            <AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount} desktop={desktop}/>
+          </div>
+        )}
       </div>
 
       {/* Clarity wordmark */}
-      <div style={{textAlign:"center",padding:"0 0 24px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8"}}>Clarity</div>
+      <div style={{textAlign:"center",padding:desktop?"0 0 24px":"16px 0 28px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8",userSelect:"none"}}>
+        Clarity
+      </div>
       <CelebrationToast celebrate={celebrate}/>
       {sheets}
     </div>
   );
 }
-
-
-function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop}){
-  const today = todayStr();
-  const datedTasks = (tasks||[]).filter(t=>{
-    const p=projects.find(x=>x.id===t.projectId);
-    return p&&!t.done&&t.date;
-  }).sort((a,b)=>a.date<b.date?-1:1);
-  const todayTasks = datedTasks.filter(t=>t.date===today);
-  const upcomingTasks = datedTasks.filter(t=>t.date>today);
-
-  const SectionHeader = ({label,color,count}) => (
-    <div style={{display:"flex",alignItems:"center",gap:8,
-      ...(desktop
-        ? {marginBottom:12,paddingBottom:8,borderBottom:"1px solid #EAE6E0"}
-        : {padding:"14px 20px 6px"}
-      )}}>
-      <div style={{width:5,height:5,borderRadius:"50%",background:color}}/>
-      <span style={{fontFamily:"'DM Sans'",fontSize:11,color,letterSpacing:".08em",textTransform:"uppercase"}}>
-        {label}{count>0&&` · ${count}`}
-      </span>
-      {desktop&&count>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginLeft:"auto"}}>{count}</span>}
-    </div>
-  );
-
-  const TaskList = ({tasks,overdue}) => desktop
-    ? <DTaskList tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks}/>
-    : <TaskRows tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks} {...(sw||{})}/>;
-
-  const isEmpty = todayTasks.length===0&&upcomingTasks.length===0&&overdueWork.length===0;
-  if(isEmpty) return(
-    <div style={{textAlign:"center",padding:desktop?"60px 0":"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
-  );
-
-  if(desktop) return(
-    <div>
-      <div style={{display:"flex",gap:48,alignItems:"flex-start",marginBottom:overdueWork.length>0?40:0}}>
-        <div style={{flex:1,minWidth:0}}>
-          <SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/>
-          {todayTasks.length>0
-            ?<TaskList tasks={todayTasks}/>
-            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas para hoy ·</div>
-          }
-        </div>
-        <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
-        <div style={{flex:1,minWidth:0}}>
-          <SectionHeader label="Próximamente" color="#B0AA9F" count={upcomingTasks.length}/>
-          {upcomingTasks.length>0
-            ?<TaskList tasks={upcomingTasks}/>
-            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas próximas ·</div>
-          }
-        </div>
-      </div>
-      {overdueWork.length>0&&<>
-        <div style={{height:1,background:"#EAE6E0",marginBottom:20}}/>
-        <SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/>
-        <TaskList tasks={overdueWork} overdue/>
-      </>}
-    </div>
-  );
-
-  return(
-    <div style={{paddingBottom:16}}>
-      {todayTasks.length>0&&<><SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/><TaskList tasks={todayTasks}/></>}
-      {upcomingTasks.length>0&&<><SectionHeader label="Próximamente" color="#B0AA9F" count={upcomingTasks.length}/><TaskList tasks={upcomingTasks}/></>}
-      {overdueWork.length>0&&<><SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/><TaskList tasks={overdueWork} overdue/></>}
-    </div>
-  );
-}
-
-function UpcomingSection({tasks,projects,onToggle,onDelete,onOpen,reorderTasks,sw,desktop}){
-  // Group by project
-  const projectIds = [...new Set(tasks.map(t=>t.projectId))];
-  const [open,setOpen]=useState({});
-
-  return(
-    <div style={{marginTop:8}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:"1px solid #EAE6E0",padding:desktop?"0 0 6px":"0 20px 6px"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#B0AA9F",flexShrink:0}}/><span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>Lo antes posible</span></div>
-      {projectIds.map(pid=>{
-        const proj=projects.find(p=>p.id===pid);
-        const ptasks=tasks.filter(t=>t.projectId===pid).sort(taskSort);
-        if(!proj||ptasks.length===0) return null;
-        const isOpen=open[pid];
-        const imp=IMPORTANCE[proj.importance||"normal"];
-        return(
-          <div key={pid} style={{marginBottom:4}}>
-            <div onClick={()=>setOpen(o=>({...o,[pid]:!o[pid]}))}
-              style={{display:"flex",alignItems:"center",gap:8,padding:desktop?"10px 0":"10px 20px",cursor:"pointer",userSelect:"none",borderBottom:"1px solid #EAE6E0"}}>
-              <div style={{width:6,height:6,borderRadius:"50%",background:AREAS[proj.area]?.color||"#9B8878",flexShrink:0}}/>
-              <span style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",fontWeight:400,flex:1}}>{proj.name}</span>
-              <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F"}}>{ptasks.length}</span>
-              <span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",marginLeft:4}}>{isOpen?"▾":"›"}</span>
-            </div>
-            {isOpen&&(desktop
-              ?<DTaskList tasks={ptasks} projects={[]} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
-              :<TaskRows tasks={ptasks} projects={[]} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...(sw||{})}/>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function DProjBlock({project,area,tasks,onToggle,onOpen,onAddTask,onComplete,reorderTasks,sw}){
-  const [open,setOpen]=useState(false);
-  const imp=IMPORTANCE[project.importance||"normal"];
-  const pending=tasks.filter(t=>!t.done).length;
-  const sorted=[...tasks].sort(taskSort);
-  return(
-    <div style={{marginBottom:10,border:"1px solid #EAE6E0",borderRadius:12,overflow:"hidden",background:"white"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 18px",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:6,height:6,borderRadius:"50%",background:AREAS[area].color,opacity:.7}}/>
-          <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,color:"#3A3530"}}>{project.name}</span>
-          {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
-          {pending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F"}}>{pending} pendientes</span>}
-          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 8px",borderRadius:99}}>{imp.label}</span>
-        </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}} onClick={e=>e.stopPropagation()}>
-          <button className="d-ib" onClick={onAddTask}>+ tarea</button>
-          <span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",transform:open?"rotate(0)":"rotate(-90deg)",display:"inline-block",transition:"transform .2s",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>▾</span>
-        </div>
-      </div>
-      {open&&(sorted.length>0?<DTaskList tasks={sorted} projects={[]} onToggle={onToggle} onOpen={onOpen} area={area} reorderTasks={reorderTasks}/>:<div style={{padding:"6px 18px 14px",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin tareas · click en + tarea</div>)}
-    </div>
-  );
-}
-
-function DPlanBlock({project,onEdit,onDelete,onComplete}){
-  const [conf,setConf]=useState(false);
-  const [exp,setExp]=useState(false);
-  const imp=IMPORTANCE[project.importance||"normal"];
-  const has=project.description||project.mainGoal||(project.secondaryGoals?.length>0);
-  return(
-    <div style={{border:"1px solid #EAE6E0",borderRadius:12,background:"white",display:"flex",flexDirection:"column"}}>
-      <div style={{padding:"14px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
-        <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1,minWidth:0}}>
-          <div onClick={()=>{if(window.confirm("¿Completar proyecto?"))onComplete&&onComplete(project.id);}} style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid #C8C3BB",flexShrink:0,marginTop:2,cursor:"pointer",transition:"all .2s"}} />
-          <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
-          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
-            <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,color:"#2C2825"}}>{project.name}</span>
-            {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
-            <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 7px",borderRadius:99}}>{imp.label}</span>
-          </div>
-          {project.mainGoal&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B948C",lineHeight:1.4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{project.mainGoal}</div>}
-          {!has&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos definidos</div>}
-          </div>
-        </div>
-        <div style={{display:"flex",gap:5,flexShrink:0}}>
-          <button className="d-ib" onClick={onEdit}>Editar</button>
-          {conf?<><button className="d-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={onDelete}>Confirmar</button><button className="d-ib" onClick={()=>setConf(false)}>✕</button></>:<button className="d-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>Eliminar</button>}
-        </div>
-      </div>
-      {exp&&has&&<div style={{padding:"0 16px 14px",borderTop:"1px solid #F5F2EE"}}>
-        {project.description&&<p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258",margin:"10px 0 8px",lineHeight:1.6}}>{project.description}</p>}
-        {project.mainGoal&&<div style={{marginBottom:8}}><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:3}}>Objetivo principal</div><div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#3A3530",fontWeight:500}}>{project.mainGoal}</div></div>}
-        {project.secondaryGoals?.length>0&&<div><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:5}}>Secundarios</div>{project.secondaryGoals.map((g,i)=><div key={i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}><div style={{width:3,height:3,borderRadius:"50%",background:"#C8C3BB",flexShrink:0,marginTop:6}}/><span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#6B6258"}}>{g}</span></div>)}</div>}
-      </div>}
-    </div>
-  );
-}
-
-function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorderTasks}){
-  const [localOrder,setLocalOrder]=useState(null);
-  const [draggingId,setDraggingId]=useState(null);
-  const [overId,setOverId]=useState(null);
-  const sorted=localOrder
-    ?localOrder.map(id=>tasks.find(t=>t.id===id)).filter(Boolean)
-    :[...tasks].sort(taskSort);
-
-  function onDragStart(e,id){
-    e.dataTransfer.effectAllowed="move";
-    e.dataTransfer.setData("text/plain",id);
-    setDraggingId(id);
-  }
-  function onDragEnter(e,id){
-    e.preventDefault();
-    setOverId(id);
-  }
-  function onDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect="move"; }
-  function onDrop(e,id){
-    e.preventDefault();
-    const dragId=e.dataTransfer.getData("text/plain");
-    if(!dragId||dragId===id){setDraggingId(null);setOverId(null);return;}
-    const ids=sorted.map(t=>t.id);
-    const fi=ids.indexOf(dragId), ti=ids.indexOf(id);
-    if(fi<0||ti<0){setDraggingId(null);setOverId(null);return;}
-    const r=[...ids]; r.splice(fi,1); r.splice(ti,0,dragId);
-    setLocalOrder(r); reorderTasks&&reorderTasks(r);
-    setDraggingId(null); setOverId(null);
-  }
-  function onDragEnd(){ setDraggingId(null); setOverId(null); }
-
-  return(
-    <div>
-      {sorted.map((task,i)=>{
-        const proj=projects.find(p=>p.id===task.projectId);
-        const isDragging=draggingId===task.id;
-        const isOver=overId===task.id&&draggingId&&draggingId!==task.id;
-        return(
-          <div key={task.id}
-            draggable="true"
-            onDragStart={e=>onDragStart(e,task.id)}
-            onDragEnter={e=>onDragEnter(e,task.id)}
-            onDragOver={onDragOver}
-            onDrop={e=>onDrop(e,task.id)}
-            onDragEnd={onDragEnd}
-            style={{
-              padding:"12px 4px",
-              borderTop:isOver?"2px solid #9B8878":i>0?"1px solid #EAE6E0":"none",
-              display:"flex",alignItems:"center",gap:12,
-              cursor:"grab",
-              background:isDragging?"#EDE9E4":isOver?"#F5F2EE":overdue?"#FBF8F4":"transparent",
-              opacity:isDragging?.4:1,
-              transition:"opacity .1s,background .1s"
-            }}
-            onClick={()=>{ if(!draggingId) onOpen(task); }}>
-            <button className={`d-ci${task.done?" done":""}`} onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
-              {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
-            </button>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontFamily:"'DM Sans'",fontSize:14,color:task.done?"#C8C3BB":overdue?"#9B8878":"#2C2825",textDecoration:task.done?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
-              <div style={{display:"flex",gap:8,marginTop:2}}>
-                {proj&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C",fontWeight:500}}>{proj.name}</span>}
-                {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:overdue?"#C4896A":"#9B948C"}}>{fmtDate(task.date)}</span>}
-                {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A",fontWeight:500}}>→ {task.responsable}</span>}
-                {task.notes&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8"}}>· nota</span>}
-              </div>
-            </div>
-            <TypeDot type={task.type} done={task.done}/>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-
-function DesktopStyles(){return(<style>{`
-  @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0;}body{background:#F7F5F2;overflow:hidden;}
-  @keyframes fadeSlideUp{from{opacity:0;transform:translateX(-50%) translateY(16px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
-  @keyframes particle{0%{transform:translate(0,0) scale(1);opacity:1;}100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0;}}
-  @keyframes flyUp{0%{transform:translateY(0) scale(1);opacity:1;}100%{transform:translateY(-110px) scale(.94);opacity:0;}}
-  @keyframes slideInCard{0%{transform:translateY(28px);opacity:0;}100%{transform:translateY(0);opacity:1;}}
-  .clarity-particle{position:fixed;border-radius:50%;pointer-events:none;z-index:99999;animation:particle .55s cubic-bezier(.25,.46,.45,.94) forwards;}
-  .d-nav{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 10px;border-radius:8px;text-align:left;transition:all .15s;}
-  .d-nav:hover{background:#E8E3DC;color:#3A3530!important;}
-  .d-proj{display:flex;align-items:center;justify-content:space-between;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;border-radius:6px;transition:all .15s;gap:6px;}
-  .d-proj:hover{background:#E8E3DC;}
-  .d-apill{cursor:pointer;border-radius:99px;padding:6px 14px;font-size:12px;font-family:'DM Sans',sans-serif;transition:all .2s;white-space:nowrap;}
-  .d-tr{transition:background .12s;cursor:grab;}.d-tr:hover{background:#F5F2EE!important;}
-  .d-ci{width:22px;height:22px;border-radius:50%;border:1.5px solid #C8C3BB;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
-  .d-ci:hover{border-color:#9B8878;}.d-ci.done{background:#B5A99A;border-color:#B5A99A;}
-  .d-ib{background:none;border:1px solid #E5E1DB;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11px;color:#B0AA9F;padding:4px 9px;transition:all .15s;white-space:nowrap;}
-  .d-ib:hover{border-color:#B5A99A;color:#6B6258;}
-  .d-newp{display:flex;align-items:center;gap:8px;background:none;border:1px dashed #D5CFC8;border-radius:10px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;color:#C8C3BB;padding:12px 18px;margin-top:8px;transition:all .2s;width:100%;}
-  .d-newp:hover{border-color:#B5A99A;color:#9B8878;}
-  .sheet-overlay{position:fixed;inset:0;background:rgba(44,40,37,.45);z-index:100;animation:fadeIn .2s;}
-  .sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#F7F5F2;border-radius:20px 20px 0 0;padding:20px 20px 44px;z-index:101;animation:slideUp .28s cubic-bezier(.4,0,.2,1);max-height:92vh;overflow-y:auto;}
-  .d-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;background:#F7F5F2;border-radius:16px;padding:28px;z-index:101;animation:fadeIn .2s;box-shadow:0 20px 60px rgba(0,0,0,.15);max-height:90vh;overflow-y:auto;}
-  @keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
-  .si{width:100%;background:white;border:1px solid #E5E1DB;border-radius:10px;padding:10px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#3A3530;}.si:focus{border-color:#B5A99A;}
-  .sl{font-family:'DM Sans';font-size:10px;color:#B0AA9F;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:block;}
-  .sv{width:100%;background:#6B6258;color:white;border:none;border-radius:12px;padding:13px;font-size:15px;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;margin-top:16px;transition:background .15s;}.sv:hover{background:#4A433C;}
-  .hd{width:36px;height:4px;background:#D5CFC8;border-radius:99px;margin:0 auto 20px;}
-  .dc{cursor:pointer;border:1px solid #E5E1DB;border-radius:99px;padding:4px 11px;font-size:11px;font-family:'DM Sans';color:#8C877F;background:white;transition:all .2s;white-space:nowrap;}.dc.on{background:#6B6258;border-color:#6B6258;color:white;}
-  .impb{cursor:pointer;border-radius:8px;padding:8px 12px;font-family:'DM Sans';font-size:13px;border:1px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;}
-  .typb{cursor:pointer;border-radius:10px;padding:10px 14px;font-family:'DM Sans';font-size:13px;border:1.5px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
-`}</style>);}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MOBILE
-// ═══════════════════════════════════════════════════════════════════════════════
-function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
-  return(
-    <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",position:"relative"}}>
-      <MobileStyles/>
-      <div style={{padding:"52px 20px 12px"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-          <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>
-            {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
-            <button onClick={()=>{const nf=!focusMode;setFocusMode(nf);trackEvent(nf?"focus_mode_on":"focus_mode_off",null,null,{tab:view});}}
-              style={{background:focusMode?"#2C2825":"none",color:focusMode?"white":"#C8C3BB",border:`1px solid ${focusMode?"#2C2825":"#E5E1DB"}`,borderRadius:99,padding:"3px 12px",fontFamily:"'DM Sans'",fontSize:10,cursor:"pointer",transition:"all .2s",letterSpacing:".06em"}}>
-              {focusMode?"◈ Foco":"◈"}
-            </button>
-            <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",padding:0}}>↩</button>
-          </div>
-        </div>
-        <h1 style={{fontSize:26,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:12,fontFamily:"'DM Sans',sans-serif",lineHeight:1.1}}>
-          {view==="hoy"?"Hoy":view==="tareas"?"Tareas":view==="proyectos"?"Proyectos":view==="metas"?"Metas":""}
-        </h1>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{display:"flex",gap:4}}>
-            {NAV.map(v=>(
-              <button key={v.id} className="m-np" onClick={()=>setView(v.id)}
-                style={{background:view===v.id?"#2C2825":"transparent",color:view===v.id?"#F7F5F2":"#A09890"}}>
-                {v.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {(view==="tareas"||view==="proyectos"||view==="estrategia")&&(
-          <div style={{display:"flex",gap:4,marginTop:12,overflowX:"auto",paddingBottom:2}}>
-            {Object.entries(AREAS).map(([k,a])=>(
-              <button key={k} className="m-at" onClick={()=>setActiveArea(k)}
-                style={{background:activeArea===k?a.color:"transparent",color:activeArea===k?"white":a.color,border:`1px solid ${activeArea===k?a.color:"transparent"}`}}>
-                {a.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      <div style={{height:1,background:"#EAE6E0",margin:"0 20px"}}/>
-      <div style={{paddingBottom:32}}>
-        {view==="hoy"&&(<>
-          {focusMode
-            ?<div style={{padding:"16px 20px 0"}}><FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet}/></div>
-            :<HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>
-          }
-        </>)}
-        {view==="tareas"&&(<>
-          {focusMode
-            ?<FocusProject projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}/>
-            :<><GroupedProjectsView projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} onComplete={completeProject} reorderTasks={reorderTasks} sw={sw}/></>
-          }
-          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
-        </>)}
-        {view==="proyectos"&&(<>
-          {focusMode
-            ?<ProjectFocusView projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject}/>
-            :<>
-              <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
-              <DraggableProjectList projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} onReorder={reorderProjects}/>
-              {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
-              <button className="m-newp" onClick={()=>setNewProjSheet({area:activeArea})}><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</button>
-            </>
-          }
-        </>)}
-        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={false}/>}
-        {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS}/>}
-        {view==="analitica"&&<AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount}/>}
-
-        {view==="estrategia"&&(<>
-          <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
-          {projectsForArea(activeArea).map(proj=>(
-            <PlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)} onComplete={completeProject}/>
-          ))}
-          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
-          <button className="m-newp" onClick={()=>setNewProjSheet({area:activeArea})}><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</button>
-        </>)}
-      </div>
-      <div style={{textAlign:"center",padding:"16px 0 28px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8",fontWeight:400,userSelect:"none"}}>
-        Clarity
-      </div>
-      {sheets}
-    </div>
-  );
-}
-
-
-
 
 // ─── Focus Project (Tareas tab) ───────────────────────────────────────────────
 function FocusProject({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask}){
@@ -2667,7 +2336,7 @@ function TaskRows({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorder
   );
 }
 
-function MobileStyles(){return(<style>{`
+function AppStyles(){return(<style>{`
   @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}body{background:#F7F5F2;}
   .m-np{cursor:pointer;border:none;font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;border-radius:99px;transition:all .2s;}
@@ -2685,9 +2354,40 @@ function MobileStyles(){return(<style>{`
   .dc{cursor:pointer;border:1px solid #E5E1DB;border-radius:99px;padding:4px 11px;font-size:11px;font-family:'DM Sans';color:#8C877F;background:white;transition:all .2s;white-space:nowrap;}.dc.on{background:#6B6258;border-color:#6B6258;color:white;}
   .impb{cursor:pointer;border-radius:8px;padding:8px 12px;font-family:'DM Sans';font-size:13px;border:1px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;}
   .typb{cursor:pointer;border-radius:10px;padding:10px 14px;font-family:'DM Sans';font-size:13px;border:1.5px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
+
+
+  @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}body{background:#F7F5F2;overflow:hidden;}
+  @keyframes fadeSlideUp{from{opacity:0;transform:translateX(-50%) translateY(16px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+  @keyframes particle{0%{transform:translate(0,0) scale(1);opacity:1;}100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0;}}
+  @keyframes flyUp{0%{transform:translateY(0) scale(1);opacity:1;}100%{transform:translateY(-110px) scale(.94);opacity:0;}}
+  @keyframes slideInCard{0%{transform:translateY(28px);opacity:0;}100%{transform:translateY(0);opacity:1;}}
+  .clarity-particle{position:fixed;border-radius:50%;pointer-events:none;z-index:99999;animation:particle .55s cubic-bezier(.25,.46,.45,.94) forwards;}
+  .d-nav{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 10px;border-radius:8px;text-align:left;transition:all .15s;}
+  .d-nav:hover{background:#E8E3DC;color:#3A3530!important;}
+  .d-proj{display:flex;align-items:center;justify-content:space-between;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;border-radius:6px;transition:all .15s;gap:6px;}
+  .d-proj:hover{background:#E8E3DC;}
+  .d-apill{cursor:pointer;border-radius:99px;padding:6px 14px;font-size:12px;font-family:'DM Sans',sans-serif;transition:all .2s;white-space:nowrap;}
+  .d-tr{transition:background .12s;cursor:grab;}.d-tr:hover{background:#F5F2EE!important;}
+  .d-ci{width:22px;height:22px;border-radius:50%;border:1.5px solid #C8C3BB;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+  .d-ci:hover{border-color:#9B8878;}.d-ci.done{background:#B5A99A;border-color:#B5A99A;}
+  .d-ib{background:none;border:1px solid #E5E1DB;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11px;color:#B0AA9F;padding:4px 9px;transition:all .15s;white-space:nowrap;}
+  .d-ib:hover{border-color:#B5A99A;color:#6B6258;}
+  .d-newp{display:flex;align-items:center;gap:8px;background:none;border:1px dashed #D5CFC8;border-radius:10px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;color:#C8C3BB;padding:12px 18px;margin-top:8px;transition:all .2s;width:100%;}
+  .d-newp:hover{border-color:#B5A99A;color:#9B8878;}
+  .sheet-overlay{position:fixed;inset:0;background:rgba(44,40,37,.45);z-index:100;animation:fadeIn .2s;}
+  .sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#F7F5F2;border-radius:20px 20px 0 0;padding:20px 20px 44px;z-index:101;animation:slideUp .28s cubic-bezier(.4,0,.2,1);max-height:92vh;overflow-y:auto;}
+  .d-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;background:#F7F5F2;border-radius:16px;padding:28px;z-index:101;animation:fadeIn .2s;box-shadow:0 20px 60px rgba(0,0,0,.15);max-height:90vh;overflow-y:auto;}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
+  .si{width:100%;background:white;border:1px solid #E5E1DB;border-radius:10px;padding:10px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#3A3530;}.si:focus{border-color:#B5A99A;}
+  .sl{font-family:'DM Sans';font-size:10px;color:#B0AA9F;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:block;}
+  .sv{width:100%;background:#6B6258;color:white;border:none;border-radius:12px;padding:13px;font-size:15px;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;margin-top:16px;transition:background .15s;}.sv:hover{background:#4A433C;}
+  .hd{width:36px;height:4px;background:#D5CFC8;border-radius:99px;margin:0 auto 20px;}
+  .dc{cursor:pointer;border:1px solid #E5E1DB;border-radius:99px;padding:4px 11px;font-size:11px;font-family:'DM Sans';color:#8C877F;background:white;transition:all .2s;white-space:nowrap;}.dc.on{background:#6B6258;border-color:#6B6258;color:white;}
+  .impb{cursor:pointer;border-radius:8px;padding:8px 12px;font-family:'DM Sans';font-size:13px;border:1px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;}
+  .typb{cursor:pointer;border-radius:10px;padding:10px 14px;font-family:'DM Sans';font-size:13px;border:1.5px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
 `}</style>);}
 
-// ─── Shared Sheets ────────────────────────────────────────────────────────────
 function TypeSelector({value,onChange}){
   return(<div style={{marginBottom:14}}>
     <span className="sl">Tipo de tarea</span>
