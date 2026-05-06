@@ -510,8 +510,8 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
         {view==="proyectos"&&(<div>
           <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:20,lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
           {focusMode
-            ?<FocusStrategyMode projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} desktop/>
-            :<DraggableProjectGrid projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onReorder={reorderProjects}/>
+            ?<FocusStrategyMode projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} desktop/>
+            :<DraggableProjectGrid projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} onReorder={reorderProjects}/>
           }
           {projectsForArea(activeArea).length===0&&<div style={{color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,padding:"32px 0"}}>Sin proyectos aún.</div>}
           <button className="d-newp" style={{marginTop:16}} onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea]?.label}</button>
@@ -1139,7 +1139,7 @@ function FocusProjectMode({projects,tasksForProject,onToggle,onDelete,onOpen,onA
 }
 
 // ─── Focus Strategy Mode (Proyectos) ─────────────────────────────────────────
-function FocusStrategyMode({projects,onEdit,onDelete,desktop}){
+function FocusStrategyMode({projects,onEdit,onDelete,onComplete,desktop}){
   const [idx,setIdx]=useState(0);
   const touchStartX=useRef(0);
   const [conf,setConf]=useState(false);
@@ -2876,7 +2876,7 @@ function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew
 
 
 // ─── Draggable Project Grid (desktop) ────────────────────────────────────────
-function DraggableProjectGrid({projects,onEdit,onDelete,onReorder}){
+function DraggableProjectGrid({projects,onEdit,onDelete,onComplete,onReorder}){
   const [order,setOrder]=useState(null);
   const dragItem=useRef(null),dragOver=useRef(null);
   const sorted=order?order.map(id=>projects.find(p=>p.id===id)).filter(Boolean):[...projects].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
@@ -2897,7 +2897,7 @@ function DraggableProjectGrid({projects,onEdit,onDelete,onReorder}){
           onDragOver={e=>e.preventDefault()}
           onDragEnd={handleDragEnd}
           style={{cursor:"grab"}}>
-          <DPlanBlock project={proj} onEdit={()=>onEdit(proj)} onDelete={()=>onDelete(proj.id)} onComplete={completeProject}/>
+          <DPlanBlock project={proj} onEdit={()=>onEdit(proj)} onDelete={()=>onDelete(proj.id)} onComplete={onComplete}/>
         </div>
       ))}
     </div>
@@ -2946,7 +2946,7 @@ function DraggableProjectList({projects,onEdit,onDelete,onReorder}){
           style={{opacity:dragIdx===idx?.4:1,borderTop:overIdx===idx&&dragIdx!==null&&dragIdx!==idx?"2px solid #9B8878":"none"}}
           onTouchStart={e=>handleTouchStart(e,idx)}
           onTouchEnd={()=>handleTouchEnd(idx)}>
-          <PlanBlock project={proj} onEdit={()=>onEdit(proj)} onDelete={()=>onDelete(proj.id)} onComplete={completeProject}/>
+          <PlanBlock project={proj} onEdit={()=>onEdit(proj)} onDelete={()=>onDelete(proj.id)} onComplete={onComplete}/>
         </div>
       ))}
     </div>
