@@ -2212,7 +2212,7 @@ function DTareasDesktop({projects,tasksForProject,onToggle,onDelete,onOpen,onAdd
 
   const renderProjects = (projs) => projs.map(proj=>(
     <DProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
-      onToggle={onToggle} onOpen={onOpen} onComplete={completeProject}
+      onToggle={onToggle} onOpen={onOpen} onComplete={onComplete}
       onAddTask={()=>onAddTask(proj)}
       reorderTasks={reorderTasks} sw={{swipedId:null,setSwipedId:()=>{}}}/>
   ));
