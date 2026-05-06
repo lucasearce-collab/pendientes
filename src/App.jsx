@@ -850,10 +850,10 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
         </>)}
         {view==="proyectos"&&(<>
           {focusMode
-            ?<FocusPlan projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject}/>
+            ?<FocusPlan projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject}/>
             :<>
               <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
-              <DraggableProjectList projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onReorder={reorderProjects}/>
+              <DraggableProjectList projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} onReorder={reorderProjects}/>
               {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
               <button className="m-newp" onClick={()=>setNewProjSheet({area:activeArea})}><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</button>
             </>
@@ -866,7 +866,7 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
         {view==="estrategia"&&(<>
           <div style={{padding:"14px 20px 4px"}}><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p></div>
           {projectsForArea(activeArea).map(proj=>(
-            <PlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)}/>
+            <PlanBlock key={proj.id} project={proj} onEdit={()=>setPlanSheet(proj)} onDelete={()=>deleteProject(proj.id)} onComplete={completeProject}/>
           ))}
           {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
           <button className="m-newp" onClick={()=>setNewProjSheet({area:activeArea})}><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</button>
@@ -980,7 +980,7 @@ function FocusProject({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTa
 }
 
 // ─── Focus Plan (Proyectos tab) ───────────────────────────────────────────────
-function FocusPlan({projects,onEdit,onDelete}){
+function FocusPlan({projects,onEdit,onDelete,onComplete}){
   const [idx,setIdx]=useState(0);
   const [conf,setConf]=useState(false);
   const touchStartX=useRef(0),touchStartY=useRef(0);
@@ -2788,7 +2788,7 @@ function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop
 
 
 
-function DraggableGoalColumn({goals,horizon,getChildren,getProjects,onEdit,onReorder,cardRefs}){
+function DraggableGoalColumn({goals,horizon,getChildren,getProjects,onEdit,onComplete,onReorder,cardRefs}){
   const [order,setOrder]=useState(null);
   const dragItem=useRef(null),dragOver=useRef(null);
   const sorted=order?order.map(id=>goals.find(g=>g.id===id)).filter(Boolean):[...goals].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
@@ -2809,13 +2809,13 @@ function DraggableGoalColumn({goals,horizon,getChildren,getProjects,onEdit,onReo
         onDragOver={e=>e.preventDefault()}
         onDragEnd={handleDragEnd}
         style={{cursor:"grab"}}>
-        <GoalCard goal={goal} horizon={horizon} children={getChildren(goal.id)} linkedProjects={getProjects(goal.id)} onEdit={()=>onEdit(goal)} allGoals={goals}/>
+        <GoalCard goal={goal} horizon={horizon} children={getChildren(goal.id)} linkedProjects={getProjects(goal.id)} onEdit={()=>onEdit(goal)} onComplete={onComplete} allGoals={goals}/>
       </div>
     ))}
   </>);
 }
 
-function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew,onReorder}){
+function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew,onComplete,onReorder}){
   const cardRefs = useRef({});
   const [lines, setLines] = useState([]);
   const containerRef = useRef(null);
@@ -2924,7 +2924,7 @@ function DraggableProjectGrid({projects,onEdit,onDelete,onComplete,onReorder}){
 }
 
 // ─── Draggable Project List (mobile) ─────────────────────────────────────────
-function DraggableProjectList({projects,onEdit,onDelete,onReorder}){
+function DraggableProjectList({projects,onEdit,onDelete,onComplete,onReorder}){
   const [order,setOrder]=useState(null);
   const [dragIdx,setDragIdx]=useState(null);
   const [overIdx,setOverIdx]=useState(null);
@@ -2972,15 +2972,18 @@ function DraggableProjectList({projects,onEdit,onDelete,onReorder}){
   );
 }
 
-function GoalCard({goal,horizon,children,linkedProjects,onEdit,allGoals,mobile}){
+function GoalCard({goal,horizon,children,linkedProjects,onEdit,onComplete,allGoals,mobile}){
   const [exp,setExp]=useState(false);
   return(
     <div style={{background:"white",borderRadius:10,border:`1px solid #EAE6E0`,borderLeft:`3px solid ${horizon.color}`,marginBottom:mobile?8:0,overflow:"hidden"}}>
       <div style={{padding:"12px 14px",cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#2C2825",marginBottom:goal.description?3:0,lineHeight:1.4}}>{goal.title}</div>
-            {goal.description&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",lineHeight:1.4}}>{goal.description}</div>}
+          <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1,minWidth:0}}>
+            <div onClick={e=>{e.stopPropagation();if(onComplete&&window.confirm("¿Completar meta? +2.000 pts"))onComplete(goal.id);}} style={{width:18,height:18,borderRadius:"50%",border:"1.5px solid #C8C3BB",flexShrink:0,marginTop:1,cursor:"pointer"}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#2C2825",marginBottom:goal.description?3:0,lineHeight:1.4}}>{goal.title}</div>
+              {goal.description&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",lineHeight:1.4}}>{goal.description}</div>}
+            </div>
           </div>
           <button onClick={e=>{e.stopPropagation();onEdit();}} style={{background:"none",border:"1px solid #E5E1DB",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",padding:"3px 7px",flexShrink:0,whiteSpace:"nowrap"}}>Editar</button>
         </div>
