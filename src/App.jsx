@@ -2804,6 +2804,83 @@ function PlanProjectSheet({project,onSave,isDesktop,goals=[]}){
     <button className="sv" onClick={save}>Guardar</button>
   </div>);
 }
+function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorderTasks}){
+  const [localOrder,setLocalOrder]=useState(null);
+  const [draggingId,setDraggingId]=useState(null);
+  const [overId,setOverId]=useState(null);
+  const sorted=localOrder
+    ?localOrder.map(id=>tasks.find(t=>t.id===id)).filter(Boolean)
+    :[...tasks].sort(taskSort);
+
+  function onDragStart(e,id){
+    e.dataTransfer.effectAllowed="move";
+    e.dataTransfer.setData("text/plain",id);
+    setDraggingId(id);
+  }
+  function onDragEnter(e,id){
+    e.preventDefault();
+    setOverId(id);
+  }
+  function onDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect="move"; }
+  function onDrop(e,id){
+    e.preventDefault();
+    const dragId=e.dataTransfer.getData("text/plain");
+    if(!dragId||dragId===id){setDraggingId(null);setOverId(null);return;}
+    const ids=sorted.map(t=>t.id);
+    const fi=ids.indexOf(dragId), ti=ids.indexOf(id);
+    if(fi<0||ti<0){setDraggingId(null);setOverId(null);return;}
+    const r=[...ids]; r.splice(fi,1); r.splice(ti,0,dragId);
+    setLocalOrder(r); reorderTasks&&reorderTasks(r);
+    setDraggingId(null); setOverId(null);
+  }
+  function onDragEnd(){ setDraggingId(null); setOverId(null); }
+
+  return(
+    <div>
+      {sorted.map((task,i)=>{
+        const proj=projects.find(p=>p.id===task.projectId);
+        const isDragging=draggingId===task.id;
+        const isOver=overId===task.id&&draggingId&&draggingId!==task.id;
+        return(
+          <div key={task.id}
+            draggable="true"
+            onDragStart={e=>onDragStart(e,task.id)}
+            onDragEnter={e=>onDragEnter(e,task.id)}
+            onDragOver={onDragOver}
+            onDrop={e=>onDrop(e,task.id)}
+            onDragEnd={onDragEnd}
+            style={{
+              padding:"12px 4px",
+              borderTop:isOver?"2px solid #9B8878":i>0?"1px solid #EAE6E0":"none",
+              display:"flex",alignItems:"center",gap:12,
+              cursor:"grab",
+              background:isDragging?"#EDE9E4":isOver?"#F5F2EE":overdue?"#FBF8F4":"transparent",
+              opacity:isDragging?.4:1,
+              transition:"opacity .1s,background .1s"
+            }}
+            onClick={()=>{ if(!draggingId) onOpen(task); }}>
+            <button className={`d-ci${task.done?" done":""}`} onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+              {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
+            </button>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"'DM Sans'",fontSize:14,color:task.done?"#C8C3BB":overdue?"#9B8878":"#2C2825",textDecoration:task.done?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+              <div style={{display:"flex",gap:8,marginTop:2}}>
+                {proj&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C",fontWeight:500}}>{proj.name}</span>}
+                {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:overdue?"#C4896A":"#9B948C"}}>{fmtDate(task.date)}</span>}
+                {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A",fontWeight:500}}>→ {task.responsable}</span>}
+                {task.notes&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8"}}>· nota</span>}
+              </div>
+            </div>
+            <TypeDot type={task.type} done={task.done}/>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
+
 function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop}){
   const today = todayStr();
   const datedTasks = (tasks||[]).filter(t=>{
@@ -2948,7 +3025,7 @@ function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,a
       <div style={{height:1,background:"#EAE6E0",margin:desktop?"16px 0 0":"0 20px"}}/>
 
       {/* Content */}
-      <div style={{flex:1,overflowY:"auto",padding:contentPadding,boxSizing:"border-box"}}>
+      <div style={{flex:1,overflowY:"auto",padding:contentPadding,boxSizing:"border-box",WebkitOverflowScrolling:"touch"}}>
 
         {view==="hoy"&&(
           focusMode
