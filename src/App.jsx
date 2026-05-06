@@ -1567,172 +1567,320 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
 // ─── Onboarding Flow ──────────────────────────────────────────────────────────
 function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
   const [step, setStep] = useState(0);
-  const [goals, setGoals] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [input, setInput] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [data, setData] = useState({largo:[], medio:[], anio:[], proyectos:[]});
+  const [input, setInput] = useState('');
+  const [selectedMetaId, setSelectedMetaId] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const steps = [
-    {
-      horizon: "largo",
-      label: "5+ años",
-      sub: "2031+",
-      color: "#5B6BAF",
-      title: "Tu visión a largo plazo",
-      question: "¿Dónde querés estar en 5 años o más?",
-      hint: "Libertad financiera, trabajar en VC, vivir plenamente...",
-      icon: "◎",
-    },
-    {
-      horizon: "medio",
-      label: "2–5 años",
-      sub: "2026–30",
-      color: "#8A8EA8",
-      title: "Tus metas de mediano plazo",
-      question: "¿Qué querés lograr en los próximos 2 a 5 años?",
-      hint: "Ascender a manager, alcanzar 1.2M net worth...",
-      icon: "◎",
-    },
-    {
-      horizon: "anio",
-      label: "Este año",
-      sub: "2025",
-      color: "#9B8878",
-      title: "Tus metas para este año",
-      question: "¿Qué querés conseguir este año?",
-      hint: "Overachievement FY26, aprender AI, mejorar networking...",
-      icon: "◎",
-    },
-    {
-      horizon: null,
-      label: "Proyectos",
-      sub: null,
-      color: "#8FAF8A",
-      title: "Tus proyectos actuales",
-      question: "¿En qué proyectos estás trabajando ahora?",
-      hint: "Galicia, Workshop BCP, Aprender tenis...",
-      icon: "⊞",
-      isProject: true,
-    },
+  const COLORS = {largo:'#5B6BAF', medio:'#8A8EA8', anio:'#9B8878', proyecto:'#8FAF8A'};
+
+  const STEPS = [
+    {type:'terms'},
+    {type:'intro'},
+    {type:'metas', horizon:'largo', label:'5+ años', sub:'2031+', color:COLORS.largo, title:'Tu visión a largo plazo', q:'¿Dónde querés estar en 5 años o más? Empezá por lo grande.'},
+    {type:'metas', horizon:'medio', label:'2–5 años', sub:'2026–30', color:COLORS.medio, title:'Tus metas de mediano plazo', q:'¿Qué necesitás lograr en los próximos 2 a 5 años para acercarte a esa visión?'},
+    {type:'metas', horizon:'anio', label:'Este año', sub:'2025', color:COLORS.anio, title:'Tus metas para este año', q:'¿Qué querés conseguir este año? Esto es lo que vas a ejecutar en los próximos meses.'},
+    {type:'proyectos', color:COLORS.proyecto, title:'Tus proyectos actuales', q:'¿En qué proyectos estás trabajando ahora? Relacioná cada uno con una meta de este año.'},
+    {type:'done'},
   ];
 
-  const current = steps[step];
-  const isLast = step === steps.length - 1;
+  const totalSteps = 4; // metas (3) + proyectos (1)
+  const stepNum = step <= 1 ? 0 : step - 1; // visible step number
 
-  function addItem(){
+  async function finish(){
+    setSaving(true);
+    const goalsToSave = [];
+    ['largo','medio','anio'].forEach(h=>{
+      (data[h]||[]).forEach((title,i)=>{
+        goalsToSave.push({id:crypto.randomUUID(), user_id:uid, title, horizon:h, sort_order:i, created_at:new Date().toISOString()});
+      });
+    });
+    const projectsToSave = data.proyectos.map((p,i)=>{
+      const goal = p.metaId!==null ? goalsToSave.filter(g=>g.horizon==='anio')[p.metaId] : null;
+      return {id:crypto.randomUUID(), user_id:uid, name:p.name, area:'Trabajo', importance:'normal', sort_order:i, goal_id:goal?goal.id:null, created_at:new Date().toISOString()};
+    });
+    if(goalsToSave.length>0) await supabase.from('goals').insert(goalsToSave);
+    if(projectsToSave.length>0) await supabase.from('projects').insert(projectsToSave);
+    // Save terms acceptance
+    await supabase.from('user_profiles').upsert({id:uid, terms_accepted:true, terms_accepted_at:new Date().toISOString()});
+    onComplete(goalsToSave, projectsToSave);
+  }
+
+  function addItem(horizon){
     if(!input.trim()) return;
-    if(current.isProject){
-      setProjects(ps=>[...ps,{id:"p"+Date.now()+Math.random(),name:input.trim(),area:"trabajo",importance:"normal",user_id:uid,sort_order:ps.length}]);
-    } else {
-      setGoals(gs=>[...gs,{id:"g"+Date.now()+Math.random(),title:input.trim(),horizon:current.horizon,user_id:uid,sort_order:gs.filter(g=>g.horizon===current.horizon).length}]);
-    }
-    setInput("");
+    setData(d=>({...d, [horizon]:[...d[horizon], input.trim()]}));
+    setInput('');
   }
 
-  function handleKey(e){ if(e.key==="Enter") addItem(); }
-
-  function removeItem(id){
-    if(current.isProject) setProjects(ps=>ps.filter(p=>p.id!==id));
-    else setGoals(gs=>gs.filter(g=>g.id!==id));
+  function removeItem(horizon, i){
+    setData(d=>({...d, [horizon]:d[horizon].filter((_,j)=>j!==i)}));
   }
 
-  async function next(){
-    if(isLast){
-      setSaving(true);
-      try{
-        if(goals.length>0) await supabase.from("goals").insert(goals.map(g=>({id:g.id,user_id:uid,title:g.title,horizon:g.horizon,sort_order:g.sort_order||0,created_at:new Date().toISOString()})));
-        if(projects.length>0) await supabase.from("projects").insert(projects.map(p=>({id:p.id,user_id:uid,name:p.name,area:p.area||"trabajo",importance:p.importance||"normal",sort_order:p.sort_order||0,created_at:new Date().toISOString(),monto:"",description:"",main_goal:"",secondary_goals:[]})));
-        onComplete(goals,projects);
-      } catch(e){ console.error(e); setSaving(false); }
-    } else {
-      setStep(s=>s+1);
-    }
+  function addProyecto(){
+    if(!input.trim()) return;
+    const metaTitle = selectedMetaId!==null && data.anio[selectedMetaId] ? data.anio[selectedMetaId] : null;
+    setData(d=>({...d, proyectos:[...d.proyectos, {name:input.trim(), metaId:selectedMetaId, metaTitle}]}));
+    setInput('');
   }
 
-  const currentItems = current.isProject
-    ? projects
-    : goals.filter(g=>g.horizon===current.horizon);
+  function removeProyecto(i){
+    setData(d=>({...d, proyectos:d.proyectos.filter((_,j)=>j!==i)}));
+  }
 
-  return(
-    <div style={{minHeight:"100vh",background:"#F5F2EE",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"'DM Sans',sans-serif"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+  const s = STEPS[step];
+  const bg = '#F5F2EE';
+  const pct = step<=1?0:step===STEPS.length-1?100:Math.round(((step-1)/totalSteps)*100);
 
-      <div style={{width:"100%",maxWidth:480}}>
-        {/* Progress dots */}
-        <div style={{display:"flex",gap:6,justifyContent:"center",marginBottom:32}}>
-          {steps.map((_,i)=>(
-            <div key={i} style={{width:i===step?24:6,height:6,borderRadius:99,background:i<=step?"#9B8878":"#E5E1DB",transition:"all .3s"}}/>
+  // ── TERMS ──
+  if(s.type==='terms') return(
+    <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+        <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+      </div>
+      <div style={{flex:1,padding:'32px 24px 0'}}>
+        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+          <div style={{width:7,height:7,borderRadius:'50%',background:'#9B8878'}}/>
+          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#9B8878'}}>Antes de empezar</span>
+        </div>
+        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Términos de uso</div>
+        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:20}}>Clarity es una herramienta de gestión personal. Al continuar aceptás las siguientes condiciones.</div>
+        <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:20,marginBottom:16,maxHeight:200,overflowY:'auto'}}>
+          {[
+            {title:'Propiedad intelectual', text:'Clarity, su diseño, nombre, sistema de niveles y toda la propiedad intelectual asociada pertenecen exclusivamente a su creador. Está prohibida su reproducción, copia o distribución sin autorización expresa.'},
+            {title:'Tus datos', text:'Tus metas, proyectos y tareas son privados. Nunca los compartiremos con terceros ni los utilizaremos con fines comerciales.'},
+            {title:'Versión Beta', text:'Clarity está en desarrollo activo. Podés encontrar bugs o cambios. Agradecemos tu feedback para mejorar la app.'},
+            {title:'Uso personal', text:'Esta versión beta es de uso personal y no comercial. El acceso puede ser revocado en cualquier momento durante el período beta.'},
+          ].map(({title,text})=>(
+            <div key={title} style={{marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:500,color:'#9B8878',marginBottom:6}}>{title}</div>
+              <div style={{fontSize:12,color:'#B0AA9F',lineHeight:1.7}}>{text}</div>
+            </div>
           ))}
         </div>
-
-        {/* Horizon badge */}
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-          <div style={{width:8,height:8,borderRadius:"50%",background:current.color}}/>
-          <span style={{fontFamily:"'DM Sans'",fontSize:11,fontWeight:500,color:current.color,letterSpacing:".1em",textTransform:"uppercase"}}>{current.label}</span>
-          {current.sub&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>{current.sub}</span>}
-        </div>
-
-        {/* Title */}
-        <div style={{fontFamily:"'DM Sans'",fontSize:26,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:6}}>{current.title}</div>
-        <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:24,lineHeight:1.6}}>{current.question}</div>
-
-        {/* Input */}
-        <div style={{display:"flex",gap:8,marginBottom:16}}>
-          <input
-            value={input}
-            onChange={e=>setInput(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder={current.hint}
-            style={{flex:1,padding:"12px 16px",borderRadius:12,border:"1px solid #E5E1DB",background:"white",fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",outline:"none"}}
-            autoFocus
-          />
-          <button onClick={addItem} disabled={!input.trim()}
-            style={{padding:"12px 18px",borderRadius:12,border:"none",background:input.trim()?"#2C2825":"#E5E1DB",color:"white",cursor:input.trim()?"pointer":"default",fontFamily:"'DM Sans'",fontSize:14,transition:"all .2s"}}>
-            +
-          </button>
-        </div>
-
-        {/* Items added */}
-        {currentItems.length>0&&(
-          <div style={{background:"white",borderRadius:12,border:"1px solid #EAE6E0",marginBottom:24,overflow:"hidden"}}>
-            {currentItems.map((item,i)=>(
-              <div key={item.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<currentItems.length-1?"1px solid #F5F2EE":"none"}}>
-                <div style={{width:6,height:6,borderRadius:"50%",background:current.color,flexShrink:0}}/>
-                <span style={{flex:1,fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825"}}>{item.title||item.name}</span>
-                <button onClick={()=>removeItem(item.id)} style={{background:"none",border:"none",cursor:"pointer",color:"#D5CFC8",fontSize:16,padding:0,lineHeight:1}}>×</button>
-              </div>
-            ))}
+        <div onClick={()=>setTermsAccepted(a=>!a)}
+          style={{display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer',padding:16,background:'white',borderRadius:12,border:`1px solid ${termsAccepted?'#9B8878':'#EAE6E0'}`,marginBottom:12,transition:'border-color .2s'}}>
+          <div style={{width:20,height:20,borderRadius:6,border:`1.5px solid ${termsAccepted?'#2C2825':'#C8C3BB'}`,background:termsAccepted?'#2C2825':'transparent',flexShrink:0,marginTop:1,display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}}>
+            {termsAccepted&&<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
           </div>
-        )}
-
-        {/* Actions */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          {step>0
-            ?<button onClick={()=>setStep(s=>s-1)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",padding:0}}>← Anterior</button>
-            :<div/>
-          }
-          <button onClick={next} disabled={saving}
-            style={{background:currentItems.length>0?"#2C2825":"#9B8878",color:"white",border:"none",borderRadius:12,padding:"13px 28px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:"pointer",opacity:saving?.6:1}}>
-            {saving?"Guardando...":(isLast?"Empezar →":(currentItems.length===0?"Saltar →":"Siguiente →"))}
-          </button>
+          <span style={{fontSize:13,color:'#2C2825',lineHeight:1.5}}>Leí y acepto los Términos de Uso de Clarity</span>
         </div>
-
-        {/* Skip all */}
-        {step===0&&(
-          <div style={{textAlign:"center",marginTop:16}}>
-            <button onClick={()=>onComplete([],[])} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB"}}>
-              Prefiero empezar desde cero
-            </button>
-          </div>
-        )}
+        <button onClick={()=>termsAccepted&&setStep(1)} disabled={!termsAccepted}
+          style={{width:'100%',background:termsAccepted?'#2C2825':'#C8C3BB',color:'white',border:'none',borderRadius:12,padding:14,fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:termsAccepted?'pointer':'not-allowed',transition:'all .3s'}}>
+          Continuar →
+        </button>
       </div>
+    </div>
+  );
 
-      <div style={{position:"fixed",bottom:24,fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".2em",textTransform:"uppercase",color:"#D5CFC8"}}>Clarity</div>
+  // ── INTRO ──
+  if(s.type==='intro') return(
+    <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+        <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+      </div>
+      <div style={{flex:1,padding:'32px 24px 0'}}>
+        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+          <div style={{width:7,height:7,borderRadius:'50%',background:'#C4A882'}}/>
+          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#C4A882'}}>Bienvenido</span>
+        </div>
+        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Clarity funciona en capas</div>
+        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:24}}>Todo se conecta. Tus tareas diarias existen para avanzar proyectos, que a su vez existen para lograr metas. Vamos a construir ese árbol juntos.</div>
+        <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:20,marginBottom:24}}>
+          {[
+            {icon:'🎯', color:'#EEF0F8', titleColor:'#5B6BAF', title:'Metas de vida', desc:'Tu visión a largo, mediano y corto plazo'},
+            {icon:'📁', color:'#EEF6EE', titleColor:'#8FAF8A', title:'Proyectos', desc:'Iniciativas concretas que avanzás semana a semana'},
+            {icon:'✓', color:'#F5F1ED', titleColor:'#9B8878', title:'Tareas', desc:'Las acciones concretas de tu día a día'},
+          ].map(({icon,color,titleColor,title,desc},i,arr)=>(
+            <React.Fragment key={title}>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <div style={{width:32,height:32,borderRadius:8,background:color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>{icon}</div>
+                <div>
+                  <div style={{fontSize:12,fontWeight:500,color:titleColor,marginBottom:1}}>{title}</div>
+                  <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.4}}>{desc}</div>
+                </div>
+              </div>
+              {i<arr.length-1&&(
+                <div style={{display:'flex',alignItems:'center',gap:8,margin:'10px 0',padding:'0 4px'}}>
+                  <div style={{width:32,display:'flex',justifyContent:'center'}}><div style={{width:1,height:14,background:'#EAE6E0'}}/></div>
+                  <div style={{flex:1,display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{flex:1,height:1,background:'#EAE6E0'}}/>
+                    <span style={{fontSize:10,color:'#C8C3BB'}}>{i===0?'impulsan':'se ejecutan en'}</span>
+                    <div style={{flex:1,height:1,background:'#EAE6E0'}}/>
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+        <div style={{fontSize:12,color:'#C8C3BB',textAlign:'center',lineHeight:1.6}}>Cada tarea que completás hace avanzar un proyecto.<br/>Cada proyecto completado acerca una meta.</div>
+      </div>
+      <div style={{padding:'16px 24px 36px',display:'flex',justifyContent:'space-between'}}>
+        <button onClick={()=>setStep(0)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+        <button onClick={()=>setStep(2)} style={{background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>Empezar →</button>
+      </div>
+    </div>
+  );
+
+  // ── METAS ──
+  if(s.type==='metas'){
+    const items = data[s.horizon]||[];
+    return(
+      <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+          <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+          <span style={{fontSize:11,color:'#C8C3BB'}}>{stepNum} de {totalSteps}</span>
+        </div>
+        <div style={{margin:'16px 24px 0',height:2,background:'#EAE6E0',borderRadius:99,overflow:'hidden'}}>
+          <div style={{height:'100%',width:pct+'%',background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .5s cubic-bezier(.34,1,.64,1)'}}/>
+        </div>
+        <div style={{flex:1,padding:'32px 24px 0'}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+            <div style={{width:7,height:7,borderRadius:'50%',background:s.color}}/>
+            <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:s.color}}>{s.label}</span>
+            <span style={{fontSize:10,color:'#C8C3BB'}}>{s.sub}</span>
+          </div>
+          <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>{s.title}</div>
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:24}}>{s.q}</div>
+          <div style={{display:'flex',gap:8,marginBottom:14}}>
+            <input value={input} onChange={e=>setInput(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&addItem(s.horizon)}
+              style={{flex:1,padding:'13px 16px',borderRadius:12,border:'1px solid #E5E1DB',background:'white',fontFamily:"'DM Sans'",fontSize:14,color:'#2C2825',outline:'none'}}
+              placeholder="Escribí una meta..." autoFocus/>
+            <button onClick={()=>addItem(s.horizon)} disabled={!input.trim()}
+              style={{width:46,borderRadius:12,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
+          </div>
+          {items.length>0&&(
+            <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',overflow:'hidden',marginBottom:20}}>
+              {items.map((item,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'13px 16px',borderBottom:i<items.length-1?'1px solid #F5F2EE':'none'}}>
+                  <div style={{width:6,height:6,borderRadius:'50%',background:s.color,flexShrink:0}}/>
+                  <span style={{flex:1,fontSize:14,color:'#2C2825'}}>{item}</span>
+                  <button onClick={()=>removeItem(s.horizon,i)} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:18,lineHeight:1}}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{padding:'16px 24px 36px',display:'flex',justifyContent:'space-between'}}>
+          <button onClick={()=>setStep(step-1)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+          <button onClick={()=>setStep(step+1)}
+            style={{background:items.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
+            {items.length===0?'Saltar →':'Siguiente →'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── PROYECTOS ──
+  if(s.type==='proyectos'){
+    const metasAnio = data.anio||[];
+    return(
+      <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+          <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+          <span style={{fontSize:11,color:'#C8C3BB'}}>{stepNum} de {totalSteps}</span>
+        </div>
+        <div style={{margin:'16px 24px 0',height:2,background:'#EAE6E0',borderRadius:99,overflow:'hidden'}}>
+          <div style={{height:'100%',width:'100%',background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .5s'}}/>
+        </div>
+        <div style={{flex:1,padding:'32px 24px 0'}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+            <div style={{width:7,height:7,borderRadius:'50%',background:s.color}}/>
+            <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:s.color}}>Proyectos</span>
+          </div>
+          <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>{s.title}</div>
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:20}}>
+            {metasAnio.length>0?'Relacioná cada proyecto con la meta de este año que impulsa.':s.q}
+          </div>
+          <div style={{display:'flex',gap:8,marginBottom:14}}>
+            <input value={input} onChange={e=>setInput(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&addProyecto()}
+              style={{flex:1,padding:'13px 16px',borderRadius:12,border:'1px solid #E5E1DB',background:'white',fontFamily:"'DM Sans'",fontSize:14,color:'#2C2825',outline:'none'}}
+              placeholder="Nombre del proyecto..." autoFocus/>
+            <button onClick={addProyecto} disabled={!input.trim()}
+              style={{width:46,borderRadius:12,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
+          </div>
+          {metasAnio.length>0&&(
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,fontWeight:500,letterSpacing:'.1em',textTransform:'uppercase',color:'#B0AA9F',marginBottom:8}}>Relacionar con meta de este año</div>
+              <div style={{background:'white',borderRadius:12,border:'1px solid #EAE6E0',overflow:'hidden'}}>
+                {[{id:null,title:'Sin relacionar'},...metasAnio.map((m,i)=>({id:i,title:m}))].map(({id,title})=>(
+                  <div key={id??'none'} onClick={()=>setSelectedMetaId(id)}
+                    style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:'1px solid #F5F2EE',cursor:'pointer',background:selectedMetaId===id?'#F5F1ED':'transparent',transition:'background .15s'}}>
+                    <div style={{width:16,height:16,borderRadius:'50%',border:`1.5px solid ${selectedMetaId===id?'#9B8878':'#C8C3BB'}`,background:selectedMetaId===id?'#9B8878':'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s',flexShrink:0}}>
+                      {selectedMetaId===id&&<div style={{width:6,height:6,borderRadius:'50%',background:'white'}}/>}
+                    </div>
+                    <span style={{fontSize:13,color:id===null?'#B0AA9F':'#2C2825'}}>{title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {data.proyectos.length>0&&(
+            <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',overflow:'hidden',marginBottom:20}}>
+              {data.proyectos.map((p,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:12,padding:'13px 16px',borderBottom:i<data.proyectos.length-1?'1px solid #F5F2EE':'none'}}>
+                  <div style={{width:6,height:6,borderRadius:'50%',background:s.color,flexShrink:0,marginTop:5}}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:14,color:'#2C2825'}}>{p.name}</div>
+                    {p.metaTitle?<div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>→ {p.metaTitle}</div>:<div style={{fontSize:11,color:'#EAE6E0',marginTop:2}}>Sin meta asignada</div>}
+                  </div>
+                  <button onClick={()=>removeProyecto(i)} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:18,lineHeight:1}}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{padding:'16px 24px 12px',display:'flex',justifyContent:'space-between'}}>
+          <button onClick={()=>setStep(step-1)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+          <button onClick={()=>data.proyectos.length>0?setStep(step+1):setStep(step+1)}
+            style={{background:data.proyectos.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
+            {data.proyectos.length===0?'Saltar →':'Empezar →'}
+          </button>
+        </div>
+        <div style={{textAlign:'center',paddingBottom:24}}>
+          <button onClick={()=>onComplete([],[])} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:12,color:'#C8C3BB',textDecoration:'underline',textUnderlineOffset:2}}>
+            Prefiero empezar desde cero
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── DONE ──
+  const totalMetas = (data.largo||[]).length + (data.medio||[]).length + (data.anio||[]).length;
+  const totalProyectos = (data.proyectos||[]).length;
+  const relacionados = (data.proyectos||[]).filter(p=>p.metaId!==null).length;
+
+  return(
+    <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',fontFamily:"'DM Sans',sans-serif",padding:32,textAlign:'center'}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;}`}</style>
+      <div style={{fontSize:40,marginBottom:20}}>🌱</div>
+      <div style={{fontSize:28,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Tu árbol está listo</div>
+      <div style={{fontSize:14,color:'#B0AA9F',lineHeight:1.7,marginBottom:8,maxWidth:280}}>
+        {totalMetas} meta{totalMetas!==1?'s':''} · {totalProyectos} proyecto{totalProyectos!==1?'s':''}
+        {relacionados>0?` · ${relacionados} relacion${relacionados!==1?'es':''}`:''}.
+      </div>
+      <div style={{fontSize:12,color:'#C8C3BB',lineHeight:1.7,maxWidth:260,marginBottom:32}}>
+        Ahora podés agregar tareas desde la tab Tareas y asignarlas a cada proyecto. Cada tarea completada suma puntos y hace crecer tu cerezo.
+      </div>
+      {saving
+        ?<div style={{fontSize:14,color:'#B0AA9F'}}>Guardando...</div>
+        :<button onClick={finish} style={{background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'14px 36px',fontFamily:"'DM Sans'",fontSize:15,fontWeight:500,cursor:'pointer'}}>
+          Entrar a Clarity →
+        </button>
+      }
     </div>
   );
 }
 
-// ─── Celebration Toast ────────────────────────────────────────────────────────
+
 function CelebrationToast({celebrate}){
   if(!celebrate) return null;
   const isProject = celebrate.type==='project';
