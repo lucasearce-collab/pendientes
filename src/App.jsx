@@ -653,7 +653,9 @@ function DPlanBlock({project,onEdit,onDelete,onComplete}){
   return(
     <div style={{border:"1px solid #EAE6E0",borderRadius:12,background:"white",display:"flex",flexDirection:"column"}}>
       <div style={{padding:"14px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
-        <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1,minWidth:0}}>
+          <div onClick={()=>{if(window.confirm("¿Completar proyecto?"))onComplete&&onComplete(project.id);}} style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid #C8C3BB",flexShrink:0,marginTop:2,cursor:"pointer",transition:"all .2s"}} />
+          <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
             <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,color:"#2C2825"}}>{project.name}</span>
             {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
@@ -661,10 +663,10 @@ function DPlanBlock({project,onEdit,onDelete,onComplete}){
           </div>
           {project.mainGoal&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B948C",lineHeight:1.4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{project.mainGoal}</div>}
           {!has&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos definidos</div>}
+          </div>
         </div>
         <div style={{display:"flex",gap:5,flexShrink:0}}>
           <button className="d-ib" onClick={onEdit}>Editar</button>
-          <button className="d-ib" style={{color:"#8FAF8A",borderColor:"#8FAF8A"}} onClick={()=>{if(window.confirm("¿Completar proyecto? +puntos"))onComplete&&onComplete(project.id);}}>✓</button>
           {conf?<><button className="d-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={onDelete}>Confirmar</button><button className="d-ib" onClick={()=>setConf(false)}>✕</button></>:<button className="d-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>Eliminar</button>}
         </div>
       </div>
@@ -2475,7 +2477,9 @@ function PlanBlock({project,onEdit,onDelete,onComplete}){
   return(
     <div style={{margin:"10px 20px",background:"white",borderRadius:12,border:"1px solid #EAE6E0"}}>
       <div style={{padding:"14px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10}}>
-        <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1,minWidth:0}}>
+          <div onClick={()=>{if(window.confirm("¿Completar proyecto?"))onComplete&&onComplete(project.id);}} style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid #C8C3BB",flexShrink:0,marginTop:2,cursor:"pointer"}} />
+          <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:has&&!exp?3:0}}>
             <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,color:"#3A3530"}}>{project.name}</span>
             {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
@@ -2483,10 +2487,10 @@ function PlanBlock({project,onEdit,onDelete,onComplete}){
           </div>
           {!exp&&project.mainGoal&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B948C",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{project.mainGoal}</div>}
           {!has&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos · tap en Editar</div>}
+          </div>
         </div>
         <div style={{display:"flex",gap:6,flexShrink:0}}>
           <button className="m-ib" onClick={onEdit}>Editar</button>
-          <button className="m-ib" style={{color:"#8FAF8A",borderColor:"#8FAF8A"}} onClick={()=>{if(window.confirm("¿Completar proyecto? +puntos"))onComplete&&onComplete(project.id);}}>✓</button>
           {conf?<><button className="m-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={onDelete}>Confirmar</button><button className="m-ib" onClick={()=>setConf(false)}>✕</button></>:<button className="m-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>Eliminar</button>}
         </div>
       </div>
