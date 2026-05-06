@@ -511,7 +511,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
         {view==="hoy"&&(
           focusMode
             ?<FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop/>
-            :<DHoyDesktop overdueWork={overdueWork} todayWork={todayWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks}/>
+            :<HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} desktop/>
         )}
 
         {view==="tareas"&&(
@@ -544,47 +544,73 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
 }
 
 
-function DHoy({overdueWork,todayWork,upcomingWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw}){
+function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop}){
   const today = todayStr();
-  // Tasks with dates >= today, sorted by date
   const datedTasks = (tasks||[]).filter(t=>{
     const p=projects.find(x=>x.id===t.projectId);
-    return p&&!t.done&&t.date&&t.date>=today;
+    return p&&!t.done&&t.date;
   }).sort((a,b)=>a.date<b.date?-1:1);
   const todayTasks = datedTasks.filter(t=>t.date===today);
   const upcomingTasks = datedTasks.filter(t=>t.date>today);
 
+  const SectionHeader = ({label,color,count}) => (
+    <div style={{display:"flex",alignItems:"center",gap:8,
+      ...(desktop
+        ? {marginBottom:12,paddingBottom:8,borderBottom:"1px solid #EAE6E0"}
+        : {padding:"14px 20px 6px"}
+      )}}>
+      <div style={{width:5,height:5,borderRadius:"50%",background:color}}/>
+      <span style={{fontFamily:"'DM Sans'",fontSize:11,color,letterSpacing:".08em",textTransform:"uppercase"}}>
+        {label}{count>0&&` · ${count}`}
+      </span>
+      {desktop&&count>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginLeft:"auto"}}>{count}</span>}
+    </div>
+  );
+
+  const TaskList = ({tasks,overdue}) => desktop
+    ? <DTaskList tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks}/>
+    : <TaskRows tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks} {...(sw||{})}/>;
+
+  const isEmpty = todayTasks.length===0&&upcomingTasks.length===0&&overdueWork.length===0;
+  if(isEmpty) return(
+    <div style={{textAlign:"center",padding:desktop?"60px 0":"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
+  );
+
+  if(desktop) return(
+    <div>
+      <div style={{display:"flex",gap:48,alignItems:"flex-start",marginBottom:overdueWork.length>0?40:0}}>
+        <div style={{flex:1,minWidth:0}}>
+          <SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/>
+          {todayTasks.length>0
+            ?<TaskList tasks={todayTasks}/>
+            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas para hoy ·</div>
+          }
+        </div>
+        <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <SectionHeader label="Próximamente" color="#B0AA9F" count={upcomingTasks.length}/>
+          {upcomingTasks.length>0
+            ?<TaskList tasks={upcomingTasks}/>
+            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas próximas ·</div>
+          }
+        </div>
+      </div>
+      {overdueWork.length>0&&<>
+        <div style={{height:1,background:"#EAE6E0",marginBottom:20}}/>
+        <SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/>
+        <TaskList tasks={overdueWork} overdue/>
+      </>}
+    </div>
+  );
+
   return(
     <div style={{paddingBottom:16}}>
-      {/* Vencen hoy */}
-      {todayTasks.length>0&&(<>
-        <div style={{padding:"14px 20px 6px",display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:5,height:5,borderRadius:"50%",background:"#9B8878"}}/>
-          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B8878",letterSpacing:".08em",textTransform:"uppercase"}}>Vencen hoy · {todayTasks.length}</span>
-        </div>
-        <TaskRows tasks={todayTasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...sw}/>
-      </>)}
-      {/* Próximamente */}
-      {upcomingTasks.length>0&&(<>
-        <div style={{padding:"14px 20px 6px",display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:5,height:5,borderRadius:"50%",background:"#B0AA9F"}}/>
-          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>Próximamente · {upcomingTasks.length}</span>
-        </div>
-        <TaskRows tasks={upcomingTasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...sw}/>
-      </>)}
-      {/* Vencidas - discreta al final */}
-      {overdueWork.length>0&&(<>
-        <div style={{padding:"14px 20px 6px",display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:5,height:5,borderRadius:"50%",background:"#C4A882"}}/>
-          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase"}}>Vencidas · {overdueWork.length}</span>
-        </div>
-        <TaskRows tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue reorderTasks={reorderTasks} {...sw}/>
-      </>)}
-      {todayTasks.length===0&&upcomingTasks.length===0&&overdueWork.length===0&&<div style={{textAlign:"center",padding:"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>}
+      {todayTasks.length>0&&<><SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/><TaskList tasks={todayTasks}/></>}
+      {upcomingTasks.length>0&&<><SectionHeader label="Próximamente" color="#B0AA9F" count={upcomingTasks.length}/><TaskList tasks={upcomingTasks}/></>}
+      {overdueWork.length>0&&<><SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/><TaskList tasks={overdueWork} overdue/></>}
     </div>
   );
 }
-
 
 function UpcomingSection({tasks,projects,onToggle,onDelete,onOpen,reorderTasks,sw,desktop}){
   // Group by project
@@ -838,7 +864,7 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
         {view==="hoy"&&(<>
           {focusMode
             ?<div style={{padding:"16px 20px 0"}}><FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet}/></div>
-            :<DHoy overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>
+            :<HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw}/>
           }
         </>)}
         {view==="tareas"&&(<>
@@ -2341,56 +2367,6 @@ function CerezoView({points, treeLevel, TREE_LEVELS, desktop}){
 
 
 // ─── Desktop Hoy - Two Column ─────────────────────────────────────────────────
-function DHoyDesktop({overdueWork,todayWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks}){
-  const today = todayStr();
-  const allDated = (tasks||[]).filter(t=>{
-    const p=projects.find(x=>x.id===t.projectId);
-    return p&&!t.done&&t.date;
-  });
-  const todayTasks = allDated.filter(t=>t.date===today).sort((a,b)=>a.date<b.date?-1:1);
-  const upcomingTasks = allDated.filter(t=>t.date>today).sort((a,b)=>a.date<b.date?-1:1);
-
-  const secHeader = (label,color,count) => (
-    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,paddingBottom:8,borderBottom:"1px solid #EAE6E0"}}>
-      <div style={{width:5,height:5,borderRadius:"50%",background:color}}/>
-      <span style={{fontFamily:"'DM Sans'",fontSize:11,color,letterSpacing:".08em",textTransform:"uppercase"}}>{label}</span>
-      {count>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginLeft:"auto"}}>{count}</span>}
-    </div>
-  );
-
-  if(todayTasks.length===0&&upcomingTasks.length===0&&overdueWork.length===0) return(
-    <div style={{textAlign:"center",padding:"60px 0",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
-  );
-
-  return(
-    <div>
-      {/* Main two columns: hoy left, próximamente right */}
-      <div style={{display:"flex",gap:48,alignItems:"flex-start",marginBottom:overdueWork.length>0?40:0}}>
-        <div style={{flex:1,minWidth:0}}>
-          {secHeader("Vencen hoy","#9B8878",todayTasks.length)}
-          {todayTasks.length>0
-            ?<DTaskList tasks={todayTasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
-            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas para hoy ·</div>
-          }
-        </div>
-        <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
-        <div style={{flex:1,minWidth:0}}>
-          {secHeader("Próximamente","#B0AA9F",upcomingTasks.length)}
-          {upcomingTasks.length>0
-            ?<DTaskList tasks={upcomingTasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
-            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas próximas ·</div>
-          }
-        </div>
-      </div>
-      {/* Vencidas - discreta abajo */}
-      {overdueWork.length>0&&<>
-        <div style={{height:1,background:"#EAE6E0",marginBottom:20}}/>
-        {secHeader("Vencidas","#C4A882",overdueWork.length)}
-        <DTaskList tasks={overdueWork} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue reorderTasks={reorderTasks}/>
-      </>}
-    </div>
-  );
-}
 
 // ─── Desktop Tareas - Two Column ──────────────────────────────────────────────
 function DTareasDesktop({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks}){
