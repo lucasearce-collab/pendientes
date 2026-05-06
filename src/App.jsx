@@ -1415,25 +1415,6 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 14px',marginBottom:12,marginBottom:12}}>
         <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Ventanas de claridad</div>
         <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Horas de mayor ejecución</div>
-        {/* Best hour for strategic tasks */}
-        {(()=>{
-          const stratHours = Array(24).fill(0);
-          tasks.filter(t=>t.done&&t.completed_at).forEach(t=>{
-            const p=projects.find(x=>x.id===t.projectId);
-            if(p&&p.importance==='estrategica'){
-              stratHours[new Date(t.completed_at).getHours()]++;
-            }
-          });
-          const bestStratHour = stratHours.indexOf(Math.max(...stratHours));
-          const hasStrat = stratHours.some(h=>h>0);
-          if(!hasStrat) return null;
-          const label = bestStratHour===0?'12am':bestStratHour<12?`${bestStratHour}am`:bestStratHour===12?'12pm':`${bestStratHour-12}pm`;
-          return(
-            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#9B8878',marginTop:10,padding:'8px 12px',background:'#F5F1ED',borderRadius:8}}>
-              ◈ Completás más tareas estratégicas a las <strong>{label}</strong> — protegé esa hora.
-            </div>
-          );
-        })()}
         {hasHourData
           ? <>
             <div style={{display:'flex',gap:3,flexWrap:'nowrap'}}>
@@ -1447,6 +1428,19 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
               {['6am','12pm','6pm','12am'].map(l=>(
                 <span key={l} style={{fontSize:9,color:'#C8C3BB'}}>{l}</span>
               ))}
+        {(()=>{
+          const sh=Array(24).fill(0);
+          tasks.filter(t=>t.done&&t.completed_at).forEach(t=>{
+            const p=projects.find(x=>x.id===t.projectId);
+            if(p&&p.importance==='estrategica') sh[new Date(t.completed_at).getHours()]++;
+          });
+          if(!sh.some(h=>h>0)) return null;
+          const best=sh.indexOf(Math.max(...sh));
+          const label=best===0?'12am':best<12?`${best}am`:best===12?'12pm':`${best-12}pm`;
+          return <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#9B8878',marginTop:10,padding:'8px 12px',background:'#F5F1ED',borderRadius:8}}>
+            ◈ Completás más tareas estratégicas a las <strong>{label}</strong> — protegé esa hora.
+          </div>;
+        })()}
             </div>
           </>
           : <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#D5CFC8',fontStyle:'italic',padding:'8px 0'}}>Acumulando datos...</div>
@@ -1477,18 +1471,46 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
         </div>
       </div>
 
+      {/* Foco estratégico */}
+      {(()=>{
+        const totalDone = tasks.filter(t=>t.done).length;
+        const estratDone = tasks.filter(t=>t.done&&(()=>{const p=projects.find(x=>x.id===t.projectId);return p&&p.importance==='estrategica';})()).length;
+        const pct = totalDone>0 ? Math.round((estratDone/totalDone)*100) : null;
+        return(
+          <div style={{background:'#FDFCFA',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px',marginBottom:10}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Foco estratégico</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F',marginBottom:16}}>¿Cuánto de tu esfuerzo mueve la aguja?</div>
+            {pct===null
+              ?<div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#D5CFC8',fontStyle:'italic'}}>Acumulando datos...</div>
+              :<>
+                <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:12}}>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:32,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em'}}>{pct}</span>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:16,color:'#B0AA9F'}}>%</span>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:12,color:'#B0AA9F',marginLeft:4}}>estratégico</span>
+                </div>
+                <div style={{height:6,background:'#F5F2EE',borderRadius:99,overflow:'hidden',marginBottom:8}}>
+                  <div style={{height:'100%',width:pct+'%',background:'linear-gradient(to right,#8A8EA8,#5B6BAF)',borderRadius:99,transition:'width .6s ease'}}/>
+                </div>
+                <div style={{fontFamily:"'DM Sans'",fontSize:11,color:pct>=40?'#8FAF8A':pct>=20?'#C4A882':'#C4896A'}}>
+                  {pct>=40?'↑ Excelente — estás donde importa':pct>=20?'→ Equilibrado — podés subir el estratégico':'↓ Mayoría operativo — buscá tareas que muevan la aguja'}
+                </div>
+              </>
+            }
+          </div>
+        );
+      })()}
+
       {/* Velocidad de proyectos */}
       {(()=>{
         const closed = projects.filter(p=>p.completed_at&&p.created_at);
         if(closed.length===0) return null;
         const avgDays = Math.round(closed.reduce((acc,p)=>{
-          const diff=(new Date(p.completed_at)-new Date(p.created_at))/(1000*60*60*24);
-          return acc+diff;
+          return acc+(new Date(p.completed_at)-new Date(p.created_at))/(1000*60*60*24);
         },0)/closed.length);
         return(
-          <div style={{flex:1,background:'#FDFCFA',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 14px',marginBottom:10}}>
+          <div style={{background:'#FDFCFA',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 14px',marginBottom:10}}>
             <div style={{fontFamily:"'DM Sans'",fontSize:28,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',lineHeight:1,marginBottom:4}}>
-              {avgDays}<span style={{fontSize:16,color:'#B0AA9F'}}> días</span>
+              {avgDays}<span style={{fontFamily:"'DM Sans'",fontSize:16,color:'#B0AA9F'}}> días</span>
             </div>
             <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F',lineHeight:1.4}}>Velocidad de proyectos</div>
             <div style={{fontFamily:"'DM Sans'",fontSize:10,marginTop:8,color:'#C8C3BB'}}>{closed.length} proyecto{closed.length>1?'s':''} cerrado{closed.length>1?'s':''}</div>
