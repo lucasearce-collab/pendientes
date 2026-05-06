@@ -175,6 +175,8 @@ export default function App() {
   const [projects, setProjects] = useState([]);
   const [goals,    setGoals]    = useState([]);
   const [loading,  setLoading]  = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [opError,   setOpError]   = useState(null);
   const [isDesktop,setIsDesktop]= useState(window.innerWidth>=768);
   const [view,     setView]     = useState("hoy");
   const [activeArea,setActiveArea]=useState("trabajo");
@@ -254,11 +256,14 @@ export default function App() {
     if (!session) { setLoading(false); return; }
     async function load() {
       setLoading(true);
+      setLoadError(false);
+      try {
       const [ps,ts,gs] = await Promise.all([
         supabase.from("projects").select("*").order("sort_order").order("created_at"),
         supabase.from("tasks").select("*").order("sort_order").order("created_at"),
         supabase.from("goals").select("*").order("sort_order").order("created_at"),
       ]);
+      if(ps.error||ts.error||gs.error) throw new Error("Error cargando datos");
       const userProjects=(ps.data||[]).map(projFromDb);
       const userTasks=(ts.data||[]).map(taskFromDb);
       const userGoals=(gs.data||[]).map(goalFromDb);
@@ -267,6 +272,11 @@ export default function App() {
       setGoals(userGoals);
       setLoading(false);
       loadPoints(session.user.id);
+      } catch(e) {
+        console.error("Load error:", e);
+        setLoadError(true);
+        setLoading(false);
+      }
       // Load rescheduled count for analytics
       supabase.from('events').select('id',{count:'exact'}).eq('user_id',session.user.id).eq('event_type','task_rescheduled').then(({count})=>setRescheduledCount(count||0));
       if(userProjects.length===0&&userTasks.length===0&&userGoals.length===0){
@@ -420,7 +430,7 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,view,setView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
+  const props={tasks,projects,goals,view,setView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
   if(onboarding) return <OnboardingFlow uid={uid} supabase={supabase} onComplete={(gs,ps)=>{
     setGoals(gs.map(goalFromDb));
     setProjects(ps.map(projFromDb));
@@ -2943,6 +2953,20 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
 
 
 
+// ─── Error Toast ──────────────────────────────────────────────────────────────
+function ErrorToast({message,onDismiss}){
+  if(!message) return null;
+  return(
+    <div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",
+      background:"#2C2825",color:"white",borderRadius:12,padding:"10px 16px",
+      fontFamily:"'DM Sans'",fontSize:13,zIndex:9999,display:"flex",alignItems:"center",gap:10,
+      boxShadow:"0 4px 20px rgba(0,0,0,.2)",maxWidth:320,width:"calc(100% - 40px)"}}>
+      <span style={{flex:1}}>{message}</span>
+      <button onClick={onDismiss} style={{background:"none",border:"none",color:"rgba(255,255,255,.6)",cursor:"pointer",fontSize:16,padding:0,flexShrink:0}}>×</button>
+    </div>
+  );
+}
+
 function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop}){
   const today = todayStr();
   const datedTasks = (tasks||[]).filter(t=>{
@@ -3011,7 +3035,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   );
 }
 
-function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline,desktop}){
+function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline,desktop}){
   const pad = desktop ? "48px" : "20px";
   const titleSize = desktop ? 32 : 26;
   const headerPadding = desktop ? "28px 48px 0" : "52px 20px 12px";
@@ -3139,6 +3163,7 @@ function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,a
         Clarity
       </div>
       <CelebrationToast celebrate={celebrate}/>
+      <ErrorToast message={opError} onDismiss={()=>setOpError(null)}/>
       {sheets}
     </div>
   );
