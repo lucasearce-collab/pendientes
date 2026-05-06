@@ -445,140 +445,7 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESKTOP
 // ═══════════════════════════════════════════════════════════════════════════════
-function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline,desktop}){
-  const pad = desktop ? "48px" : "20px";
-  const titleSize = desktop ? 32 : 26;
-  const headerPadding = desktop ? "28px 48px 0" : "52px 20px 12px";
-  const contentPadding = desktop ? "24px 48px 48px" : "0";
 
-  return(
-    <div style={{
-      ...(desktop ? {height:"100vh",overflow:"hidden"} : {maxWidth:430,margin:"0 auto",minHeight:"100vh"}),
-      background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex",flexDirection:"column",position:"relative"
-    }}>
-      <AppStyles/>
-
-      {/* Header */}
-      <div style={{padding:headerPadding,boxSizing:"border-box"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-          <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>
-            {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
-            <button onClick={()=>{const nf=!focusMode;setFocusMode(nf);if(!desktop)trackEvent(nf?"focus_mode_on":"focus_mode_off",null,null,{tab:view});}}
-              style={{background:focusMode?"#2C2825":"none",color:focusMode?"white":"#C8C3BB",border:`1px solid ${focusMode?"#2C2825":"#E5E1DB"}`,borderRadius:99,padding:"3px 12px",fontFamily:"'DM Sans'",fontSize:10,cursor:"pointer",transition:"all .2s",letterSpacing:".06em"}}>
-              {focusMode?"◈ Foco":"◈"}
-            </button>
-            <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",padding:0}}>↩</button>
-          </div>
-        </div>
-
-        <h1 style={{fontSize:titleSize,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:desktop?16:12,fontFamily:"'DM Sans',sans-serif",lineHeight:1.1}}>
-          {view==="hoy"?"Hoy":view==="tareas"?"Tareas":view==="proyectos"?"Proyectos":view==="metas"?"Metas":""}
-        </h1>
-
-        {/* Nav tabs */}
-        <div style={{display:"flex",gap:desktop?3:4,flexWrap:desktop?"wrap":"nowrap",overflowX:desktop?"visible":"auto"}}>
-          {NAV.map(n=>(
-            <button key={n.id} onClick={()=>{setView(n.id);if(desktop)setActiveProjId(null);}}
-              className={desktop?"":"m-np"}
-              style={{
-                padding:desktop?"6px 16px":"5px 10px",
-                borderRadius:99,border:"none",cursor:"pointer",
-                background:view===n.id?"#2C2825":"transparent",
-                color:view===n.id?"#F5F2EE":"#B0AA9F",
-                fontFamily:"'DM Sans'",fontSize:desktop?13:12,fontWeight:view===n.id?500:400,
-                transition:"all .2s",whiteSpace:"nowrap",flexShrink:0
-              }}>
-              {n.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Area pills */}
-        {(view==="tareas"||view==="proyectos")&&(
-          <div style={{display:"flex",gap:desktop?6:4,marginTop:desktop?14:12,overflowX:"auto",paddingBottom:2}}>
-            {Object.entries(AREAS).map(([k,a])=>(
-              <button key={k} onClick={()=>{setActiveArea(k);if(desktop)setActiveProjId(null);}}
-                className={desktop?"":"m-at"}
-                style={{
-                  padding:desktop?"5px 14px":"4px 10px",
-                  borderRadius:99,border:desktop?"none":`1px solid ${activeArea===k?a.color:"transparent"}`,
-                  cursor:"pointer",
-                  background:activeArea===k?a.color:"transparent",
-                  color:activeArea===k?"white":a.color,
-                  fontFamily:"'DM Sans'",fontSize:desktop?12:11,fontWeight:500,transition:"all .2s",whiteSpace:"nowrap",flexShrink:0
-                }}>
-                {a.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Divider */}
-      <div style={{height:1,background:"#EAE6E0",margin:desktop?"16px 0 0":"0 20px"}}/>
-
-      {/* Content */}
-      <div style={{flex:1,overflowY:"auto",padding:contentPadding,boxSizing:"border-box"}}>
-
-        {view==="hoy"&&(
-          focusMode
-            ?<div style={desktop?{}:{padding:"16px 20px 0"}}>
-               <FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop={desktop}/>
-             </div>
-            :<HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop}/>
-        )}
-
-        {view==="tareas"&&(<>
-          {focusMode
-            ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} desktop={desktop}/>
-            :<GroupedProjectsView projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} onComplete={completeProject} reorderTasks={reorderTasks} sw={sw} desktop={desktop}/>
-          }
-          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
-        </>)}
-
-        {view==="proyectos"&&(<div style={desktop?{}:{paddingBottom:0}}>
-          <div style={{padding:desktop?"0 0 20px":"14px 20px 4px"}}>
-            <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
-          </div>
-          {focusMode
-            ?<ProjectFocusView projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} desktop={desktop}/>
-            :(desktop
-              ?<DraggableProjectGrid projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} onReorder={reorderProjects}/>
-              :<DraggableProjectList projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} onReorder={reorderProjects}/>
-            )
-          }
-          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
-          <button className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:16}:{}}
-            onClick={()=>setNewProjSheet({area:activeArea})}>
-            {desktop?`+ Nuevo proyecto en ${AREAS[activeArea]?.label}`:<><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</>}
-          </button>
-        </div>)}
-
-        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={desktop}/>}
-
-        {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop={desktop}/>}
-
-        {view==="analitica"&&(
-          <div style={desktop?{maxWidth:900,width:"100%"}:{}}>
-            <AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount} desktop={desktop}/>
-          </div>
-        )}
-      </div>
-
-      {/* Clarity wordmark */}
-      <div style={{textAlign:"center",padding:desktop?"0 0 24px":"16px 0 28px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8",userSelect:"none"}}>
-        Clarity
-      </div>
-      <CelebrationToast celebrate={celebrate}/>
-      {sheets}
-    </div>
-  );
-}
-
-// ─── Focus Project (Tareas tab) ───────────────────────────────────────────────
 function FocusProject({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask}){
   const [idx,setIdx]=useState(0);
   const touchStartX=useRef(0),touchStartY=useRef(0);
@@ -2936,4 +2803,204 @@ function PlanProjectSheet({project,onSave,isDesktop,goals=[]}){
     </div>
     <button className="sv" onClick={save}>Guardar</button>
   </div>);
+}
+function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop}){
+  const today = todayStr();
+  const datedTasks = (tasks||[]).filter(t=>{
+    const p=projects.find(x=>x.id===t.projectId);
+    return p&&!t.done&&t.date;
+  }).sort((a,b)=>a.date<b.date?-1:1);
+  const todayTasks = datedTasks.filter(t=>t.date===today);
+  const upcomingTasks = datedTasks.filter(t=>t.date>today);
+
+  const SectionHeader = ({label,color,count}) => (
+    <div style={{display:"flex",alignItems:"center",gap:8,
+      ...(desktop
+        ? {marginBottom:12,paddingBottom:8,borderBottom:"1px solid #EAE6E0"}
+        : {padding:"14px 20px 6px"}
+      )}}>
+      <div style={{width:5,height:5,borderRadius:"50%",background:color}}/>
+      <span style={{fontFamily:"'DM Sans'",fontSize:11,color,letterSpacing:".08em",textTransform:"uppercase"}}>
+        {label}{count>0&&` · ${count}`}
+      </span>
+      {desktop&&count>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginLeft:"auto"}}>{count}</span>}
+    </div>
+  );
+
+  const TaskList = ({tasks,overdue}) => desktop
+    ? <DTaskList tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks}/>
+    : <TaskRows tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks} {...(sw||{})}/>;
+
+  const isEmpty = todayTasks.length===0&&upcomingTasks.length===0&&overdueWork.length===0;
+  if(isEmpty) return(
+    <div style={{textAlign:"center",padding:desktop?"60px 0":"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
+  );
+
+  if(desktop) return(
+    <div>
+      <div style={{display:"flex",gap:48,alignItems:"flex-start",marginBottom:overdueWork.length>0?40:0}}>
+        <div style={{flex:1,minWidth:0}}>
+          <SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/>
+          {todayTasks.length>0
+            ?<TaskList tasks={todayTasks}/>
+            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas para hoy ·</div>
+          }
+        </div>
+        <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <SectionHeader label="Próximamente" color="#B0AA9F" count={upcomingTasks.length}/>
+          {upcomingTasks.length>0
+            ?<TaskList tasks={upcomingTasks}/>
+            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas próximas ·</div>
+          }
+        </div>
+      </div>
+      {overdueWork.length>0&&<>
+        <div style={{height:1,background:"#EAE6E0",marginBottom:20}}/>
+        <SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/>
+        <TaskList tasks={overdueWork} overdue/>
+      </>}
+    </div>
+  );
+
+  return(
+    <div style={{paddingBottom:16}}>
+      {todayTasks.length>0&&<><SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/><TaskList tasks={todayTasks}/></>}
+      {upcomingTasks.length>0&&<><SectionHeader label="Próximamente" color="#B0AA9F" count={upcomingTasks.length}/><TaskList tasks={upcomingTasks}/></>}
+      {overdueWork.length>0&&<><SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/><TaskList tasks={overdueWork} overdue/></>}
+    </div>
+  );
+}
+
+function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline,desktop}){
+  const pad = desktop ? "48px" : "20px";
+  const titleSize = desktop ? 32 : 26;
+  const headerPadding = desktop ? "28px 48px 0" : "52px 20px 12px";
+  const contentPadding = desktop ? "24px 48px 48px" : "0";
+
+  return(
+    <div style={{
+      ...(desktop ? {height:"100vh",overflow:"hidden"} : {maxWidth:430,margin:"0 auto",minHeight:"100vh"}),
+      background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex",flexDirection:"column",position:"relative"
+    }}>
+      <AppStyles/>
+
+      {/* Header */}
+      <div style={{padding:headerPadding,boxSizing:"border-box"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>
+            {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
+            <button onClick={()=>{const nf=!focusMode;setFocusMode(nf);if(!desktop)trackEvent(nf?"focus_mode_on":"focus_mode_off",null,null,{tab:view});}}
+              style={{background:focusMode?"#2C2825":"none",color:focusMode?"white":"#C8C3BB",border:`1px solid ${focusMode?"#2C2825":"#E5E1DB"}`,borderRadius:99,padding:"3px 12px",fontFamily:"'DM Sans'",fontSize:10,cursor:"pointer",transition:"all .2s",letterSpacing:".06em"}}>
+              {focusMode?"◈ Foco":"◈"}
+            </button>
+            <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",padding:0}}>↩</button>
+          </div>
+        </div>
+
+        <h1 style={{fontSize:titleSize,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:desktop?16:12,fontFamily:"'DM Sans',sans-serif",lineHeight:1.1}}>
+          {view==="hoy"?"Hoy":view==="tareas"?"Tareas":view==="proyectos"?"Proyectos":view==="metas"?"Metas":""}
+        </h1>
+
+        {/* Nav tabs */}
+        <div style={{display:"flex",gap:desktop?3:4,flexWrap:desktop?"wrap":"nowrap",overflowX:desktop?"visible":"auto"}}>
+          {NAV.map(n=>(
+            <button key={n.id} onClick={()=>{setView(n.id);if(desktop)setActiveProjId(null);}}
+              className={desktop?"":"m-np"}
+              style={{
+                padding:desktop?"6px 16px":"5px 10px",
+                borderRadius:99,border:"none",cursor:"pointer",
+                background:view===n.id?"#2C2825":"transparent",
+                color:view===n.id?"#F5F2EE":"#B0AA9F",
+                fontFamily:"'DM Sans'",fontSize:desktop?13:12,fontWeight:view===n.id?500:400,
+                transition:"all .2s",whiteSpace:"nowrap",flexShrink:0
+              }}>
+              {n.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Area pills */}
+        {(view==="tareas"||view==="proyectos")&&(
+          <div style={{display:"flex",gap:desktop?6:4,marginTop:desktop?14:12,overflowX:"auto",paddingBottom:2}}>
+            {Object.entries(AREAS).map(([k,a])=>(
+              <button key={k} onClick={()=>{setActiveArea(k);if(desktop)setActiveProjId(null);}}
+                className={desktop?"":"m-at"}
+                style={{
+                  padding:desktop?"5px 14px":"4px 10px",
+                  borderRadius:99,border:desktop?"none":`1px solid ${activeArea===k?a.color:"transparent"}`,
+                  cursor:"pointer",
+                  background:activeArea===k?a.color:"transparent",
+                  color:activeArea===k?"white":a.color,
+                  fontFamily:"'DM Sans'",fontSize:desktop?12:11,fontWeight:500,transition:"all .2s",whiteSpace:"nowrap",flexShrink:0
+                }}>
+                {a.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Divider */}
+      <div style={{height:1,background:"#EAE6E0",margin:desktop?"16px 0 0":"0 20px"}}/>
+
+      {/* Content */}
+      <div style={{flex:1,overflowY:"auto",padding:contentPadding,boxSizing:"border-box"}}>
+
+        {view==="hoy"&&(
+          focusMode
+            ?<div style={desktop?{}:{padding:"16px 20px 0"}}>
+               <FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop={desktop}/>
+             </div>
+            :<HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop}/>
+        )}
+
+        {view==="tareas"&&(<>
+          {focusMode
+            ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} desktop={desktop}/>
+            :<GroupedProjectsView projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} onComplete={completeProject} reorderTasks={reorderTasks} sw={sw} desktop={desktop}/>
+          }
+          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
+        </>)}
+
+        {view==="proyectos"&&(<div style={desktop?{}:{paddingBottom:0}}>
+          <div style={{padding:desktop?"0 0 20px":"14px 20px 4px"}}>
+            <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
+          </div>
+          {focusMode
+            ?<ProjectFocusView projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} desktop={desktop}/>
+            :(desktop
+              ?<DraggableProjectGrid projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} onReorder={reorderProjects}/>
+              :<DraggableProjectList projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} onReorder={reorderProjects}/>
+            )
+          }
+          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
+          <button className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:16}:{}}
+            onClick={()=>setNewProjSheet({area:activeArea})}>
+            {desktop?`+ Nuevo proyecto en ${AREAS[activeArea]?.label}`:<><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</>}
+          </button>
+        </div>)}
+
+        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={desktop}/>}
+
+        {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop={desktop}/>}
+
+        {view==="analitica"&&(
+          <div style={desktop?{maxWidth:900,width:"100%"}:{}}>
+            <AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount} desktop={desktop}/>
+          </div>
+        )}
+      </div>
+
+      {/* Clarity wordmark */}
+      <div style={{textAlign:"center",padding:desktop?"0 0 24px":"16px 0 28px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8",userSelect:"none"}}>
+        Clarity
+      </div>
+      <CelebrationToast celebrate={celebrate}/>
+      {sheets}
+    </div>
+  );
 }
