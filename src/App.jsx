@@ -1031,7 +1031,7 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       })()}
 
       {/* CEO indicator */}
-      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px',marginBottom:10,marginBottom:10}}>
+      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px',marginBottom:10}}>
         <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Indicador CEO</div>
         <div style={{fontSize:11,color:'#B0AA9F',marginBottom:18}}>¿Dónde está tu tiempo esta semana?</div>
         {totalCEO===1&&completedThisWeek.length===0
