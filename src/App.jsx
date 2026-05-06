@@ -901,7 +901,7 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       <SectionLabel mt={0}>Visión semanal</SectionLabel>
 
       {/* Bar chart */}
-      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 16px',marginBottom:12,marginBottom:12}}>
+      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 16px',marginBottom:12}}>
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:20}}>
           <div>
             <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Tareas completadas</div>
@@ -953,7 +953,7 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       </div>
 
       {/* Hours heatmap */}
-      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 14px',marginBottom:12,marginBottom:12}}>
+      <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 14px',marginBottom:12}}>
         <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Ventanas de claridad</div>
         <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Horas de mayor ejecución</div>
         {hasHourData
