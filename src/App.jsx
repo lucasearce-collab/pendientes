@@ -626,7 +626,7 @@ function DProjBlock({project,area,tasks,onToggle,onOpen,onAddTask,onComplete,reo
   const pending=tasks.filter(t=>!t.done).length;
   const sorted=[...tasks].sort(taskSort);
   return(
-    <div style={{marginBottom:10,border:"1px solid #EAE6E0",borderRadius:12,overflow:"hidden",background:"white"}}>
+    <div style={{marginBottom:10,border:"1px solid #EAE6E0",borderRadius:12,overflow:"hidden",background:"#FDFCFA"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 18px",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:6,height:6,borderRadius:"50%",background:AREAS[area].color,opacity:.7}}/>
@@ -651,7 +651,7 @@ function DPlanBlock({project,onEdit,onDelete,onComplete}){
   const imp=IMPORTANCE[project.importance||"normal"];
   const has=project.description||project.mainGoal||(project.secondaryGoals?.length>0);
   return(
-    <div style={{border:"1px solid #EAE6E0",borderRadius:12,background:"white",display:"flex",flexDirection:"column"}}>
+    <div style={{border:"1px solid #EAE6E0",borderRadius:12,background:"#FDFCFA",display:"flex",flexDirection:"column"}}>
       <div style={{padding:"14px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
         <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1,minWidth:0}}>
           <div onClick={()=>{if(window.confirm("¿Completar proyecto?"))onComplete&&onComplete(project.id);}} style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid #C8C3BB",flexShrink:0,marginTop:2,cursor:"pointer",transition:"all .2s"}} />
@@ -930,7 +930,7 @@ function FocusProject({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTa
         </div>
 
         {/* Tasks */}
-        <div style={{background:"white",borderRadius:14,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:12}}>
+        <div style={{background:"#FDFCFA",borderRadius:14,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:12}}>
           {tasks.length===0
             ?<div style={{padding:"32px 20px",textAlign:"center",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin tareas pendientes</div>
             :tasks.map((task,i)=>(
@@ -1022,7 +1022,7 @@ function FocusPlan({projects,onEdit,onDelete,onComplete}){
         </div>
 
         {/* Content card */}
-        <div style={{background:"white",borderRadius:14,border:"1px solid #EAE6E0",padding:"20px",marginBottom:12}}>
+        <div style={{background:"#FDFCFA",borderRadius:14,border:"1px solid #EAE6E0",padding:"20px",marginBottom:12}}>
           {proj.description&&<p style={{fontFamily:"'DM Sans'",fontSize:14,color:"#6B6258",marginBottom:16,lineHeight:1.6}}>{proj.description}</p>}
           {proj.mainGoal&&<div style={{marginBottom:proj.secondaryGoals?.length>0?16:0}}>
             <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:4}}>Objetivo principal</div>
@@ -1120,7 +1120,7 @@ function FocusProjectMode({projects,tasksForProject,onToggle,onDelete,onOpen,onA
         </div>
 
         {/* Tasks - adaptive card */}
-        <div style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",marginBottom:16,overflow:"hidden"}}>
+        <div style={{background:"#FDFCFA",borderRadius:16,border:"1px solid #EAE6E0",marginBottom:16,overflow:"hidden"}}>
           {tasks.length===0
             ?<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic",padding:"16px 20px"}}>Sin tareas pendientes</div>
             :tasks.map((task,i)=>(
@@ -1189,7 +1189,7 @@ function FocusStrategyMode({projects,onEdit,onDelete,onComplete,desktop}){
 
       {/* Project card */}
       <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}
-        style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:16}}>
+        style={{background:"#FDFCFA",borderRadius:16,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:16}}>
         <div style={{height:3,background:imp?.color||"#E5E1DB"}}/>
         <div style={{padding:"20px"}}>
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16}}>
@@ -1663,7 +1663,7 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
 
         {/* Items added */}
         {currentItems.length>0&&(
-          <div style={{background:"white",borderRadius:12,border:"1px solid #EAE6E0",marginBottom:24,overflow:"hidden"}}>
+          <div style={{background:"#FDFCFA",borderRadius:12,border:"1px solid #EAE6E0",marginBottom:24,overflow:"hidden"}}>
             {currentItems.map((item,i)=>(
               <div key={item.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<currentItems.length-1?"1px solid #F5F2EE":"none"}}>
                 <div style={{width:6,height:6,borderRadius:"50%",background:current.color,flexShrink:0}}/>
@@ -2344,7 +2344,7 @@ function FocusMode({overdueWork,todayWork,upcomingWork,tasks,projects,onToggle,o
         {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:isOverdue?"#C4896A":"#C8C3BB",marginLeft:10}}>{fmtDate(task.date)}</span>}
         {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C8C3BB",marginLeft:8}}>→ {task.responsable}</span>}
       </div>
-      <div style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",padding:"22px 20px 18px",marginBottom:14}} onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
+      <div style={{background:"#FDFCFA",borderRadius:16,border:"1px solid #EAE6E0",padding:"22px 20px 18px",marginBottom:14}} onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
         <div style={{fontFamily:"'DM Sans'",fontSize:17,fontWeight:400,color:"#2C2825",lineHeight:1.55,marginBottom:task.notes?14:20}}>{task.title}</div>
         {task.notes&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B948C",lineHeight:1.6,marginBottom:16,padding:"10px 12px",background:"#F7F5F2",borderRadius:10}}>{task.notes}</div>}
         <div style={{display:"flex",gap:10,marginBottom:8}}>
@@ -2475,7 +2475,7 @@ function PlanBlock({project,onEdit,onDelete,onComplete}){
   const imp=IMPORTANCE[project.importance||"normal"];
   const has=project.description||project.mainGoal||(project.secondaryGoals?.length>0);
   return(
-    <div style={{margin:"10px 20px",background:"white",borderRadius:12,border:"1px solid #EAE6E0"}}>
+    <div style={{margin:"10px 20px",background:"#FDFCFA",borderRadius:12,border:"1px solid #EAE6E0"}}>
       <div style={{padding:"14px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10}}>
         <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1,minWidth:0}}>
           <div onClick={()=>{if(window.confirm("¿Completar proyecto?"))onComplete&&onComplete(project.id);}} style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid #C8C3BB",flexShrink:0,marginTop:2,cursor:"pointer"}} />
@@ -2753,7 +2753,7 @@ function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop
                 <GoalCard key={goal.id} goal={goal} horizon={h} children={getChildren(goal.id)} linkedProjects={getProjects(goal.id)} onEdit={()=>onEdit(goal)} allGoals={goals} mobile/>
               ))}
               {goals.filter(g=>g.horizon===h.key).length===0&&(
-                <div style={{background:"white",borderRadius:10,border:"1px dashed #E5E1DB",padding:"16px",textAlign:"center",fontFamily:"'DM Sans'",fontSize:12,color:"#D5CFC8",fontStyle:"italic"}}>
+                <div style={{background:"#FDFCFA",borderRadius:10,border:"1px dashed #E5E1DB",padding:"16px",textAlign:"center",fontFamily:"'DM Sans'",fontSize:12,color:"#D5CFC8",fontStyle:"italic"}}>
                   Sin metas aún
                 </div>
               )}
@@ -2975,7 +2975,7 @@ function DraggableProjectList({projects,onEdit,onDelete,onComplete,onReorder}){
 function GoalCard({goal,horizon,children,linkedProjects,onEdit,onComplete,allGoals,mobile}){
   const [exp,setExp]=useState(false);
   return(
-    <div style={{background:"white",borderRadius:10,border:`1px solid #EAE6E0`,borderLeft:`3px solid ${horizon.color}`,marginBottom:mobile?8:0,overflow:"hidden"}}>
+    <div style={{background:"#FDFCFA",borderRadius:10,border:`1px solid #EAE6E0`,background:"#FDFCFA",borderLeft:`3px solid ${horizon.color}`,marginBottom:mobile?8:0,overflow:"hidden"}}>
       <div style={{padding:"12px 14px",cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
           <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1,minWidth:0}}>
