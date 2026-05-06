@@ -218,7 +218,8 @@ export default function App() {
     {name:"Retoño",         min:20000,  max:59999},
     {name:"Cerezo en Flor", min:60000,  max:149999},
     {name:"Cerezo Maduro",  min:150000, max:399999},
-    {name:"Cerezo Mayor",   min:400000, max:Infinity},
+    {name:"Cerezo Mayor",   min:400000, max:999999},
+    {name:"Jindai Zakura",  min:1000000,max:Infinity},
   ];
   const currentLevel = TREE_LEVELS.findIndex((l,i)=>points>=l.min&&points<=l.max);
   const treeLevel = TREE_LEVELS[Math.max(0,currentLevel)];
@@ -358,6 +359,17 @@ export default function App() {
     setGoals(gs=>{const rest=gs.filter(g=>!orderedIds.includes(g.id));return[...reordered,...rest];});
     await Promise.all(reordered.map(g=>safeUpsert("goals",{...goalToDb(g,uid),sort_order:g.sortOrder||0})));
   }
+  async function completeGoal(gid){
+    const goal=goals.find(g=>g.id===gid);
+    if(!goal) return;
+    addPoints(2000);
+    setCelebrate({type:'project',points:2000,name:goal.title});
+    setTimeout(()=>setCelebrate(null),3000);
+    trackEvent("goal_completed", gid, "goal", {horizon:goal.horizon, title:goal.title});
+    setGoals(gs=>gs.filter(g=>g.id!==gid));
+    await safeDelete("goals",gid);
+  }
+
   async function addGoal(g){
     addPoints(500);
     trackEvent("goal_created", g.id, "goal", {horizon:g.horizon});
@@ -394,7 +406,7 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,view,setView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
+  const props={tasks,projects,goals,view,setView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
   if(onboarding) return <OnboardingFlow uid={uid} supabase={supabase} onComplete={(gs,ps)=>{
     setGoals(gs.map(goalFromDb));
     setProjects(ps.map(projFromDb));
@@ -420,7 +432,7 @@ function Loader(){
 // ═══════════════════════════════════════════════════════════════════════════════
 // DESKTOP
 // ═══════════════════════════════════════════════════════════════════════════════
-function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{height:"100vh",background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <DesktopStyles/>
@@ -763,7 +775,7 @@ function DesktopStyles(){return(<style>{`
 // ═══════════════════════════════════════════════════════════════════════════════
 // MOBILE
 // ═══════════════════════════════════════════════════════════════════════════════
-function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
+function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline}){
   return(
     <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",position:"relative"}}>
       <MobileStyles/>
@@ -1897,6 +1909,174 @@ const TREE_SVGS = [
     <path d="M134 186 C136 182 140 184 138 188 C136 192 132 190 134 186Z" fill="#F5D8E0" opacity="0.48" transform="rotate(-20,136,186)"/>
     <path d="M156 194 C158 190 162 192 160 196 C158 200 154 198 156 194Z" fill="#ECC0C8" opacity="0.44" transform="rotate(8,158,194)"/>
   </svg>`,
+
+  `<svg viewBox="0 0 280 300" width="100%" xmlns="http://www.w3.org/2000/svg">
+<ellipse cx="130" cy="272" rx="95" ry="12" fill="#D8CDBF" opacity="0.22"/>
+  <ellipse cx="120" cy="278" rx="70" ry="7" fill="#CABFB0" opacity="0.16"/>
+
+  <!-- ROOTS -->
+  <path d="M108 270 C94 260 72 264 52 256 C36 250 20 254 4 246" stroke="#2E1608" stroke-width="5" fill="none" opacity="0.36" stroke-linecap="round"/>
+  <path d="M140 272 C156 262 176 266 196 258 C212 252 228 256 244 248" stroke="#2E1608" stroke-width="5" fill="none" opacity="0.36" stroke-linecap="round"/>
+  <path d="M118 274 C108 284 112 294 124 290 C136 294 140 284 130 274" stroke="#3C2010" stroke-width="3.5" fill="none" opacity="0.24" stroke-linecap="round"/>
+  <path d="M96 268 C78 258 56 264 36 254" stroke="#2E1608" stroke-width="3" fill="none" opacity="0.22" stroke-linecap="round"/>
+  <path d="M152 268 C170 258 192 264 212 254" stroke="#2E1608" stroke-width="3" fill="none" opacity="0.22" stroke-linecap="round"/>
+
+  <!-- TRUNK - leans left, massive base -->
+  <path d="M100 272 C90 240 84 204 80 168 C76 136 72 104 66 72 C62 48 56 26 50 4" stroke="#200C04" stroke-width="46" fill="none" stroke-linecap="round" opacity="0.12"/>
+  <path d="M100 272 C90 240 84 204 80 168 C76 136 72 104 66 72 C62 48 56 26 50 4" stroke="#2A1408" stroke-width="38" fill="none" stroke-linecap="round"/>
+  <path d="M132 272 C126 240 122 206 120 170 C118 138 116 106 114 74 C112 50 110 28 108 6" stroke="#3C2010" stroke-width="22" fill="none" stroke-linecap="round" opacity="0.46"/>
+  <path d="M112 272 C106 242 102 208 100 172 C98 140 96 108 94 76 C92 52 90 30 88 8" stroke="#4E2C18" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.28"/>
+  <path d="M118 272 C114 244 110 212 108 176 C106 144 104 114 102 82" stroke="#5E3C24" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.16"/>
+
+  <!-- BARK fissures -->
+  <path d="M86 232 C81 240 84 249 90 246" stroke="#180804" stroke-width="3" fill="none" opacity="0.2" stroke-linecap="round"/>
+  <path d="M84 198 C79 206 82 214 88 211" stroke="#180804" stroke-width="2.8" fill="none" opacity="0.18" stroke-linecap="round"/>
+  <path d="M82 166 C77 173 80 180 86 177" stroke="#180804" stroke-width="2.5" fill="none" opacity="0.17" stroke-linecap="round"/>
+  <path d="M80 136 C75 142 78 149 84 146" stroke="#180804" stroke-width="2.3" fill="none" opacity="0.16" stroke-linecap="round"/>
+  <path d="M78 108 C73 114 76 120 82 117" stroke="#180804" stroke-width="2" fill="none" opacity="0.15" stroke-linecap="round"/>
+  <path d="M76 82 C71 88 74 93 80 90" stroke="#180804" stroke-width="1.8" fill="none" opacity="0.14" stroke-linecap="round"/>
+  <path d="M112 218 C117 226 115 234 109 231" stroke="#180804" stroke-width="2.8" fill="none" opacity="0.18" stroke-linecap="round"/>
+  <path d="M114 186 C119 193 117 200 111 197" stroke="#180804" stroke-width="2.5" fill="none" opacity="0.17" stroke-linecap="round"/>
+  <path d="M115 156 C120 162 118 169 112 166" stroke="#180804" stroke-width="2.3" fill="none" opacity="0.16" stroke-linecap="round"/>
+  <path d="M116 128 C121 134 119 140 113 137" stroke="#180804" stroke-width="2" fill="none" opacity="0.15" stroke-linecap="round"/>
+
+  <!-- SUPPORT STAKE - the real Jindai Zakura is held up -->
+  <path d="M90 270 C88 240 86 210 84 180 C80 150 78 120 80 90" stroke="#9B8060" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.45"/>
+  <path d="M84 180 C92 176 100 174 108 172" stroke="#9B8060" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.35"/>
+
+  <!-- BRANCHES - heavy, drooping, wise -->
+  <path d="M66 100 C44 110 16 116 -12 122 C-28 126 -42 130 -52 136" stroke="#3C2010" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <path d="M-52 136 C-60 144 -64 154 -62 164" stroke="#4E2C18" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M108 80 C136 76 164 72 190 68 C206 66 220 64 234 62" stroke="#3C2010" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <path d="M234 62 C246 60 256 62 262 70" stroke="#4E2C18" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+  <path d="M60 60 C40 48 18 36 -2 24 C-16 14 -28 4 -36 -8" stroke="#4E2C18" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M-36 -8 C-44 -20 -48 -34 -44 -46" stroke="#5C3820" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M100 40 C124 30 150 18 174 6 C190 -2 204 -12 216 -22" stroke="#4E2C18" stroke-width="6.5" fill="none" stroke-linecap="round"/>
+  <path d="M216 -22 C226 -32 232 -44 228 -56" stroke="#5C3820" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+  <path d="M72 148 C52 156 28 162 4 168 C-12 172 -26 176 -38 182" stroke="#5C3820" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M-38 182 C-48 188 -54 196 -52 206" stroke="#6B4E36" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+  <path d="M118 130 C144 124 170 118 194 112 C212 108 226 106 238 104" stroke="#5C3820" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+  <path d="M78 192 C58 198 34 204 10 210 C-4 214 -16 218 -24 224" stroke="#6B4E36" stroke-width="5" fill="none" stroke-linecap="round"/>
+
+  <!-- Secondary branches -->
+  <path d="M-52 136 C-62 130 -70 122 -72 110" stroke="#6B4E36" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+  <path d="M-52 136 C-64 140 -72 148 -70 160" stroke="#6B4E36" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M234 62 C244 54 252 44 250 32" stroke="#6B4E36" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+  <path d="M-44 -46 C-50 -58 -50 -72 -44 -82" stroke="#7A6248" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M-44 -46 C-54 -54 -58 -66 -54 -76" stroke="#7A6248" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M228 -56 C234 -68 232 -82 226 -90" stroke="#7A6248" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M228 -56 C238 -64 242 -76 238 -86" stroke="#7A6248" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M-72 110 C-80 100 -84 88 -80 76" stroke="#7A6248" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M-38 182 C-50 188 -56 200 -52 212" stroke="#7A6248" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M-24 224 C-32 230 -38 240 -34 250" stroke="#8B7355" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M238 104 C250 100 260 96 266 86" stroke="#7A6248" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Fine terminal branches -->
+  <path d="M-44 -82 C-50 -92 -48 -104 -42 -110" stroke="#9B8878" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M-54 -76 C-62 -86 -62 -98 -56 -104" stroke="#9B8878" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M226 -90 C230 -102 228 -114 222 -120" stroke="#9B8878" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M238 -86 C244 -98 244 -110 238 -116" stroke="#9B8878" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M-80 76 C-86 64 -84 52 -78 44" stroke="#9B8878" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M250 32 C258 22 260 10 256 0" stroke="#9B8878" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M266 86 C274 76 276 64 272 54" stroke="#9B8878" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M-52 212 C-60 220 -60 232 -54 240" stroke="#9B8878" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M-34 250 C-40 258 -38 268 -32 274" stroke="#A89878" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+  <!-- BLOSSOMS - sparse, concentrated at tips, white-pink, ancient -->
+  <!-- Left far drooping tip -->
+  <circle cx="-62" cy="162" r="5.5" fill="#F8EDF4" opacity="0.92"/>
+  <circle cx="-56" cy="170" r="5" fill="#F2E2EC" opacity="0.9"/>
+  <circle cx="-68" cy="168" r="5" fill="#FAF4F8" opacity="0.9"/>
+  <circle cx="-62" cy="176" r="4.5" fill="#F8EDF4" opacity="0.88"/>
+  <circle cx="-52" cy="162" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="-72" cy="156" r="4.5" fill="#FAF4F8" opacity="0.86"/>
+  <circle cx="-58" cy="156" r="4" fill="#F8EDF4" opacity="0.85"/>
+
+  <!-- Left upper tip -->
+  <circle cx="-44" cy="-82" r="5.5" fill="#F8EDF4" opacity="0.92"/>
+  <circle cx="-52" cy="-90" r="5" fill="#F2E2EC" opacity="0.9"/>
+  <circle cx="-36" cy="-88" r="5" fill="#FAF4F8" opacity="0.9"/>
+  <circle cx="-48" cy="-96" r="4.5" fill="#F8EDF4" opacity="0.88"/>
+  <circle cx="-38" cy="-78" r="4.5" fill="#F2E2EC" opacity="0.86"/>
+  <circle cx="-56" cy="-78" r="4" fill="#FAF4F8" opacity="0.85"/>
+  <circle cx="-44" cy="-70" r="4" fill="#F8EDF4" opacity="0.84"/>
+  <circle cx="-62" cy="-104" r="4.5" fill="#F2E2EC" opacity="0.86"/>
+  <circle cx="-54" cy="-108" r="4" fill="#FAF4F8" opacity="0.84"/>
+
+  <!-- Left mid tip -->
+  <circle cx="-80" cy="74" r="5" fill="#F8EDF4" opacity="0.9"/>
+  <circle cx="-86" cy="82" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="-74" cy="80" r="4.5" fill="#FAF4F8" opacity="0.88"/>
+  <circle cx="-82" cy="90" r="4" fill="#F8EDF4" opacity="0.86"/>
+  <circle cx="-72" cy="68" r="4" fill="#F2E2EC" opacity="0.85"/>
+
+  <!-- Left very low droop -->
+  <circle cx="-52" cy="210" r="5" fill="#F8EDF4" opacity="0.9"/>
+  <circle cx="-46" cy="218" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="-58" cy="216" r="4.5" fill="#FAF4F8" opacity="0.88"/>
+  <circle cx="-52" cy="224" r="4" fill="#F8EDF4" opacity="0.86"/>
+  <circle cx="-40" cy="210" r="4" fill="#F2E2EC" opacity="0.85"/>
+  <circle cx="-34" cy="250" r="4.5" fill="#F8EDF4" opacity="0.86"/>
+  <circle cx="-28" cy="258" r="4" fill="#F2E2EC" opacity="0.84"/>
+  <circle cx="-40" cy="256" r="4" fill="#FAF4F8" opacity="0.84"/>
+
+  <!-- Right far tip -->
+  <circle cx="262" cy="70" r="5.5" fill="#F8EDF4" opacity="0.92"/>
+  <circle cx="256" cy="62" r="5" fill="#F2E2EC" opacity="0.9"/>
+  <circle cx="268" cy="64" r="5" fill="#FAF4F8" opacity="0.9"/>
+  <circle cx="260" cy="56" r="4.5" fill="#F8EDF4" opacity="0.88"/>
+  <circle cx="270" cy="74" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="252" cy="70" r="4" fill="#FAF4F8" opacity="0.86"/>
+
+  <!-- Right upper tip -->
+  <circle cx="226" cy="-90" r="5.5" fill="#F8EDF4" opacity="0.92"/>
+  <circle cx="218" cy="-82" r="5" fill="#F2E2EC" opacity="0.9"/>
+  <circle cx="234" cy="-86" r="5" fill="#FAF4F8" opacity="0.9"/>
+  <circle cx="222" cy="-96" r="4.5" fill="#F8EDF4" opacity="0.88"/>
+  <circle cx="238" cy="-94" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="220" cy="-106" r="4.5" fill="#FAF4F8" opacity="0.86"/>
+  <circle cx="230" cy="-110" r="4" fill="#F8EDF4" opacity="0.85"/>
+
+  <!-- Right low tip -->
+  <circle cx="266" cy="54" r="5" fill="#F8EDF4" opacity="0.9"/>
+  <circle cx="274" cy="62" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="272" cy="48" r="4.5" fill="#FAF4F8" opacity="0.88"/>
+  <circle cx="256" cy="0" r="5" fill="#F8EDF4" opacity="0.9"/>
+  <circle cx="262" cy="-8" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="250" cy="-4" r="4.5" fill="#FAF4F8" opacity="0.88"/>
+  <circle cx="258" cy="-14" r="4" fill="#F8EDF4" opacity="0.86"/>
+
+  <!-- Sparse mid branch flowers -->
+  <circle cx="-12" cy="122" r="4.5" fill="#F8EDF4" opacity="0.86"/>
+  <circle cx="-20" cy="130" r="4" fill="#F2E2EC" opacity="0.84"/>
+  <circle cx="-4" cy="128" r="4" fill="#FAF4F8" opacity="0.84"/>
+  <circle cx="-62" cy="110" r="4.5" fill="#F8EDF4" opacity="0.85"/>
+  <circle cx="-70" cy="120" r="4" fill="#F2E2EC" opacity="0.83"/>
+  <circle cx="238" cy="100" r="4.5" fill="#F8EDF4" opacity="0.85"/>
+  <circle cx="246" cy="108" r="4" fill="#F2E2EC" opacity="0.83"/>
+  <circle cx="-16" cy="168" r="4.5" fill="#FAF4F8" opacity="0.84"/>
+  <circle cx="-8" cy="174" r="4" fill="#F8EDF4" opacity="0.82"/>
+  <circle cx="4" cy="168" r="4" fill="#F2E2EC" opacity="0.82"/>
+  <circle cx="50" cy="-4" r="4.5" fill="#F8EDF4" opacity="0.86"/>
+  <circle cx="42" cy="-12" r="4" fill="#F2E2EC" opacity="0.84"/>
+  <circle cx="174" cy="6" r="4.5" fill="#F8EDF4" opacity="0.86"/>
+  <circle cx="166" cy="-2" r="4" fill="#F2E2EC" opacity="0.84"/>
+
+  <!-- FALLING PETALS - few, unhurried, each one matters -->
+  <path d="M30 262 C32 258 36 260 34 264 C32 268 28 266 30 262Z" fill="#F8EDF4" opacity="0.52" transform="rotate(-22,32,262)"/>
+  <path d="M62 268 C64 264 68 266 66 270 C64 274 60 272 62 268Z" fill="#F2E2EC" opacity="0.48" transform="rotate(14,64,268)"/>
+  <path d="M98 262 C100 258 104 260 102 264 C100 268 96 266 98 262Z" fill="#FAF4F8" opacity="0.48" transform="rotate(-8,100,262)"/>
+  <path d="M136 266 C138 262 142 264 140 268 C138 272 134 270 136 266Z" fill="#F8EDF4" opacity="0.48" transform="rotate(18,138,266)"/>
+  <path d="M172 262 C174 258 178 260 176 264 C174 268 170 266 172 262Z" fill="#F2E2EC" opacity="0.48" transform="rotate(-12,174,262)"/>
+  <path d="M208 266 C210 262 214 264 212 268 C210 272 206 270 208 266Z" fill="#FAF4F8" opacity="0.5" transform="rotate(10,210,266)"/>
+  <path d="M18 238 C20 234 24 236 22 240 C20 244 16 242 18 238Z" fill="#F2E2EC" opacity="0.42" transform="rotate(-26,20,238)"/>
+  <path d="M96 238 C98 234 102 236 100 240 C98 244 94 242 96 238Z" fill="#F8EDF4" opacity="0.4" transform="rotate(-8,98,238)"/>
+  <path d="M180 238 C182 234 186 236 184 240 C182 244 178 242 180 238Z" fill="#FAF4F8" opacity="0.4" transform="rotate(-14,182,238)"/>
+  <path d="M40 208 C42 205 45 207 43 210 C41 213 38 211 40 208Z" fill="#FAF4F8" opacity="0.34" transform="rotate(-24,42,208)"/>
+  <path d="M146 208 C148 205 151 207 149 210 C147 213 144 211 146 208Z" fill="#F2E2EC" opacity="0.32" transform="rotate(-8,148,208)"/>
+  <path d="M70 178 C72 176 74 177 73 179 C72 181 70 180 70 178Z" fill="#F8EDF4" opacity="0.26" transform="rotate(-20,72,178)"/>
+  <path d="M160 174 C162 172 164 173 163 175 C162 177 160 176 160 174Z" fill="#F2E2EC" opacity="0.24" transform="rotate(14,162,174)"/>
+  </svg>`,
 ];
 
 function CerezoView({points, treeLevel, TREE_LEVELS, desktop}){
@@ -1958,8 +2138,7 @@ function CerezoView({points, treeLevel, TREE_LEVELS, desktop}){
         ))}
       </div>
 
-      {/* Clarity wordmark at bottom */}
-      <div style={{marginTop:24,fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".2em",textTransform:"uppercase",color:"#D5CFC8"}}>Clarity</div>
+
     </div>
   );
 }
@@ -2032,7 +2211,7 @@ function DTareasDesktop({projects,tasksForProject,onToggle,onDelete,onOpen,onAdd
 
   const renderProjects = (projs) => projs.map(proj=>(
     <DProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
-      onToggle={onToggle} onOpen={onOpen}
+      onToggle={onToggle} onOpen={onOpen} onComplete={completeProject}
       onAddTask={()=>onAddTask(proj)}
       reorderTasks={reorderTasks} sw={{swipedId:null,setSwipedId:()=>{}}}/>
   ));
