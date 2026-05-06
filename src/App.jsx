@@ -1415,6 +1415,25 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px 14px',marginBottom:12,marginBottom:12}}>
         <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Ventanas de claridad</div>
         <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Horas de mayor ejecución</div>
+        {/* Best hour for strategic tasks */}
+        {(()=>{
+          const stratHours = Array(24).fill(0);
+          tasks.filter(t=>t.done&&t.completed_at).forEach(t=>{
+            const p=projects.find(x=>x.id===t.projectId);
+            if(p&&p.importance==='estrategica'){
+              stratHours[new Date(t.completed_at).getHours()]++;
+            }
+          });
+          const bestStratHour = stratHours.indexOf(Math.max(...stratHours));
+          const hasStrat = stratHours.some(h=>h>0);
+          if(!hasStrat) return null;
+          const label = bestStratHour===0?'12am':bestStratHour<12?`${bestStratHour}am`:bestStratHour===12?'12pm':`${bestStratHour-12}pm`;
+          return(
+            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#9B8878',marginTop:10,padding:'8px 12px',background:'#F5F1ED',borderRadius:8}}>
+              ◈ Completás más tareas estratégicas a las <strong>{label}</strong> — protegé esa hora.
+            </div>
+          );
+        })()}
         {hasHourData
           ? <>
             <div style={{display:'flex',gap:3,flexWrap:'nowrap'}}>
@@ -1457,6 +1476,25 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
           </div>}
         </div>
       </div>
+
+      {/* Velocidad de proyectos */}
+      {(()=>{
+        const closed = projects.filter(p=>p.completed_at&&p.created_at);
+        if(closed.length===0) return null;
+        const avgDays = Math.round(closed.reduce((acc,p)=>{
+          const diff=(new Date(p.completed_at)-new Date(p.created_at))/(1000*60*60*24);
+          return acc+diff;
+        },0)/closed.length);
+        return(
+          <div style={{flex:1,background:'#FDFCFA',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 14px',marginBottom:10}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:28,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',lineHeight:1,marginBottom:4}}>
+              {avgDays}<span style={{fontSize:16,color:'#B0AA9F'}}> días</span>
+            </div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F',lineHeight:1.4}}>Velocidad de proyectos</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:10,marginTop:8,color:'#C8C3BB'}}>{closed.length} proyecto{closed.length>1?'s':''} cerrado{closed.length>1?'s':''}</div>
+          </div>
+        );
+      })()}
 
       {/* CEO indicator */}
       <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px',marginBottom:10,marginBottom:10}}>
