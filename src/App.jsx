@@ -645,7 +645,7 @@ function DProjBlock({project,area,tasks,onToggle,onOpen,onAddTask,onComplete,reo
   );
 }
 
-function DPlanBlock({project,onEdit,onDelete}){
+function DPlanBlock({project,onEdit,onDelete,onComplete}){
   const [conf,setConf]=useState(false);
   const [exp,setExp]=useState(false);
   const imp=IMPORTANCE[project.importance||"normal"];
@@ -664,6 +664,7 @@ function DPlanBlock({project,onEdit,onDelete}){
         </div>
         <div style={{display:"flex",gap:5,flexShrink:0}}>
           <button className="d-ib" onClick={onEdit}>Editar</button>
+          <button className="d-ib" style={{color:"#8FAF8A",borderColor:"#8FAF8A"}} onClick={()=>{if(window.confirm("¿Completar proyecto? +puntos"))onComplete&&onComplete(project.id);}}>✓</button>
           {conf?<><button className="d-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={onDelete}>Confirmar</button><button className="d-ib" onClick={()=>setConf(false)}>✕</button></>:<button className="d-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>Eliminar</button>}
         </div>
       </div>
@@ -2466,7 +2467,7 @@ function ProjBlock({project,area,tasks,onToggle,onDelete,onOpen,onAddTask,reorde
   );
 }
 
-function PlanBlock({project,onEdit,onDelete}){
+function PlanBlock({project,onEdit,onDelete,onComplete}){
   const [conf,setConf]=useState(false);
   const [exp,setExp]=useState(false);
   const imp=IMPORTANCE[project.importance||"normal"];
@@ -2485,6 +2486,7 @@ function PlanBlock({project,onEdit,onDelete}){
         </div>
         <div style={{display:"flex",gap:6,flexShrink:0}}>
           <button className="m-ib" onClick={onEdit}>Editar</button>
+          <button className="m-ib" style={{color:"#8FAF8A",borderColor:"#8FAF8A"}} onClick={()=>{if(window.confirm("¿Completar proyecto? +puntos"))onComplete&&onComplete(project.id);}}>✓</button>
           {conf?<><button className="m-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={onDelete}>Confirmar</button><button className="m-ib" onClick={()=>setConf(false)}>✕</button></>:<button className="m-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>Eliminar</button>}
         </div>
       </div>
