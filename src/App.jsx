@@ -2613,41 +2613,6 @@ function DPlanBlock({project,onEdit,onDelete,onComplete}){
 }
 
 
-function PlanBlock({project,onEdit,onDelete,onComplete}){
-  const [conf,setConf]=useState(false);
-  const [exp,setExp]=useState(false);
-  const imp=IMPORTANCE[project.importance||"normal"];
-  const has=project.description||project.mainGoal||(project.secondaryGoals?.length>0);
-  return(
-    <div style={{margin:"10px 20px",background:"#FDFCFA",borderRadius:12,border:"1px solid #EAE6E0"}}>
-      <div style={{padding:"14px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10}}>
-        <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1,minWidth:0}}>
-          <div onClick={()=>{if(window.confirm("¿Completar proyecto?"))onComplete&&onComplete(project.id);}} style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid #C8C3BB",flexShrink:0,marginTop:2,cursor:"pointer"}} />
-          <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
-          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:has&&!exp?3:0}}>
-            <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,color:"#3A3530"}}>{project.name}</span>
-            {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
-            <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 7px",borderRadius:99}}>{imp.label}</span>
-          </div>
-          {!exp&&project.mainGoal&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B948C",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{project.mainGoal}</div>}
-          {!has&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos · tap en Editar</div>}
-          </div>
-        </div>
-        <div style={{display:"flex",gap:6,flexShrink:0}}>
-          <button className="m-ib" onClick={onEdit}>Editar</button>
-          {conf?<><button className="m-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={onDelete}>Confirmar</button><button className="m-ib" onClick={()=>setConf(false)}>✕</button></>:<button className="m-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>Eliminar</button>}
-        </div>
-      </div>
-      {exp&&has&&<div style={{padding:"0 16px 14px",borderTop:"1px solid #F5F2EE"}}>
-        {project.description&&<p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258",marginBottom:10,marginTop:10,lineHeight:1.6}}>{project.description}</p>}
-        {project.mainGoal&&<div style={{marginBottom:8}}><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:3}}>Objetivo principal</div><div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#3A3530",fontWeight:500}}>{project.mainGoal}</div></div>}
-        {project.secondaryGoals?.length>0&&<div><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:6}}>Objetivos secundarios</div>{project.secondaryGoals.map((g,i)=><div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:4}}><div style={{width:4,height:4,borderRadius:"50%",background:"#C8C3BB",flexShrink:0,marginTop:6}}/><span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258"}}>{g}</span></div>)}</div>}
-      </div>}
-    </div>
-  );
-}
-
-
 function DraggableProjectGrid({projects,onEdit,onDelete,onComplete,onReorder}){
   const [order,setOrder]=useState(null);
   const dragItem=useRef(null),dragOver=useRef(null);
