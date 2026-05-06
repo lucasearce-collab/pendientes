@@ -504,7 +504,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
         {view==="tareas"&&(
           focusMode
             ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} desktop/>
-            :<DTareasDesktop projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} reorderTasks={reorderTasks}/>
+            :<DTareasDesktop projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} onComplete={completeProject} reorderTasks={reorderTasks}/>
         )}
 
         {view==="proyectos"&&(<div>
@@ -517,7 +517,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
           <button className="d-newp" style={{marginTop:16}} onClick={()=>setNewProjSheet({area:activeArea})}>+ Nuevo proyecto en {AREAS[activeArea]?.label}</button>
         </div>)}
 
-        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={true}/>}
+        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={true}/>}
 
         {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop/>}
       </div>
@@ -607,7 +607,7 @@ function UpcomingSection({tasks,projects,onToggle,onDelete,onOpen,reorderTasks,s
   );
 }
 
-function DProjBlock({project,area,tasks,onToggle,onOpen,onAddTask,reorderTasks,sw}){
+function DProjBlock({project,area,tasks,onToggle,onOpen,onAddTask,onComplete,reorderTasks,sw}){
   const [open,setOpen]=useState(false);
   const imp=IMPORTANCE[project.importance||"normal"];
   const pending=tasks.filter(t=>!t.done).length;
@@ -828,7 +828,7 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
         {view==="tareas"&&(<>
           {focusMode
             ?<FocusProject projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}/>
-            :<><GroupedProjectsView projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} reorderTasks={reorderTasks} sw={sw}/></>
+            :<><GroupedProjectsView projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} onComplete={completeProject} reorderTasks={reorderTasks} sw={sw}/></>
           }
           {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
         </>)}
@@ -843,7 +843,7 @@ function MobileLayout({tasks,projects,goals,view,setView,activeArea,setActiveAre
             </>
           }
         </>)}
-        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} isDesktop={false}/>}
+        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={false}/>}
         {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS}/>}
         {view==="analitica"&&<AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount}/>}
 
@@ -1216,7 +1216,7 @@ function FocusStrategyMode({projects,onEdit,onDelete,desktop}){
 }
 
 // ─── Grouped Projects View ────────────────────────────────────────────────────
-function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,reorderTasks,sw,desktop}){
+function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks,sw,desktop}){
   const groups = [
     {key:"urgente",     label:"Prioritarios", color:"#C49A7A", bg:"#FBF5F0"},
     {key:"estrategica", label:"Estratégicos", color:"#5B6BAF", bg:"#F0F1F8"},
@@ -1245,6 +1245,7 @@ function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,
             {isOpen&&gprojects.map(proj=>(
               desktop
                 ?<DProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
+                  onComplete={onComplete}
                     onToggle={onToggle} onOpen={onOpen}
                     onAddTask={()=>onAddTask(proj)}
                     reorderTasks={reorderTasks} sw={sw}/>
@@ -2197,7 +2198,7 @@ function DHoyDesktop({overdueWork,todayWork,projects,tasks,toggleDone,onDelete,o
 }
 
 // ─── Desktop Tareas - Two Column ──────────────────────────────────────────────
-function DTareasDesktop({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,reorderTasks}){
+function DTareasDesktop({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks}){
   const prioritarios = projects.filter(p=>(p.importance||"normal")==="urgente");
   const estrategicos = projects.filter(p=>(p.importance||"normal")==="estrategica");
   const normales = projects.filter(p=>(p.importance||"normal")==="normal");
@@ -2673,7 +2674,7 @@ function NewProjectSheet({area,onAdd,isDesktop}){
 
 // ─── Metas View ───────────────────────────────────────────────────────────────
 
-function MetasView({goals,projects,onNew,onEdit,onReorder,isDesktop}){
+function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop}){
   const horizons = [
     {key:"anio",  label:"Este año",  sub:"2025",   color:"#9B8878", bg:"#F5F1ED", border:"#C4A882"},
     {key:"medio", label:"2–5 años",  sub:"2026–30", color:"#8A8EA8", bg:"#F1F2F5", border:"#8A8EA8"},
@@ -2896,7 +2897,7 @@ function DraggableProjectGrid({projects,onEdit,onDelete,onReorder}){
           onDragOver={e=>e.preventDefault()}
           onDragEnd={handleDragEnd}
           style={{cursor:"grab"}}>
-          <DPlanBlock project={proj} onEdit={()=>onEdit(proj)} onDelete={()=>onDelete(proj.id)}/>
+          <DPlanBlock project={proj} onEdit={()=>onEdit(proj)} onDelete={()=>onDelete(proj.id)} onComplete={completeProject}/>
         </div>
       ))}
     </div>
@@ -2945,7 +2946,7 @@ function DraggableProjectList({projects,onEdit,onDelete,onReorder}){
           style={{opacity:dragIdx===idx?.4:1,borderTop:overIdx===idx&&dragIdx!==null&&dragIdx!==idx?"2px solid #9B8878":"none"}}
           onTouchStart={e=>handleTouchStart(e,idx)}
           onTouchEnd={()=>handleTouchEnd(idx)}>
-          <PlanBlock project={proj} onEdit={()=>onEdit(proj)} onDelete={()=>onDelete(proj.id)}/>
+          <PlanBlock project={proj} onEdit={()=>onEdit(proj)} onDelete={()=>onDelete(proj.id)} onComplete={completeProject}/>
         </div>
       ))}
     </div>
