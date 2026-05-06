@@ -334,6 +334,19 @@ export default function App() {
     setProjects(ps=>ps.map(p=>p.id===u.id?u:p)); setPlanSheet(null);
     await safeUpsert("projects",projToDb(u,uid));
   }
+  async function completeProject(pid){
+    const proj=projects.find(p=>p.id===pid);
+    if(!proj) return;
+    const imp=proj.importance||"normal";
+    const pts=imp==="estrategica"?10000:imp==="urgente"?7000:5000;
+    addPoints(pts);
+    setCelebrate({type:'project',points:pts,name:proj.name});
+    setTimeout(()=>setCelebrate(null),3000);
+    await supabase.from("projects").update({completed_at:new Date().toISOString()}).eq("id",pid);
+    trackEvent("project_completed",pid,"project",{importance:imp,points:pts,name:proj.name,area:proj.area});
+    setProjects(ps=>ps.filter(p=>p.id!==pid));
+  }
+
   async function deleteProject(pid){
     setProjects(ps=>ps.filter(p=>p.id!==pid));
     setTasks(ts=>ts.filter(t=>t.projectId!==pid));
