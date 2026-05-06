@@ -517,7 +517,7 @@ function DesktopLayout({tasks,projects,goals,view,setView,activeArea,setActiveAr
         {view==="tareas"&&(
           focusMode
             ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} desktop/>
-            :<DTareasDesktop projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} onComplete={completeProject} reorderTasks={reorderTasks}/>
+            :<GroupedProjectsView projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} onComplete={completeProject} reorderTasks={reorderTasks} desktop/>
         )}
 
         {view==="proyectos"&&(<div>
@@ -1259,49 +1259,79 @@ function FocusStrategyMode({projects,onEdit,onDelete,onComplete,desktop}){
 
 // ─── Grouped Projects View ────────────────────────────────────────────────────
 function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks,sw,desktop}){
-  const groups = [
+  const GROUPS = [
     {key:"urgente",     label:"Prioritarios", color:"#C49A7A", bg:"#FBF5F0"},
-    {key:"estrategica", label:"Estratégicos", color:"#5B6BAF", bg:"#F0F1F8"},
-    {key:"normal",      label:"Normales",     color:"#9B948C", bg:"#F5F3F1"},
+    {key:"estrategica", label:"Estratégicos",  color:"#5B6BAF", bg:"#F0F1F8"},
+    {key:"normal",      label:"Normales",      color:"#9B948C", bg:"#F5F3F1"},
   ];
   const [open,setOpen]=useState({urgente:true,estrategica:true,normal:false});
 
+  const ProjCard = ({proj}) => desktop
+    ?<DProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
+        onToggle={onToggle} onOpen={onOpen} onComplete={onComplete}
+        onAddTask={()=>onAddTask(proj)} reorderTasks={reorderTasks} sw={{swipedId:null,setSwipedId:()=>{}}}/>
+    :<ProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
+        onToggle={onToggle} onDelete={onDelete} onOpen={onOpen}
+        onAddTask={()=>onAddTask(proj)} reorderTasks={reorderTasks} {...(sw||{})}/>;
+
+  if(desktop){
+    const prioritarios = projects.filter(p=>(p.importance||"normal")==="urgente");
+    const estrategicos = projects.filter(p=>(p.importance||"normal")==="estrategica");
+    const normales     = projects.filter(p=>(p.importance||"normal")==="normal");
+    const GroupHeader  = ({label,color}) => (
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0 8px",borderBottom:"1px solid #EAE6E0",marginBottom:4}}>
+        <div style={{width:7,height:7,borderRadius:"50%",background:color}}/>
+        <span style={{fontFamily:"'DM Sans'",fontSize:11,fontWeight:500,letterSpacing:".1em",textTransform:"uppercase",color}}>{label}</span>
+      </div>
+    );
+    return(
+      <div>
+        <div style={{display:"flex",gap:40,alignItems:"flex-start",marginBottom:normales.length>0?32:0}}>
+          <div style={{flex:1,minWidth:0}}>
+            {prioritarios.length>0?<><GroupHeader label="Prioritarios" color="#C49A7A"/>{prioritarios.map(p=><ProjCard key={p.id} proj={p}/>)}</>
+              :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin proyectos prioritarios</div>}
+          </div>
+          <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
+          <div style={{flex:1,minWidth:0}}>
+            {estrategicos.length>0?<><GroupHeader label="Estratégicos" color="#5B6BAF"/>{estrategicos.map(p=><ProjCard key={p.id} proj={p}/>)}</>
+              :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin proyectos estratégicos</div>}
+          </div>
+        </div>
+        {normales.length>0&&<>
+          <div style={{height:1,background:"#EAE6E0",marginBottom:16}}/>
+          <GroupHeader label="Normales" color="#9B948C"/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            {normales.map(p=><ProjCard key={p.id} proj={p}/>)}
+          </div>
+        </>}
+      </div>
+    );
+  }
+
   return(
     <div>
-      {groups.map(g=>{
+      {GROUPS.map(g=>{
         const gprojects=projects.filter(p=>(p.importance||"normal")===g.key);
         if(gprojects.length===0) return null;
         const isOpen=open[g.key];
         const totalPending=gprojects.reduce((sum,p)=>sum+tasksForProject(p.id).filter(t=>!t.done).length,0);
         return(
           <div key={g.key} style={{marginBottom:4}}>
-            {/* Group header */}
             <div onClick={()=>setOpen(o=>({...o,[g.key]:!o[g.key]}))}
-              style={{display:"flex",alignItems:"center",gap:10,padding:desktop?"12px 0":"12px 20px",cursor:"pointer",userSelect:"none",borderBottom:"1px solid #EAE6E0"}}>
+              style={{display:"flex",alignItems:"center",gap:10,padding:"12px 20px",cursor:"pointer",userSelect:"none",borderBottom:"1px solid #EAE6E0"}}>
               <div style={{width:8,height:8,borderRadius:"50%",background:g.color,flexShrink:0}}/>
               <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:g.color,flex:1}}>{g.label}</span>
               {totalPending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:g.color,background:g.bg,padding:"2px 8px",borderRadius:99}}>{totalPending}</span>}
               <span style={{fontFamily:"'DM Sans'",fontSize:14,color:"#C8C3BB",marginLeft:4}}>{isOpen?"▾":"›"}</span>
             </div>
-            {/* Projects within group */}
-            {isOpen&&gprojects.map(proj=>(
-              desktop
-                ?<DProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
-                  onComplete={onComplete}
-                    onToggle={onToggle} onOpen={onOpen}
-                    onAddTask={()=>onAddTask(proj)}
-                    reorderTasks={reorderTasks} sw={sw}/>
-                :<ProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
-                    onToggle={onToggle} onDelete={onDelete} onOpen={onOpen}
-                    onAddTask={()=>onAddTask(proj)}
-                    reorderTasks={reorderTasks} {...(sw||{})}/>
-            ))}
+            {isOpen&&gprojects.map(proj=><ProjCard key={proj.id} proj={proj}/>)}
           </div>
         );
       })}
     </div>
   );
 }
+
 
 
 
@@ -2369,50 +2399,6 @@ function CerezoView({points, treeLevel, TREE_LEVELS, desktop}){
 // ─── Desktop Hoy - Two Column ─────────────────────────────────────────────────
 
 // ─── Desktop Tareas - Two Column ──────────────────────────────────────────────
-function DTareasDesktop({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks}){
-  const prioritarios = projects.filter(p=>(p.importance||"normal")==="urgente");
-  const estrategicos = projects.filter(p=>(p.importance||"normal")==="estrategica");
-  const normales = projects.filter(p=>(p.importance||"normal")==="normal");
-
-  const groupHeader = (label,color) => (
-    <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0 8px",borderBottom:"1px solid #EAE6E0",marginBottom:4}}>
-      <div style={{width:7,height:7,borderRadius:"50%",background:color}}/>
-      <span style={{fontFamily:"'DM Sans'",fontSize:11,fontWeight:500,letterSpacing:".1em",textTransform:"uppercase",color}}>{label}</span>
-    </div>
-  );
-
-  const renderProjects = (projs) => projs.map(proj=>(
-    <DProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
-      onToggle={onToggle} onOpen={onOpen} onComplete={onComplete}
-      onAddTask={()=>onAddTask(proj)}
-      reorderTasks={reorderTasks} sw={{swipedId:null,setSwipedId:()=>{}}}/>
-  ));
-
-  return(
-    <div>
-      {/* Top row - prioritarios left, estrategicos right */}
-      <div style={{display:"flex",gap:40,alignItems:"flex-start",marginBottom:normales.length>0?32:0}}>
-        <div style={{flex:1,minWidth:0}}>
-          {prioritarios.length>0&&<>{groupHeader("Prioritarios","#C49A7A")}{renderProjects(prioritarios)}</>}
-          {prioritarios.length===0&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin proyectos prioritarios</div>}
-        </div>
-        <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
-        <div style={{flex:1,minWidth:0}}>
-          {estrategicos.length>0&&<>{groupHeader("Estratégicos","#5B6BAF")}{renderProjects(estrategicos)}</>}
-          {estrategicos.length===0&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin proyectos estratégicos</div>}
-        </div>
-      </div>
-      {/* Bottom - normales full width */}
-      {normales.length>0&&<>
-        <div style={{height:1,background:"#EAE6E0",marginBottom:16}}/>
-        {groupHeader("Normales","#9B948C")}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          {renderProjects(normales)}
-        </div>
-      </>}
-    </div>
-  );
-}
 
 // ─── Focus Mode ───────────────────────────────────────────────────────────────
 function FocusMode({overdueWork,todayWork,upcomingWork,tasks,projects,onToggle,onDelete,onOpen,desktop}){
