@@ -926,13 +926,33 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
     });
     const total = strategicWeight + operationalWeight;
     if(total===0) return null;
-    const score = Math.round((strategicWeight/total)*100);
+    const rawScore = Math.round((strategicWeight/total)*100);
+
+    // Diversification factor — penalize concentration in a single goal
+    const tasksByGoal = {};
+    tasks.filter(t=>!t.done).forEach(t=>{
+      const p = projects.find(x=>x.id===t.projectId);
+      const goalId = p?.goal_id || 'none';
+      tasksByGoal[goalId] = (tasksByGoal[goalId]||0) + 1;
+    });
+    const goalKeys = Object.keys(tasksByGoal).filter(k=>k!=='none');
+    const totalWithGoal = goalKeys.reduce((s,k)=>s+tasksByGoal[k],0);
+    const maxConcentration = goalKeys.length>0 ? Math.max(...goalKeys.map(k=>tasksByGoal[k]))/totalWithGoal : 0;
+    // If >70% of tasks go to a single goal, penalize up to 20 points
+    const concentrationPenalty = goalKeys.length>1 ? Math.round(Math.max(0, maxConcentration-0.5)*40) : 0;
+    const score = Math.max(0, rawScore - concentrationPenalty);
+    const isConcentrated = goalKeys.length>1 && maxConcentration>0.7;
+
     return {
       score,
       orphaned,
+      isConcentrated,
+      concentrationPenalty,
       status: score>=50?'green':score>=30?'yellow':'red',
       label: score>=50?'Alineado':score>=30?'Parcialmente alineado':'Trampa operativa',
-      advice: score>=50
+      advice: isConcentrated
+        ?`Buen nivel estratégico, pero el ${Math.round(maxConcentration*100)}% de tus tareas atienden una sola meta. Considerá avanzar en tus otras metas también.`
+        :score>=50
         ?'Tu tiempo está donde importa. Seguí construyendo lo estratégico.'
         :score>=30
         ?'Hay balance, pero el operativo está ganando terreno. Revisá qué podés delegar.'
@@ -1185,17 +1205,38 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
 
       {[
         {
-          status: overdueCount===0?'green':overdueCount<=3?'yellow':'red',
-          icon: overdueCount===0?'✓':overdueCount<=3?'⚡':'⚠',
-          title: overdueCount===0?'Sin tareas vencidas':overdueCount<=3?'Tareas por actualizar':'Atención: tareas vencidas',
-          value: overdueCount===0?'Todo al día — buen ritmo.'
-            :overdueCount<=3?`${overdueCount} ${overdueCount===1?'tarea':'tareas'} con fecha vencida. Actualizá las fechas o completalas.`
-            :`${overdueCount} tareas vencidas acumuladas. Revisá y reagendá para despejar el camino.`,
+          status: (()=>{
+            const snoozed = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>0).length;
+            const total = overdueCount + snoozed;
+            return total===0?'green':total<=3?'yellow':'red';
+          })(),
+          icon: (()=>{
+            const snoozed = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>0).length;
+            const total = overdueCount + snoozed;
+            return total===0?'✓':total<=3?'⚡':'⚠';
+          })(),
+          title: (()=>{
+            const snoozed = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>0).length;
+            const total = overdueCount + snoozed;
+            if(total===0) return 'Sin deuda pendiente';
+            if(overdueCount>0&&snoozed>0) return `${overdueCount} vencida${overdueCount>1?'s':''}, ${snoozed} reagendada${snoozed>1?'s':''}`;
+            if(overdueCount>0) return `${overdueCount} tarea${overdueCount>1?'s':''} vencida${overdueCount>1?'s':''}`;
+            return `${snoozed} tarea${snoozed>1?'s':''} reagendada${snoozed>1?'s':''}`;
+          })(),
+          value: (()=>{
+            const snoozed = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>0).length;
+            const total = overdueCount + snoozed;
+            if(total===0) return 'Todo al día — buen ritmo.';
+            if(snoozed>0&&overdueCount===0) return `Tenés ${snoozed} tarea${snoozed>1?'s':''} reagendada${snoozed>1?'s':''} con presión activa. Priorizalas hoy.`;
+            if(overdueCount>0&&snoozed>0) return `Combinación de vencidas y reagendadas. Empezá por las vencidas y ejecutá las reagendadas hoy.`;
+            return `${overdueCount} tarea${overdueCount>1?'s':''} con fecha vencida. Actualizá las fechas o completalas.`;
+          })(),
         },
         {
           status: cogLoad?.status||'green',
           icon: cogLoad?.status==='green'?'✓':cogLoad?.status==='yellow'?'⚡':'⚠',
           title: cogLoad ? `${cogLoad.label} · ${cogLoad.score}/100` : 'Carga cognitiva',
+          // score shown as big number in circle
           value: cogLoad
             ?(()=>{
               const snoozedOverdue = tasks.filter(t=>!t.done&&t.date&&t.date<today&&(t.snoozed_count||0)>0).length;
@@ -1223,11 +1264,21 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       ].map(({status,icon,title,value})=>(
         <div key={title} style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',
           padding:'16px',marginBottom:10,display:'flex',alignItems:'flex-start',gap:14}}>
-          <div style={{
-            width:44,height:44,borderRadius:'50%',display:'flex',alignItems:'center',
-            justifyContent:'center',fontSize:18,flexShrink:0,marginTop:2,
-            background:status==='green'?'#F0F7EE':status==='yellow'?'#FBF8EE':'#FBF0EE',
-          }}>{icon}</div>
+          {title.includes('/100')
+          ? <div style={{
+              width:52,height:52,borderRadius:'50%',display:'flex',alignItems:'center',
+              justifyContent:'center',flexShrink:0,marginTop:2,flexDirection:'column',
+              background:status==='green'?'#F0F7EE':status==='yellow'?'#FBF8EE':'#FBF0EE',
+            }}>
+              <span style={{fontFamily:"'DM Sans'",fontSize:16,fontWeight:500,color:status==='green'?'#5C8A5C':status==='yellow'?'#9B7A3A':'#9B4A3A',lineHeight:1}}>{title.split('·')[1]?.trim().replace('/100','')}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:8,color:status==='green'?'#8FAF8A':status==='yellow'?'#C4A882':'#C4896A'}}>/100</span>
+            </div>
+          : <div style={{
+              width:44,height:44,borderRadius:'50%',display:'flex',alignItems:'center',
+              justifyContent:'center',fontSize:18,flexShrink:0,marginTop:2,
+              background:status==='green'?'#F0F7EE':status==='yellow'?'#FBF8EE':'#FBF0EE',
+            }}>{icon}</div>
+        }
           <div>
             <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>{title}</div>
             <div style={{fontFamily:"'DM Sans'",fontSize:12,color:'#9B8878',lineHeight:1.6}}>{value}</div>
