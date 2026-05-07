@@ -327,6 +327,7 @@ export default function App() {
     const wasRescheduled = prev&&prev.date&&u.date&&u.date!==prev.date&&u.date>=todayStr()&&!u.done;
     if(wasRescheduled){
       u = {...u, snoozed_count:(u.snoozed_count||0)+1};
+      setRescheduledCount(c=>c+1);
       trackEvent("task_rescheduled", u.id, "task", {
         oldDate: prev.date,
         newDate: u.date,
@@ -880,16 +881,18 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
   const peakLabel = peakHour===0?'12am':peakHour<12?`${peakHour}am`:peakHour===12?'12pm':`${peakHour-12}pm`;
   const hasHourData = tasks.some(t=>t.completed_at);
 
-  // ── Tareas a tiempo ──
+  // ── Tareas a tiempo ── only counts tasks never rescheduled AND completed by due date
   const completedWithDate = tasks.filter(t=>t.done&&t.date);
   const onTime = completedWithDate.filter(t=>
-    !t.completed_at || t.completed_at.slice(0,10)<=t.date
+    (t.snoozed_count||0)===0 && (!t.completed_at || t.completed_at.slice(0,10)<=t.date)
   ).length;
   const onTimePct = completedWithDate.length>0 ? Math.round((onTime/completedWithDate.length)*100) : null;
 
-  // ── Tasa postergación ──
-  const totalWithDate = tasks.filter(t=>t.date).length;
-  const snoozeRate = totalWithDate>0 ? Math.round((rescheduledCount/totalWithDate)*100) : null;
+  // ── Tasa postergación ── uses snoozed_count which includes manual date changes
+  const tasksWithDate = tasks.filter(t=>t.date);
+  const totalSnoozedFromTasks = tasks.reduce((acc,t)=>acc+(t.snoozed_count||0),0);
+  const totalWithDate = tasksWithDate.length;
+  const snoozeRate = totalWithDate>0 ? Math.round((totalSnoozedFromTasks/(totalWithDate+totalSnoozedFromTasks))*100) : null;
 
   // ── CEO indicator ──
   const completedThisWeek = tasks.filter(t=>t.done&&(
