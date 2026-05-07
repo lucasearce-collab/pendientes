@@ -1205,38 +1205,34 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
 
       {[
         {
-          status: (()=>{
-            const snoozed = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>0).length;
-            const total = overdueCount + snoozed;
-            return total===0?'green':total<=3?'yellow':'red';
-          })(),
-          icon: (()=>{
-            const snoozed = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>0).length;
-            const total = overdueCount + snoozed;
-            return total===0?'✓':total<=3?'⚡':'⚠';
-          })(),
-          title: (()=>{
-            const snoozed = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>0).length;
-            const total = overdueCount + snoozed;
-            if(total===0) return 'Sin deuda pendiente';
-            if(overdueCount>0&&snoozed>0) return `${overdueCount} vencida${overdueCount>1?'s':''}, ${snoozed} reagendada${snoozed>1?'s':''}`;
-            if(overdueCount>0) return `${overdueCount} tarea${overdueCount>1?'s':''} vencida${overdueCount>1?'s':''}`;
-            return `${snoozed} tarea${snoozed>1?'s':''} reagendada${snoozed>1?'s':''}`;
-          })(),
-          value: (()=>{
-            const snoozed = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>0).length;
-            const total = overdueCount + snoozed;
-            if(total===0) return 'Todo al día — buen ritmo.';
-            if(snoozed>0&&overdueCount===0) return `Tenés ${snoozed} tarea${snoozed>1?'s':''} reagendada${snoozed>1?'s':''} con presión activa. Priorizalas hoy.`;
-            if(overdueCount>0&&snoozed>0) return `Combinación de vencidas y reagendadas. Empezá por las vencidas y ejecutá las reagendadas hoy.`;
-            return `${overdueCount} tarea${overdueCount>1?'s':''} con fecha vencida. Actualizá las fechas o completalas.`;
+        {
+          ...(()=>{
+            const snoozed = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>0);
+            const snoozedCount = snoozed.length;
+            const totalDebt = overdueCount + snoozedCount;
+            const status = totalDebt===0?'green':totalDebt<=3?'yellow':'red';
+            const icon = totalDebt===0?'✓':totalDebt<=3?'⚡':'⚠';
+            let title, value;
+            if(totalDebt===0){
+              title = 'Sin deuda pendiente';
+              value = 'Todo al día — buen ritmo.';
+            } else if(overdueCount===0&&snoozedCount>0){
+              title = `${snoozedCount} tarea${snoozedCount>1?'s':''} con deuda`;
+              value = `Tenés ${snoozedCount} tarea${snoozedCount>1?'s':''} que no cumpliste en su fecha original. ${snoozedCount>1?'Todas tienen':'Tiene'} vencimiento reprogramado — priorizalas antes de que venza de nuevo.`;
+            } else if(overdueCount>0&&snoozedCount===0){
+              title = `${overdueCount} tarea${overdueCount>1?'s':''} vencida${overdueCount>1?'s':''}`;
+              value = `${overdueCount} tarea${overdueCount>1?'s':''} con fecha vencida. Actualizá las fechas o completalas hoy.`;
+            } else {
+              title = `${overdueCount} vencida${overdueCount>1?'s':''} · ${snoozedCount} con deuda`;
+              value = `Combinación de vencidas y reagendadas. Empezá por las vencidas y ejecutá las reagendadas antes de que venzan.`;
+            }
+            return {status, icon, title, value};
           })(),
         },
         {
           status: cogLoad?.status||'green',
           icon: cogLoad?.status==='green'?'✓':cogLoad?.status==='yellow'?'⚡':'⚠',
-          title: cogLoad ? `${cogLoad.label} · ${cogLoad.score}/100` : 'Carga cognitiva',
-          // score shown as big number in circle
+          title: cogLoad ? cogLoad.label : 'Carga cognitiva',
           value: cogLoad
             ?(()=>{
               const snoozedOverdue = tasks.filter(t=>!t.done&&t.date&&t.date<today&&(t.snoozed_count||0)>0).length;
@@ -1270,8 +1266,7 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
               justifyContent:'center',flexShrink:0,marginTop:2,flexDirection:'column',
               background:status==='green'?'#F0F7EE':status==='yellow'?'#FBF8EE':'#FBF0EE',
             }}>
-              <span style={{fontFamily:"'DM Sans'",fontSize:16,fontWeight:500,color:status==='green'?'#5C8A5C':status==='yellow'?'#9B7A3A':'#9B4A3A',lineHeight:1}}>{title.split('·')[1]?.trim().replace('/100','')}</span>
-              <span style={{fontFamily:"'DM Sans'",fontSize:8,color:status==='green'?'#8FAF8A':status==='yellow'?'#C4A882':'#C4896A'}}>/100</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:status==='green'?'#5C8A5C':status==='yellow'?'#9B7A3A':'#9B4A3A',lineHeight:1}}>{cogLoad?.score}%</span>
             </div>
           : <div style={{
               width:44,height:44,borderRadius:'50%',display:'flex',alignItems:'center',
