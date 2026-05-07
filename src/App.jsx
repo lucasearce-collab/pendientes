@@ -272,15 +272,15 @@ export default function App() {
       setGoals(userGoals);
       setLoading(false);
       loadPoints(session.user.id);
-      } catch(e) {
-        console.error("Load error:", e);
-        setLoadError(true);
-        setLoading(false);
-      }
       // Load rescheduled count for analytics
       supabase.from('events').select('id',{count:'exact'}).eq('user_id',session.user.id).eq('event_type','task_rescheduled').then(({count})=>setRescheduledCount(count||0));
       if(userProjects.length===0&&userTasks.length===0&&userGoals.length===0){
         setOnboarding(true);
+      }
+      } catch(e) {
+        console.error("Load error:", e);
+        setLoadError(true);
+        setLoading(false);
       }
     }
     load();
@@ -2704,7 +2704,7 @@ function DraggableProjectList({projects,onEdit,onDelete,onComplete,onReorder}){
 function GoalCard({goal,horizon,children,linkedProjects,onEdit,onComplete,allGoals,mobile}){
   const [exp,setExp]=useState(false);
   return(
-    <div style={{background:"white",borderRadius:10,border:`1px solid #EAE6E0`,background:"white",borderLeft:`3px solid ${horizon.color}`,marginBottom:mobile?8:0,overflow:"hidden"}}>
+    <div style={{background:"white",borderRadius:10,border:`1px solid #EAE6E0`,borderLeft:`3px solid ${horizon.color}`,marginBottom:mobile?8:0,overflow:"hidden"}}>
       <div style={{padding:"12px 14px",cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
           <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1,minWidth:0}}>
