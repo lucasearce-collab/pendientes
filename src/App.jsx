@@ -1246,7 +1246,7 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
             {icon:'📁', color:'#EEF6EE', titleColor:'#8FAF8A', title:'Proyectos', desc:'Iniciativas concretas que avanzás semana a semana'},
             {icon:'✓', color:'#F5F1ED', titleColor:'#9B8878', title:'Tareas', desc:'Las acciones concretas de tu día a día'},
           ].map(({icon,color,titleColor,title,desc},i,arr)=>(
-            <React.Fragment key={title}>
+            <div key={title}>
               <div style={{display:'flex',alignItems:'center',gap:12}}>
                 <div style={{width:32,height:32,borderRadius:8,background:color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>{icon}</div>
                 <div>
@@ -1264,7 +1264,7 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
                   </div>
                 </div>
               )}
-            </React.Fragment>
+            </div>
           ))}
         </div>
         <div style={{fontSize:12,color:'#C8C3BB',textAlign:'center',lineHeight:1.6}}>Cada tarea que completás hace avanzar un proyecto.<br/>Cada proyecto completado acerca una meta.</div>
@@ -1406,6 +1406,7 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
   }
 
   // ── DONE ──
+  if(s.type!=='done') return null;
   const totalMetas = (data.largo||[]).length + (data.medio||[]).length + (data.anio||[]).length;
   const totalProyectos = (data.proyectos||[]).length;
   const relacionados = (data.proyectos||[]).filter(p=>p.metaId!==null).length;
