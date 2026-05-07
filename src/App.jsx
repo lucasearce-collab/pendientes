@@ -888,12 +888,94 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
   const prioritariasPct = Math.round((prioritarias/totalCEO)*100);
   const normalesPct = Math.round((normales/totalCEO)*100);
 
+  // ── Alineación estratégica ──
+  function calcAlignment(){
+    let strategicWeight = 0;
+    let operationalWeight = 0;
+    let orphaned = 0;
+    tasks.filter(t=>!t.done).forEach(t=>{
+      const p = projects.find(x=>x.id===t.projectId);
+      const hasGoal = p?.goal_id ? true : false;
+      const taskValue = t.type==='urgente'?25:t.type==='estrategica'?50:10;
+      if(p?.importance==='estrategica'){
+        strategicWeight += taskValue * (hasGoal ? 1.5 : 1.1);
+      } else if(p?.importance==='urgente'){
+        strategicWeight += taskValue * 0.7;
+        operationalWeight += taskValue * 0.3;
+      } else {
+        operationalWeight += taskValue;
+        if(!p) orphaned++;
+      }
+    });
+    const total = strategicWeight + operationalWeight;
+    if(total===0) return null;
+    const score = Math.round((strategicWeight/total)*100);
+    return {
+      score,
+      orphaned,
+      status: score>=50?'green':score>=30?'yellow':'red',
+      label: score>=50?'Alineado':score>=30?'Parcialmente alineado':'Trampa operativa',
+      advice: score>=50
+        ?'Tu tiempo está donde importa. Seguí construyendo lo estratégico.'
+        :score>=30
+        ?'Hay balance, pero el operativo está ganando terreno. Revisá qué podés delegar.'
+        :'La mayoría de tu energía va a tareas operativas. Buscá qué proyectos estratégicos podés avanzar esta semana.',
+    };
+  }
+  const alignment = calcAlignment();
+
+  // ── Carga cognitiva avanzada ──
+  function calcCogLoad(){
+    let totalScore = 0;
+    const breakdown = {vencidas:0, hoy:0, proximas:0, lejanas:0};
+    tasks.filter(t=>!t.done&&t.date).forEach(t=>{
+      const p = projects.find(x=>x.id===t.projectId);
+      // Base score por importancia del proyecto
+      let base = p?.importance==='estrategica'?50:p?.importance==='urgente'?30:10;
+      // Multiplicador del proyecto
+      const projMult = p?.importance==='estrategica'?1.5:p?.importance==='urgente'?1.3:1.0;
+      base *= projMult;
+      // Factor dinero
+      if(p?.monto){
+        const num = parseFloat(p.monto.replace(/[^0-9.]/g,''))||0;
+        base += num * 0.5;
+      }
+      // Factor delegación
+      const isOwn = !t.responsable || t.responsable.toLowerCase().includes('lucas') || t.responsable==='-';
+      if(!isOwn) base *= 0.4;
+      // Curva temporal
+      const days = Math.round((new Date(t.date+'T12:00:00')-new Date(today+'T12:00:00'))/(1000*60*60*24));
+      const wasSnoozed = (t.snoozed_count||0) > 0;
+      if(days<0){ base *= wasSnoozed ? 4.0 : 3.0; breakdown.vencidas++; }
+      else if(days===0){ base*=2.0; breakdown.hoy++; }
+      else if(days<=2){ base*=1.2; breakdown.proximas++; }
+      else{ base*=0.8; breakdown.lejanas++; }
+      totalScore += Math.min(base, 200); // cap por tarea
+    });
+    // Normalize to 0-100
+    const maxExpected = tasks.filter(t=>!t.done&&t.date).length * 100;
+    if(maxExpected===0) return null;
+    const score = Math.min(Math.round((totalScore/maxExpected)*100), 100);
+    return {
+      score,
+      breakdown,
+      status: score>=70?'red':score>=40?'yellow':'green',
+      label: score>=70?'Carga cognitiva crítica':score>=40?'Carga cognitiva elevada':'Carga cognitiva saludable',
+      advice: score>=70
+        ?'Demasiados frentes activos con presión temporal. Completá o reagendá las tareas vencidas primero.'
+        :score>=40
+        ?'La presión está subiendo. Priorizá lo que vence pronto y delegá lo que puedas.'
+        :'Buen nivel de claridad. Tenés espacio para avanzar en lo estratégico.',
+    };
+  }
+  const cogLoad = calcCogLoad();
+
   // ── Salud ──
   const overdueCount = tasks.filter(t=>!t.done&&t.date&&t.date<today).length;
-  const openPriority = projects.filter(p=>!p.completed_at&&(p.importance==='urgente'||p.importance==='estrategica')).length;
   const openTotal = projects.filter(p=>!p.completed_at).length;
-  const cogLoadStatus = openPriority>=5?'red':openPriority>=3?'yellow':'green';
   const portfolioStatus = openTotal>15?'red':openTotal>10?'yellow':'green';
+  // Keep simple cogLoad for portfolio display
+  const openPriority = projects.filter(p=>!p.completed_at&&(p.importance==='urgente'||p.importance==='estrategica')).length;
 
   const pad = '0';
 
@@ -1078,14 +1160,12 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
             :`${overdueCount} tareas vencidas acumuladas. Revisá y reagendá para despejar el camino.`,
         },
         {
-          status: cogLoadStatus,
-          icon: cogLoadStatus==='green'?'✓':cogLoadStatus==='yellow'?'⚡':'⚠',
-          title: cogLoadStatus==='green'?'Carga cognitiva saludable':cogLoadStatus==='yellow'?'Carga cognitiva elevada':'Carga cognitiva crítica',
-          value: cogLoadStatus==='green'
-            ?`${openPriority} proyectos de alta prioridad. Dentro del rango recomendado.`
-            :cogLoadStatus==='yellow'
-            ?`${openPriority} proyectos prioritarios/estratégicos abiertos. Considerá cerrar o delegar alguno.`
-            :`${openPriority} proyectos de alta prioridad simultáneos. Demasiados frentes abiertos. Elegí los más importantes y pausá el resto.`,
+          status: cogLoad?.status||'green',
+          icon: cogLoad?.status==='green'?'✓':cogLoad?.status==='yellow'?'⚡':'⚠',
+          title: cogLoad?.label||'Carga cognitiva',
+          value: cogLoad
+            ?`${cogLoad.advice}${cogLoad.breakdown.vencidas>0?' ('+cogLoad.breakdown.vencidas+' tarea'+(cogLoad.breakdown.vencidas>1?'s':'')+' vencida'+(cogLoad.breakdown.vencidas>1?'s':'')+')':''}`
+            :'Sin tareas con fecha asignada.',
         },
         {
           status: portfolioStatus,
