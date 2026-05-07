@@ -323,8 +323,10 @@ export default function App() {
   }
   async function updateTask(u){
     const prev = tasks.find(t=>t.id===u.id);
-    // Detect rescheduling: task was overdue and got a new future date
-    if(prev&&prev.date&&u.date&&u.date>prev.date&&prev.date<todayStr()&&!u.done){
+    // Detect rescheduling: date changed to a future date (manual reagend)
+    const wasRescheduled = prev&&prev.date&&u.date&&u.date!==prev.date&&u.date>=todayStr()&&!u.done;
+    if(wasRescheduled){
+      u = {...u, snoozed_count:(u.snoozed_count||0)+1};
       trackEvent("task_rescheduled", u.id, "task", {
         oldDate: prev.date,
         newDate: u.date,
