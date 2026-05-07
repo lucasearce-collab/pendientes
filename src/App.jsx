@@ -1147,6 +1147,26 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
         }
       </div>
 
+      {/* Alineación estratégica */}
+      {alignment&&(
+        <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px',marginBottom:10}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825'}}>Alineación estratégica</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:11,fontWeight:500,color:alignment.status==='green'?'#8FAF8A':alignment.status==='yellow'?'#C4A882':'#C4896A'}}>{alignment.label}</div>
+          </div>
+          <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F',marginBottom:16}}>¿Cuánto del esfuerzo pendiente mueve objetivos reales?</div>
+          <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:12}}>
+            <span style={{fontFamily:"'DM Sans'",fontSize:36,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em'}}>{alignment.score}</span>
+            <span style={{fontFamily:"'DM Sans'",fontSize:16,color:'#B0AA9F'}}>%</span>
+          </div>
+          <div style={{height:6,background:'#F5F2EE',borderRadius:99,overflow:'hidden',marginBottom:12}}>
+            <div style={{height:'100%',width:alignment.score+'%',background:alignment.status==='green'?'linear-gradient(to right,#8FAF8A,#5B9A5B)':alignment.status==='yellow'?'linear-gradient(to right,#C4A882,#9B7A5A)':'linear-gradient(to right,#C4896A,#A06040)',borderRadius:99,transition:'width .8s cubic-bezier(.34,1,.64,1)'}}/>
+          </div>
+          <div style={{fontFamily:"'DM Sans'",fontSize:12,color:'#9B8878',lineHeight:1.6}}>{alignment.advice}</div>
+          {alignment.orphaned>0&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C4A882',marginTop:8}}>⚠ {alignment.orphaned} tarea{alignment.orphaned>1?'s':''} sin proyecto asignado</div>}
+        </div>
+      )}
+
       {/* ── Salud ── */}
       <SectionLabel>Salud del sistema</SectionLabel>
 
