@@ -1223,6 +1223,7 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
           Continuar →
         </button>
       </div>
+      <div style={{height:80}}/>
     </div>
   );
 
@@ -1269,10 +1270,11 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
         </div>
         <div style={{fontSize:12,color:'#C8C3BB',textAlign:'center',lineHeight:1.6}}>Cada tarea que completás hace avanzar un proyecto.<br/>Cada proyecto completado acerca una meta.</div>
       </div>
-      <div style={{padding:'16px 24px 36px',display:'flex',justifyContent:'space-between'}}>
+      <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'16px 24px 32px',background:'linear-gradient(to top, #F5F2EE 70%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <button onClick={()=>setStep(0)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
         <button onClick={()=>setStep(2)} style={{background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>Empezar →</button>
       </div>
+      <div style={{height:80}}/>
     </div>
   );
 
@@ -1317,13 +1319,14 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
             </div>
           )}
         </div>
-        <div style={{padding:'16px 24px 36px',display:'flex',justifyContent:'space-between'}}>
+        <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'16px 24px 32px',background:'linear-gradient(to top, #F5F2EE 70%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <button onClick={()=>setStep(step-1)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
           <button onClick={()=>setStep(step+1)}
             style={{background:items.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
             {items.length===0?'Saltar →':'Siguiente →'}
           </button>
         </div>
+        <div style={{height:80}}/>
       </div>
     );
   }
@@ -1389,13 +1392,14 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
             </div>
           )}
         </div>
-        <div style={{padding:'16px 24px 12px',display:'flex',justifyContent:'space-between'}}>
+        <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'16px 24px 32px',background:'linear-gradient(to top, #F5F2EE 70%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <button onClick={()=>setStep(step-1)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
-          <button onClick={()=>data.proyectos.length>0?setStep(step+1):setStep(step+1)}
+          <button onClick={()=>setStep(step+1)}
             style={{background:data.proyectos.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
             {data.proyectos.length===0?'Saltar →':'Empezar →'}
           </button>
         </div>
+        <div style={{height:80}}/>
         <div style={{textAlign:'center',paddingBottom:24}}>
           <button onClick={()=>onComplete([],[])} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:12,color:'#C8C3BB',textDecoration:'underline',textUnderlineOffset:2}}>
             Prefiero empezar desde cero
