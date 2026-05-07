@@ -834,6 +834,23 @@ function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,
 
 
 // ─── Analitica View ───────────────────────────────────────────────────────────
+function AlignmentHeader({status, label}){
+  const [showInfo, setShowInfo] = useState(false);
+  return(<>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+      <div style={{display:'flex',alignItems:'center',gap:6}}>
+        <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825'}}>Alineación estratégica</div>
+        <button onClick={()=>setShowInfo(s=>!s)} style={{background:'none',border:'1px solid #EAE6E0',borderRadius:'50%',width:16,height:16,fontSize:9,color:'#B0AA9F',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>?</button>
+      </div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:11,fontWeight:500,color:status==='green'?'#8FAF8A':status==='yellow'?'#C4A882':'#C4896A'}}>{label}</div>
+    </div>
+    {showInfo&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#9B8878',background:'#F5F1ED',borderRadius:10,padding:'10px 12px',marginBottom:12,lineHeight:1.7}}>
+      Mide qué % del peso de tus tareas pendientes va a proyectos estratégicos. Tareas vinculadas a metas pesan más. Por encima del 50% estás bien alineado.
+    </div>}
+    <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F',marginBottom:16}}>¿Cuánto del esfuerzo pendiente mueve objetivos reales?</div>
+  </>);
+}
+
 function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
   const today = todayStr();
 
@@ -1150,11 +1167,7 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       {/* Alineación estratégica */}
       {alignment&&(
         <div style={{background:'white',borderRadius:16,border:'1px solid #EAE6E0',padding:'20px 16px',marginBottom:10}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-            <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825'}}>Alineación estratégica</div>
-            <div style={{fontFamily:"'DM Sans'",fontSize:11,fontWeight:500,color:alignment.status==='green'?'#8FAF8A':alignment.status==='yellow'?'#C4A882':'#C4896A'}}>{alignment.label}</div>
-          </div>
-          <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F',marginBottom:16}}>¿Cuánto del esfuerzo pendiente mueve objetivos reales?</div>
+          <AlignmentHeader status={alignment.status} label={alignment.label}/>
           <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:12}}>
             <span style={{fontFamily:"'DM Sans'",fontSize:36,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em'}}>{alignment.score}</span>
             <span style={{fontFamily:"'DM Sans'",fontSize:16,color:'#B0AA9F'}}>%</span>
@@ -1182,9 +1195,19 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
         {
           status: cogLoad?.status||'green',
           icon: cogLoad?.status==='green'?'✓':cogLoad?.status==='yellow'?'⚡':'⚠',
-          title: cogLoad?.label||'Carga cognitiva',
+          title: cogLoad ? `${cogLoad.label} · ${cogLoad.score}/100` : 'Carga cognitiva',
           value: cogLoad
-            ?`${cogLoad.advice}${cogLoad.breakdown.vencidas>0?' ('+cogLoad.breakdown.vencidas+' tarea'+(cogLoad.breakdown.vencidas>1?'s':'')+' vencida'+(cogLoad.breakdown.vencidas>1?'s':'')+')':''}`
+            ?(()=>{
+              const snoozedOverdue = tasks.filter(t=>!t.done&&t.date&&t.date<today&&(t.snoozed_count||0)>0).length;
+              const pureOverdue = tasks.filter(t=>!t.done&&t.date&&t.date<today&&(t.snoozed_count||0)===0).length;
+              let msg = cogLoad.advice;
+              if(snoozedOverdue>0&&pureOverdue===0) msg = msg.replace('tareas vencidas','tareas reagendadas').replace('tarea vencida','tarea reagendada');
+              if(cogLoad.breakdown.vencidas>0){
+                const label = snoozedOverdue>0&&pureOverdue===0?'reagendada':'vencida';
+                msg += ` (${cogLoad.breakdown.vencidas} ${label}${cogLoad.breakdown.vencidas>1?'s':''})`;
+              }
+              return msg;
+            })()
             :'Sin tareas con fecha asignada.',
         },
         {
