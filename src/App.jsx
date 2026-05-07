@@ -1203,83 +1203,40 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       {/* ── Salud ── */}
       <SectionLabel>Salud del sistema</SectionLabel>
 
-      {[
-        {
-        {
-          ...(()=>{
-            const snoozed = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>0);
-            const snoozedCount = snoozed.length;
-            const totalDebt = overdueCount + snoozedCount;
-            const status = totalDebt===0?'green':totalDebt<=3?'yellow':'red';
-            const icon = totalDebt===0?'✓':totalDebt<=3?'⚡':'⚠';
-            let title, value;
-            if(totalDebt===0){
-              title = 'Sin deuda pendiente';
-              value = 'Todo al día — buen ritmo.';
-            } else if(overdueCount===0&&snoozedCount>0){
-              title = `${snoozedCount} tarea${snoozedCount>1?'s':''} con deuda`;
-              value = `Tenés ${snoozedCount} tarea${snoozedCount>1?'s':''} que no cumpliste en su fecha original. ${snoozedCount>1?'Todas tienen':'Tiene'} vencimiento reprogramado — priorizalas antes de que venza de nuevo.`;
-            } else if(overdueCount>0&&snoozedCount===0){
-              title = `${overdueCount} tarea${overdueCount>1?'s':''} vencida${overdueCount>1?'s':''}`;
-              value = `${overdueCount} tarea${overdueCount>1?'s':''} con fecha vencida. Actualizá las fechas o completalas hoy.`;
-            } else {
-              title = `${overdueCount} vencida${overdueCount>1?'s':''} · ${snoozedCount} con deuda`;
-              value = `Combinación de vencidas y reagendadas. Empezá por las vencidas y ejecutá las reagendadas antes de que venzan.`;
-            }
-            return {status, icon, title, value};
-          })(),
-        },
-        {
-          status: cogLoad?.status||'green',
-          icon: cogLoad?.status==='green'?'✓':cogLoad?.status==='yellow'?'⚡':'⚠',
-          title: cogLoad ? cogLoad.label : 'Carga cognitiva',
-          value: cogLoad
-            ?(()=>{
-              const snoozedOverdue = tasks.filter(t=>!t.done&&t.date&&t.date<today&&(t.snoozed_count||0)>0).length;
-              const pureOverdue = tasks.filter(t=>!t.done&&t.date&&t.date<today&&(t.snoozed_count||0)===0).length;
-              let msg = cogLoad.advice;
-              if(snoozedOverdue>0&&pureOverdue===0) msg = msg.replace('tareas vencidas','tareas reagendadas').replace('tarea vencida','tarea reagendada');
-              if(cogLoad.breakdown.vencidas>0){
-                const label = snoozedOverdue>0&&pureOverdue===0?'reagendada':'vencida';
-                msg += ` (${cogLoad.breakdown.vencidas} ${label}${cogLoad.breakdown.vencidas>1?'s':''})`;
-              }
-              return msg;
-            })()
-            :'Sin tareas con fecha asignada.',
-        },
-        {
-          status: portfolioStatus,
-          icon: portfolioStatus==='green'?'✓':portfolioStatus==='yellow'?'⚡':'⚠',
-          title: portfolioStatus==='green'?'Portafolio equilibrado':portfolioStatus==='yellow'?'Portafolio amplio':'Portafolio sobrecargado',
-          value: portfolioStatus==='green'
-            ?`${openTotal} proyectos activos. Manejable y enfocado.`
-            :portfolioStatus==='yellow'
-            ?`${openTotal} proyectos activos. Estás cerca del límite para mantener claridad.`
-            :`${openTotal} proyectos activos. Difícil avanzar en todos. Cerrá los que terminaron o no son prioridad ahora.`,
-        },
-      ].map(({status,icon,title,value})=>(
+      {(()=>{
+        const snoozedCount = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>0).length;
+        const totalDebt = overdueCount + snoozedCount;
+        const debtStatus = totalDebt===0?'green':totalDebt<=3?'yellow':'red';
+        const debtIcon = totalDebt===0?'✓':totalDebt<=3?'⚡':'⚠';
+        const debtTitle = totalDebt===0?'Sin deuda pendiente'
+          :overdueCount===0?`${snoozedCount} tarea${snoozedCount>1?'s':''} con deuda`
+          :snoozedCount===0?`${overdueCount} tarea${overdueCount>1?'s':''} vencida${overdueCount>1?'s':''}`
+          :`${overdueCount} vencida${overdueCount>1?'s':''} · ${snoozedCount} con deuda`;
+        const debtValue = totalDebt===0?'Todo al día — buen ritmo.'
+          :overdueCount===0?`Tenés ${snoozedCount} tarea${snoozedCount>1?'s':''} que no cumpliste en su fecha original. Priorizalas antes de que venzan de nuevo.`
+          :snoozedCount===0?`${overdueCount} tarea${overdueCount>1?'s':''} vencida${overdueCount>1?'s':''}. Actualizá las fechas o completalas hoy.`
+          :`Combinación de vencidas y reagendadas. Empezá por las vencidas y ejecutá las reagendadas antes de que venzan.`;
+        const healthItems = [
+          {status:debtStatus, icon:debtIcon, title:debtTitle, value:debtValue},
+          {status:cogLoad?.status||'green', icon:cogLoad?.status==='green'?'✓':cogLoad?.status==='yellow'?'⚡':'⚠', title:cogLoad?cogLoad.label:'Carga cognitiva', value:cogLoad?`${cogLoad.advice}${cogLoad.breakdown.vencidas>0?' ('+cogLoad.breakdown.vencidas+' con deuda)':''}`:'Sin tareas con fecha asignada.', showScore:true},
+          {status:portfolioStatus, icon:portfolioStatus==='green'?'✓':portfolioStatus==='yellow'?'⚡':'⚠', title:portfolioStatus==='green'?'Portafolio equilibrado':portfolioStatus==='yellow'?'Portafolio amplio':'Portafolio sobrecargado', value:portfolioStatus==='green'?`${openTotal} proyectos activos. Manejable y enfocado.`:portfolioStatus==='yellow'?`${openTotal} proyectos activos. Estás cerca del límite para mantener claridad.`:`${openTotal} proyectos activos. Es difícil avanzar en todos. Cerrá los que terminaron o no son prioridad ahora.`},
+        ];
+        return healthItems.map(({status,icon,title,value,showScore})=>(
         <div key={title} style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',
           padding:'16px',marginBottom:10,display:'flex',alignItems:'flex-start',gap:14}}>
-          {title.includes('/100')
-          ? <div style={{
-              width:52,height:52,borderRadius:'50%',display:'flex',alignItems:'center',
-              justifyContent:'center',flexShrink:0,marginTop:2,flexDirection:'column',
-              background:status==='green'?'#F0F7EE':status==='yellow'?'#FBF8EE':'#FBF0EE',
-            }}>
+          {showScore
+          ? <div style={{width:52,height:52,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:2,flexDirection:'column',background:status==='green'?'#F0F7EE':status==='yellow'?'#FBF8EE':'#FBF0EE'}}>
               <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:status==='green'?'#5C8A5C':status==='yellow'?'#9B7A3A':'#9B4A3A',lineHeight:1}}>{cogLoad?.score}%</span>
             </div>
-          : <div style={{
-              width:44,height:44,borderRadius:'50%',display:'flex',alignItems:'center',
-              justifyContent:'center',fontSize:18,flexShrink:0,marginTop:2,
-              background:status==='green'?'#F0F7EE':status==='yellow'?'#FBF8EE':'#FBF0EE',
-            }}>{icon}</div>
+          : <div style={{width:44,height:44,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0,marginTop:2,background:status==='green'?'#F0F7EE':status==='yellow'?'#FBF8EE':'#FBF0EE'}}>{icon}</div>
         }
           <div>
             <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>{title}</div>
             <div style={{fontFamily:"'DM Sans'",fontSize:12,color:'#9B8878',lineHeight:1.6}}>{value}</div>
           </div>
         </div>
-      ))}
+      ));
+      })()}
 
     </div>
   );
