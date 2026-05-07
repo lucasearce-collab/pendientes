@@ -58,22 +58,26 @@ function AdminApp() {
       const sevenDaysAgo = daysAgo(7);
       const yesterday = daysAgo(1);
 
-      const [tasksRes, eventsRes, profilesRes] = await Promise.all([
+      const [tasksRes, eventsRes, profilesRes, usersRes] = await Promise.all([
         supabase.from('tasks').select('id,user_id,done,completed_at,created_at,snoozed_count'),
         supabase.from('events').select('id,user_id,event_type,occurred_at').order('occurred_at', { ascending: false }),
         supabase.from('user_profiles').select('id,points,terms_accepted,terms_accepted_at'),
+        supabase.rpc('get_user_list'),
       ]);
 
       const tasks = tasksRes.data || [];
       const events = eventsRes.data || [];
       const profiles = profilesRes.data || [];
+      const registeredUsers = usersRes.data || [];
 
-      // Get unique users from all activity
-      const allUserIds = [...new Set([
-        ...tasks.map(t => t.user_id),
-        ...events.map(e => e.user_id),
-        ...profiles.map(p => p.id),
-      ])].filter(Boolean);
+      // Use registered users as source of truth
+      const allUserIds = registeredUsers.length > 0
+        ? registeredUsers.map(u => u.id)
+        : [...new Set([
+            ...tasks.map(t => t.user_id),
+            ...events.map(e => e.user_id),
+            ...profiles.map(p => p.id),
+          ])].filter(Boolean);
 
       const totalUsers = allUserIds.length;
 
@@ -146,10 +150,11 @@ function AdminApp() {
           : lastActive === yesterday ? 'Ayer'
           : `hace ${Math.round((new Date(today) - new Date(lastActive)) / 86400000)} días`;
 
-        // Registration date
+        // Registration date — use auth.users created_at if available
+        const registeredUser = registeredUsers.find(u => u.id === uid);
         const firstEvent = [...userEvents].sort((a, b) => a.occurred_at > b.occurred_at ? 1 : -1)[0];
         const firstTask = [...userTasks].sort((a, b) => a.created_at > b.created_at ? 1 : -1)[0];
-        const regDate = profile?.terms_accepted_at || firstEvent?.occurred_at || firstTask?.created_at;
+        const regDate = registeredUser?.created_at || profile?.terms_accepted_at || firstEvent?.occurred_at || firstTask?.created_at;
 
         const regLabel = !regDate ? 'Desconocido' : (() => {
           const days = Math.round((new Date() - new Date(regDate)) / 86400000);
@@ -158,7 +163,7 @@ function AdminApp() {
 
         return {
           uid,
-          email: uid.slice(0, 8) + '...',
+          email: registeredUsers.find(u => u.id === uid)?.email || uid.slice(0, 8) + '...',
           daysActive: activeDays.size,
           dayDots,
           streak,
@@ -334,7 +339,7 @@ function AdminApp() {
           <div key={u.uid} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 0.8fr 0.8fr 1fr', padding: '13px 16px', borderBottom: idx < userStats.length - 1 ? '1px solid #F5F2EE' : 'none', alignItems: 'center' }}>
             {/* User */}
             <div>
-              <div style={{ fontFamily: "'DM Mono'", fontSize: 12, color: u.daysActive > 0 ? '#2C2825' : '#B0AA9F', fontWeight: 500 }}>{u.uid.slice(0, 12)}…</div>
+              <div style={{ fontFamily: "'DM Sans'", fontSize: 12, color: u.daysActive > 0 ? '#2C2825' : '#B0AA9F', fontWeight: 500 }}>{u.email}</div>
               <div style={{ fontSize: 11, color: '#C8C3BB', marginTop: 2 }}>Registro: {u.regLabel}</div>
             </div>
             {/* Days active dots */}
