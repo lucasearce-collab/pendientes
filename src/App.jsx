@@ -486,7 +486,7 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,section,subView,setSection:switchSection,setSubView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
+  const props={tasks,projects,goals,section,subView,setSection:switchSection,setSubView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
   if(onboarding) return <OnboardingFlow uid={uid} supabase={supabase} onComplete={(gs,ps)=>{
     setGoals(gs.map(goalFromDb));
     setProjects(ps.map(projFromDb));
@@ -3239,7 +3239,308 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   );
 }
 
-function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline,desktop}){
+// ─── Semana View ──────────────────────────────────────────────────────────────
+function SemanaView({tasks, projects, onToggle, onOpen, onUpdate, desktop}){
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = semana actual
+  const [viewMode, setViewMode]     = useState("semana"); // "semana" | "dia"
+  const [selectedDay, setSelectedDay] = useState(null); // índice 0-6
+
+  // ── Calcular los 7 días de la semana activa ──
+  const weekDays = useMemo(()=>{
+    const days = [];
+    const now = new Date();
+    // Lunes como inicio de semana
+    const dow = now.getDay(); // 0=dom
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (dow===0?6:dow-1) + weekOffset*7);
+    for(let i=0;i<7;i++){
+      const d = new Date(monday);
+      d.setDate(monday.getDate()+i);
+      days.push(d.toISOString().split("T")[0]);
+    }
+    return days;
+  }, [weekOffset]);
+
+  const today = todayStr();
+
+  // Etiquetas de días
+  const DAY_SHORT = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+  const DAY_FULL  = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+
+  // Label de la semana: "5 – 11 may"
+  const weekLabel = useMemo(()=>{
+    const fmt = (d)=>{
+      const [,m,day] = d.split("-");
+      const months = ["","ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+      return `${parseInt(day)} ${months[parseInt(m)]}`;
+    };
+    return `${fmt(weekDays[0])} – ${fmt(weekDays[6])}`;
+  },[weekDays]);
+
+  // Tareas con fecha — todas (trabajo + personal)
+  const tasksForDay = (dateStr) =>
+    tasks.filter(t => t.date === dateStr && !t.done).sort(taskSort);
+
+  // Tareas vencidas (anteriores a esta semana)
+  const overdueTasks = tasks.filter(t =>
+    t.date && t.date < weekDays[0] && !t.done
+  ).sort(taskSort);
+
+  // Seleccionar día activo (default = hoy si está en la semana, si no el primero)
+  useEffect(()=>{
+    const todayIdx = weekDays.indexOf(today);
+    setSelectedDay(todayIdx>=0 ? todayIdx : 0);
+  }, [weekDays]);
+
+  // ── Drag & drop ──
+  const dragTask   = useRef(null); // {id, fromDate}
+  const longPressTimer = useRef(null);
+  const [dragging, setDragging] = useState(null); // id de la tarea dragging
+  const [dropTarget, setDropTarget] = useState(null); // dateStr destino
+
+  // Desktop: HTML5 drag
+  function onDragStart(e, task){
+    dragTask.current = {id: task.id, fromDate: task.date};
+    setDragging(task.id);
+    e.dataTransfer.effectAllowed = "move";
+  }
+  function onDragOver(e, dateStr){
+    e.preventDefault();
+    setDropTarget(dateStr);
+  }
+  function onDrop(e, dateStr){
+    e.preventDefault();
+    if(!dragTask.current || dragTask.current.fromDate === dateStr) { resetDrag(); return; }
+    moveTask(dragTask.current.id, dateStr);
+    resetDrag();
+  }
+  function onDragEnd(){ resetDrag(); }
+
+  // Mobile: long press
+  function onTouchStart(e, task){
+    longPressTimer.current = setTimeout(()=>{
+      dragTask.current = {id: task.id, fromDate: task.date};
+      setDragging(task.id);
+    }, 450);
+  }
+  function onTouchMove(e){
+    if(!dragTask.current) { clearTimeout(longPressTimer.current); return; }
+    e.preventDefault();
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const col = el?.closest("[data-day]");
+    if(col) setDropTarget(col.dataset.day);
+  }
+  function onTouchEnd(e, task){
+    clearTimeout(longPressTimer.current);
+    if(!dragTask.current){ return; }
+    if(dropTarget && dropTarget !== dragTask.current.fromDate){
+      moveTask(dragTask.current.id, dropTarget);
+    }
+    resetDrag();
+  }
+  function resetDrag(){ dragTask.current=null; setDragging(null); setDropTarget(null); }
+
+  function moveTask(taskId, newDate){
+    const task = tasks.find(t=>t.id===taskId);
+    if(!task) return;
+    const updated = {...task, date: newDate,
+      snoozed_count: newDate > (task.date||"") ? (task.snoozed_count||0)+1 : task.snoozed_count
+    };
+    onUpdate(updated);
+  }
+
+  // ── CHIP de tarea (mini para vista semana) ──
+  const MiniChip = ({task}) => {
+    const proj = projects.find(p=>p.id===task.projectId);
+    const type = task.type||"normal";
+    const borderColor = type==="estrategica"?"#5B6BAF":type==="urgente"?"#C49A7A":"#EAE6E0";
+    const isDragging = dragging===task.id;
+    return(
+      <div
+        draggable={desktop}
+        onDragStart={desktop?e=>onDragStart(e,task):undefined}
+        onDragEnd={desktop?onDragEnd:undefined}
+        onTouchStart={!desktop?e=>onTouchStart(e,task):undefined}
+        onTouchMove={!desktop?onTouchMove:undefined}
+        onTouchEnd={!desktop?e=>onTouchEnd(e,task):undefined}
+        onClick={()=>{ if(!dragging) onOpen(task); }}
+        style={{
+          borderRadius:5,padding:"4px 5px",fontSize:10,color:"#2C2825",
+          lineHeight:1.3,wordBreak:"break-word",
+          border:`1px solid #EAE6E0`,borderLeft:`3px solid ${borderColor}`,
+          background:"white",cursor:"grab",marginBottom:3,
+          opacity:isDragging?0.4:1,
+          transition:"opacity .15s",userSelect:"none",
+        }}>
+        <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+        {proj&&<div style={{fontSize:9,color:"#B0AA9F",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.name}</div>}
+      </div>
+    );
+  };
+
+  // ── CHIP expandido (vista día) ──
+  const DayChip = ({task}) => {
+    const proj = projects.find(p=>p.id===task.projectId);
+    const type = task.type||"normal";
+    const borderColor = type==="estrategica"?"#5B6BAF":type==="urgente"?"#C49A7A":"transparent";
+    return(
+      <div onClick={()=>onOpen(task)}
+        style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",
+          background:"#FDFCFA",borderRadius:8,border:"1px solid #EAE6E0",
+          borderLeft:`3px solid ${borderColor}`,marginBottom:6,cursor:"pointer"}}>
+        <button style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid #C8C3BB",background:"none",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}
+          onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+        </button>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#2C2825",lineHeight:1.4}}>{task.title}</div>
+          {proj&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",marginTop:1}}>{proj.name}</div>}
+        </div>
+        <TypeDot type={task.type} done={false}/>
+      </div>
+    );
+  };
+
+  const pad = desktop ? "0 48px" : "0 16px";
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+
+      {/* Controls: navegación semana + toggle */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:desktop?"12px 48px":"10px 16px",flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <button onClick={()=>setWeekOffset(w=>w-1)}
+            style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#C8C3BB",padding:"0 2px",lineHeight:1}}>‹</button>
+          <span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#6B6258",minWidth:90,textAlign:"center"}}>{weekLabel}</span>
+          <button onClick={()=>setWeekOffset(w=>w+1)}
+            style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#C8C3BB",padding:"0 2px",lineHeight:1}}>›</button>
+          {weekOffset!==0&&(
+            <button onClick={()=>setWeekOffset(0)}
+              style={{background:"none",border:"1px solid #E5E1DB",borderRadius:99,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",padding:"2px 8px",marginLeft:4}}>
+              Hoy
+            </button>
+          )}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:0}}>
+          <button onClick={()=>setViewMode("semana")}
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:10,letterSpacing:".04em",color:viewMode==="semana"?"#2C2825":"#C8C3BB",fontWeight:viewMode==="semana"?500:400,padding:"2px 0"}}>
+            semana
+          </button>
+          <span style={{fontSize:10,color:"#D5CFC8",padding:"0 5px"}}>·</span>
+          <button onClick={()=>setViewMode("dia")}
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:10,letterSpacing:".04em",color:viewMode==="dia"?"#2C2825":"#C8C3BB",fontWeight:viewMode==="dia"?500:400,padding:"2px 0"}}>
+            día
+          </button>
+        </div>
+      </div>
+
+      {/* ── VISTA SEMANA ── */}
+      {viewMode==="semana"&&(
+        <div style={{flex:1,overflowY:"auto",padding:desktop?"0 48px 24px":"0 16px 24px"}}>
+          <div style={{display:"flex",gap:4,alignItems:"flex-start"}}>
+            {weekDays.map((dateStr,i)=>{
+              const dayTasks = tasksForDay(dateStr);
+              const isToday = dateStr===today;
+              const isTarget = dropTarget===dateStr;
+              return(
+                <div key={dateStr} data-day={dateStr} style={{flex:1,minWidth:0}}
+                  onDragOver={desktop?e=>onDragOver(e,dateStr):undefined}
+                  onDrop={desktop?e=>onDrop(e,dateStr):undefined}>
+                  {/* Header del día */}
+                  <div onClick={()=>{ setSelectedDay(i); setViewMode("dia"); }}
+                    style={{textAlign:"center",marginBottom:6,padding:"4px 2px",borderRadius:8,cursor:"pointer",background:isToday?"#2C2825":"transparent",transition:"background .15s"}}>
+                    <span style={{fontSize:9,letterSpacing:".08em",textTransform:"uppercase",color:isToday?"rgba(255,255,255,.6)":"#C8C3BB",display:"block"}}>{DAY_SHORT[i]}</span>
+                    <span style={{fontSize:15,fontWeight:isToday?500:300,color:isToday?"white":"#9B8878",lineHeight:1.2,display:"block"}}>{parseInt(dateStr.split("-")[2])}</span>
+                  </div>
+                  {/* Tareas del día */}
+                  <div style={{minHeight:40,borderRadius:6,border:isTarget?"2px dashed #9B8878":"2px dashed transparent",transition:"border .15s",padding:2}}>
+                    {dayTasks.length===0
+                      ?<div style={{height:28,borderRadius:5,border:"1px dashed #EAE6E0"}}/>
+                      :dayTasks.map(t=><MiniChip key={t.id} task={t}/>)
+                    }
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Vencidas — al final */}
+          {overdueTasks.length>0&&(
+            <div style={{marginTop:20}}>
+              <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:4,height:4,borderRadius:"50%",background:"#C4A882"}}/>
+                Vencidas · {overdueTasks.length}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                {overdueTasks.map(t=><DayChip key={t.id} task={t}/>)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── VISTA DÍA ── */}
+      {viewMode==="dia"&&(
+        <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+          {/* Pills de días */}
+          <div style={{display:"flex",padding:desktop?"0 48px 12px":"0 16px 12px",gap:4,flexShrink:0}}>
+            {weekDays.map((dateStr,i)=>{
+              const hasTasks = tasksForDay(dateStr).length>0;
+              const isToday = dateStr===today;
+              const isSelected = selectedDay===i;
+              return(
+                <button key={dateStr} onClick={()=>setSelectedDay(i)}
+                  style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"5px 2px",borderRadius:99,border:"none",cursor:"pointer",
+                    background:isSelected?"#2C2825":"transparent",transition:"background .15s"}}>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".08em",textTransform:"uppercase",color:isSelected?"rgba(255,255,255,.6)":isToday?"#9B8878":"#C8C3BB"}}>{DAY_SHORT[i]}</span>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:16,fontWeight:300,color:isSelected?"white":isToday?"#2C2825":"#9B8878",lineHeight:1.1}}>{parseInt(dateStr.split("-")[2])}</span>
+                  {hasTasks&&<div style={{width:4,height:4,borderRadius:"50%",background:isSelected?"rgba(255,255,255,.5)":"#C4A882",marginTop:2}}/>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Card del día seleccionado */}
+          {selectedDay!==null&&(()=>{
+            const dateStr = weekDays[selectedDay];
+            const dayTasks = tasksForDay(dateStr);
+            const isToday = dateStr===today;
+            const dow = new Date(dateStr+"T12:00:00").getDay();
+            const dayName = DAY_FULL[(dow+6)%7]; // ajustar para lunes=0
+            const [,m,d] = dateStr.split("-");
+
+            return(
+              <div style={{margin:desktop?"0 48px":"0 16px",background:"white",borderRadius:14,border:"1px solid #EAE6E0",padding:"16px 14px",boxShadow:"0 1px 8px rgba(0,0,0,.05)",flex:1}}>
+                <div style={{textAlign:"center",marginBottom:16}}>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:10,fontWeight:500,letterSpacing:".1em",textTransform:"uppercase",color:isToday?"#9B8878":"#B0AA9F"}}>{dayName}</div>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:22,fontWeight:400,color:"#2C2825",lineHeight:1.1,marginTop:1}}>{parseInt(d)}</div>
+                </div>
+                {dayTasks.length===0
+                  ?<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic",textAlign:"center",padding:"20px 0"}}>Sin tareas este día</div>
+                  :dayTasks.map(t=><DayChip key={t.id} task={t}/>)
+                }
+                <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",textAlign:"center",marginTop:12}}>arrastrá para cambiar de día →</div>
+              </div>
+            );
+          })()}
+
+          {/* Vencidas en vista día también */}
+          {overdueTasks.length>0&&(
+            <div style={{margin:desktop?"16px 48px":"16px 16px"}}>
+              <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:4,height:4,borderRadius:"50%",background:"#C4A882"}}/>
+                Vencidas · {overdueTasks.length}
+              </div>
+              {overdueTasks.map(t=><DayChip key={t.id} task={t}/>)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline,desktop}){
 
   const activeSec = SECTIONS.find(s => s.id === section);
   const showAreaPills = subView==="tareas" || subView==="proyectos";
@@ -3304,9 +3605,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
       )}
 
       {subView==="semana"&&(
-        <div style={{padding:desktop?"24px 48px":"16px 20px",textAlign:"center",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,paddingTop:60}}>
-          Vista Semana — próximamente
-        </div>
+        <SemanaView tasks={tasks} projects={projects} onToggle={toggleDone} onOpen={setSheet} onUpdate={updateTask} desktop={desktop}/>
       )}
 
       {subView==="tareas"&&(
