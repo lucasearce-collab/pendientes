@@ -78,13 +78,32 @@ const IMPORTANCE = {
   urgente:     { label:"Prioritario", color:"#C49A7A", bg:"#FBF5F0" },
   normal:      { label:"Normal",      color:"#9B948C", bg:"#F5F3F1" },
 };
-const NAV = [
-  { id:"hoy",       label:"Hoy",       icon:"◈" },
-  { id:"tareas",    label:"Tareas",    icon:"☐" },
-  { id:"proyectos", label:"Proyectos", icon:"⊞" },
-  { id:"metas",     label:"Metas",     icon:"◎" },
-  { id:"cerezo",    label:"🌱",         icon:"🌱" },
-  { id:"analitica",  label:"◎",          icon:"◎" },
+const SECTIONS = [
+  {
+    id: "hoy",
+    label: "Hoy",
+    subTabs: [
+      { id: "hoy",    label: "Hoy"    },
+      { id: "semana", label: "Semana" },
+    ],
+  },
+  {
+    id: "metas",
+    label: "Metas",
+    subTabs: [
+      { id: "tareas",    label: "Tareas"    },
+      { id: "proyectos", label: "Proyectos" },
+      { id: "metas",     label: "Metas"     },
+    ],
+  },
+  {
+    id: "progreso",
+    label: "Progreso",
+    subTabs: [
+      { id: "cerezo",    label: "🌱"        },
+      { id: "analitica", label: "Analítica" },
+    ],
+  },
 ];
 
 const HORIZONS = {
@@ -179,7 +198,8 @@ export default function App() {
   const [loadError, setLoadError] = useState(false);
   const [opError,   setOpError]   = useState(null);
   const [isDesktop,setIsDesktop]= useState(window.innerWidth>=768);
-  const [view,     setView]     = useState("hoy");
+  const [section,  setSection]  = useState("hoy");   // "hoy" | "metas" | "progreso"
+  const [subView,  setSubView]  = useState("hoy");   // sub-tab activo dentro de la sección
   const [activeArea,setActiveArea]=useState("trabajo");
   const [activeProjId,setActiveProjId]=useState(null);
   const [sheet,    setSheet]    = useState(null);
@@ -437,6 +457,14 @@ export default function App() {
     setGoals(gs=>gs.filter(g=>g.id!==id)); setGoalSheet(null);
     await safeDelete("goals",id);
   }
+  function switchSection(sectionId) {
+    const sec = SECTIONS.find(s => s.id === sectionId);
+    if (!sec) return;
+    setSection(sectionId);
+    setSubView(sec.subTabs[0].id);
+    setActiveProjId(null);
+  }
+
   async function signOut(){ await supabase.auth.signOut(); }
 
   function handleTouchStart(e,id){touchStart.current={x:e.touches[0].clientX,id};}
@@ -458,12 +486,12 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,view,setView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
+  const props={tasks,projects,goals,section,subView,setSection:switchSection,setSubView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
   if(onboarding) return <OnboardingFlow uid={uid} supabase={supabase} onComplete={(gs,ps)=>{
     setGoals(gs.map(goalFromDb));
     setProjects(ps.map(projFromDb));
     setOnboarding(false);
-    setView("metas");
+    switchSection("metas");
   }} isDesktop={isDesktop}/>;
   return <>
     <AppLayout {...props} desktop={isDesktop}/>
@@ -3196,11 +3224,11 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   );
 }
 
-function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline,desktop}){
-  const pad = desktop ? "48px" : "20px";
-  const titleSize = desktop ? 32 : 26;
-  const headerPadding = desktop ? "28px 48px 0" : "52px 20px 12px";
+function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline,desktop}){
+  const headerPadding = desktop ? "28px 48px 0" : "52px 20px 0";
   const contentPadding = desktop ? "24px 48px 48px" : "0";
+  const activeSec = SECTIONS.find(s => s.id === section);
+  const showAreaPills = subView==="tareas" || subView==="proyectos";
 
   return(
     <div style={{
@@ -3211,13 +3239,14 @@ function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,a
 
       {/* Header */}
       <div style={{padding:headerPadding,boxSizing:"border-box"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+        {/* Top bar */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:desktop?20:14}}>
           <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>
             {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
-            <button onClick={()=>{const nf=!focusMode;setFocusMode(nf);if(!desktop)trackEvent(nf?"focus_mode_on":"focus_mode_off",null,null,{tab:view});}}
+            <button onClick={()=>{const nf=!focusMode;setFocusMode(nf);trackEvent(nf?"focus_mode_on":"focus_mode_off");}}
               style={{background:focusMode?"#2C2825":"none",color:focusMode?"white":"#C8C3BB",border:`1px solid ${focusMode?"#2C2825":"#E5E1DB"}`,borderRadius:99,padding:"3px 12px",fontFamily:"'DM Sans'",fontSize:10,cursor:"pointer",transition:"all .2s",letterSpacing:".06em"}}>
               {focusMode?"◈ Foco":"◈"}
             </button>
@@ -3225,33 +3254,49 @@ function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,a
           </div>
         </div>
 
-        <h1 style={{fontSize:titleSize,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:desktop?16:12,fontFamily:"'DM Sans',sans-serif",lineHeight:1.1}}>
-          {view==="hoy"?"Hoy":view==="tareas"?"Tareas":view==="proyectos"?"Proyectos":view==="metas"?"Metas":""}
-        </h1>
-
-        {/* Nav tabs */}
-        <div style={{display:"flex",gap:desktop?3:4,flexWrap:desktop?"wrap":"nowrap",overflowX:desktop?"visible":"auto"}}>
-          {NAV.map(n=>(
-            <button key={n.id} onClick={()=>{setView(n.id);if(desktop)setActiveProjId(null);}}
-              className={desktop?"":"m-np"}
+        {/* Secciones principales (3 tabs) */}
+        <div style={{display:"flex",gap:2,marginBottom:desktop?16:12}}>
+          {SECTIONS.map(sec=>(
+            <button key={sec.id} onClick={()=>setSection(sec.id)}
               style={{
-                padding:desktop?"6px 16px":"5px 10px",
+                padding:desktop?"7px 18px":"6px 14px",
                 borderRadius:99,border:"none",cursor:"pointer",
-                background:view===n.id?"#2C2825":"transparent",
-                color:view===n.id?"#F5F2EE":"#B0AA9F",
-                fontFamily:"'DM Sans'",fontSize:desktop?13:12,fontWeight:view===n.id?500:400,
-                transition:"all .2s",whiteSpace:"nowrap",flexShrink:0
+                background:section===sec.id?"#2C2825":"transparent",
+                color:section===sec.id?"#F5F2EE":"#B0AA9F",
+                fontFamily:"'DM Sans'",fontSize:desktop?14:13,
+                fontWeight:section===sec.id?500:400,
+                transition:"all .2s",whiteSpace:"nowrap",
               }}>
-              {n.label}
+              {sec.label}
             </button>
           ))}
         </div>
 
-        {/* Area pills */}
-        {(view==="tareas"||view==="proyectos")&&(
+        {/* Sub-tabs de la sección activa */}
+        {activeSec && activeSec.subTabs.length > 1 && (
+          <div style={{display:"flex",gap:desktop?20:16,borderBottom:"1px solid #EAE6E0",marginBottom:0}}>
+            {activeSec.subTabs.map(tab=>(
+              <button key={tab.id} onClick={()=>setSubView(tab.id)}
+                style={{
+                  background:"none",border:"none",cursor:"pointer",
+                  fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,
+                  letterSpacing:".08em",textTransform:"uppercase",
+                  color:subView===tab.id?"#2C2825":"#B0AA9F",
+                  paddingBottom:10,
+                  borderBottom:`2px solid ${subView===tab.id?"#2C2825":"transparent"}`,
+                  transition:"all .2s",whiteSpace:"nowrap",
+                }}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Area pills — solo en tareas y proyectos */}
+        {showAreaPills && (
           <div style={{display:"flex",gap:desktop?6:4,marginTop:desktop?14:12,overflowX:"auto",paddingBottom:2}}>
             {Object.entries(AREAS).map(([k,a])=>(
-              <button key={k} onClick={()=>{setActiveArea(k);if(desktop)setActiveProjId(null);}}
+              <button key={k} onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
                 className={desktop?"":"m-at"}
                 style={{
                   padding:desktop?"5px 14px":"4px 10px",
@@ -3259,7 +3304,8 @@ function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,a
                   cursor:"pointer",
                   background:activeArea===k?a.color:"transparent",
                   color:activeArea===k?"white":a.color,
-                  fontFamily:"'DM Sans'",fontSize:desktop?12:11,fontWeight:500,transition:"all .2s",whiteSpace:"nowrap",flexShrink:0
+                  fontFamily:"'DM Sans'",fontSize:desktop?12:11,fontWeight:500,
+                  transition:"all .2s",whiteSpace:"nowrap",flexShrink:0
                 }}>
                 {a.label}
               </button>
@@ -3268,13 +3314,15 @@ function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,a
         )}
       </div>
 
-      {/* Divider */}
-      <div style={{height:1,background:"#EAE6E0",margin:desktop?"16px 0 0":"0 20px"}}/>
+      {/* Divider — solo si no hay sub-tabs (que ya tienen su propia línea) */}
+      {(!activeSec || activeSec.subTabs.length <= 1) && (
+        <div style={{height:1,background:"#EAE6E0",margin:desktop?"16px 0 0":"0 20px"}}/>
+      )}
 
       {/* Content */}
       <div style={{flex:1,overflowY:desktop?"auto":"visible",padding:contentPadding,boxSizing:"border-box",WebkitOverflowScrolling:"touch"}}>
 
-        {view==="hoy"&&(
+        {subView==="hoy"&&(
           focusMode
             ?<div style={desktop?{}:{padding:"16px 20px 0"}}>
                <FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop={desktop}/>
@@ -3282,7 +3330,13 @@ function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,a
             :<HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop}/>
         )}
 
-        {view==="tareas"&&(<>
+        {subView==="semana"&&(
+          <div style={desktop?{}:{padding:"16px 20px 0"}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",textAlign:"center",padding:"60px 0"}}>Vista Semana — próximamente</div>
+          </div>
+        )}
+
+        {subView==="tareas"&&(<>
           {focusMode
             ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} desktop={desktop}/>
             :<GroupedProjectsView projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} onComplete={completeProject} reorderTasks={reorderTasks} sw={sw} desktop={desktop}/>
@@ -3290,7 +3344,7 @@ function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,a
           {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
         </>)}
 
-        {view==="proyectos"&&(<div style={desktop?{}:{paddingBottom:0}}>
+        {subView==="proyectos"&&(<div style={desktop?{}:{paddingBottom:0}}>
           <div style={{padding:desktop?"0 0 20px":"14px 20px 4px"}}>
             <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
           </div>
@@ -3308,11 +3362,11 @@ function AppLayout({tasks,projects,goals,view,setView,activeArea,setActiveArea,a
           </button>
         </div>)}
 
-        {view==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={desktop}/>}
+        {subView==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={desktop}/>}
 
-        {view==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop={desktop}/>}
+        {subView==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop={desktop}/>}
 
-        {view==="analitica"&&(
+        {subView==="analitica"&&(
           <div style={desktop?{maxWidth:900,width:"100%"}:{}}>
             <AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount} desktop={desktop}/>
           </div>
