@@ -2453,6 +2453,21 @@ function AppStyles(){return(<style>{`
   .dc{cursor:pointer;border:1px solid #E5E1DB;border-radius:99px;padding:4px 11px;font-size:11px;font-family:'DM Sans';color:#8C877F;background:white;transition:all .2s;white-space:nowrap;}.dc.on{background:#6B6258;border-color:#6B6258;color:white;}
   .impb{cursor:pointer;border-radius:8px;padding:8px 12px;font-family:'DM Sans';font-size:13px;border:1px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;}
   .typb{cursor:pointer;border-radius:10px;padding:10px 14px;font-family:'DM Sans';font-size:13px;border:1.5px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;height:64px;background:rgba(245,242,238,.97);backdrop-filter:blur(10px);border-top:1px solid #EAE6E0;display:flex;align-items:center;justify-content:space-around;z-index:50;padding-bottom:env(safe-area-inset-bottom,0);}
+  .bottom-nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex:1;padding:8px 0;}
+  .bottom-nav-icon{font-size:22px;color:#B0AA9F;line-height:1;}
+  .bottom-nav-icon.active{color:#2C2825;}
+  .bottom-nav-label{font-family:'DM Sans',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#B0AA9F;}
+  .bottom-nav-label.active{color:#2C2825;}
+  .d-sidebar{width:200px;background:#EDEAE4;border-right:1px solid rgba(0,0,0,.05);display:flex;flex-direction:column;padding:32px 12px;flex-shrink:0;}
+  .d-sidebar-logo{font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#C8C3BB;margin-bottom:28px;padding-left:8px;}
+  .d-sidebar-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;margin-bottom:4px;transition:all .15s;}
+  .d-sidebar-item.active{background:white;box-shadow:0 2px 8px rgba(0,0,0,.04);}
+  .d-sidebar-item:hover:not(.active){background:rgba(0,0,0,.04);}
+  .d-sidebar-icon{font-size:16px;color:#B0AA9F;}
+  .d-sidebar-icon.active{color:#2C2825;}
+  .d-sidebar-text{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:#B0AA9F;}
+  .d-sidebar-text.active{color:#2C2825;}
 `}</style>);}
 
 function TypeSelector({value,onChange}){
@@ -3225,126 +3240,87 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
 }
 
 function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline,desktop}){
-  const headerPadding = desktop ? "28px 48px 0" : "52px 20px 0";
-  const contentPadding = desktop ? "24px 48px 48px" : "0";
+
   const activeSec = SECTIONS.find(s => s.id === section);
   const showAreaPills = subView==="tareas" || subView==="proyectos";
 
-  return(
-    <div style={{
-      ...(desktop ? {height:"100vh",overflow:"hidden"} : {maxWidth:430,margin:"0 auto",minHeight:"100vh"}),
-      background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex",flexDirection:"column",position:"relative"
-    }}>
-      <AppStyles/>
+  const NAV_ITEMS = [
+    { id:"hoy",      label:"Hoy",      icon:"⊙" },
+    { id:"metas",    label:"Metas",    icon:"⋈" },
+    { id:"progreso", label:"Progreso", icon:"❀" },
+  ];
 
-      {/* Header */}
-      <div style={{padding:headerPadding,boxSizing:"border-box"}}>
-        {/* Top bar */}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:desktop?20:14}}>
-          <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>
-            {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
-            <button onClick={()=>{const nf=!focusMode;setFocusMode(nf);trackEvent(nf?"focus_mode_on":"focus_mode_off");}}
-              style={{background:focusMode?"#2C2825":"none",color:focusMode?"white":"#C8C3BB",border:`1px solid ${focusMode?"#2C2825":"#E5E1DB"}`,borderRadius:99,padding:"3px 12px",fontFamily:"'DM Sans'",fontSize:10,cursor:"pointer",transition:"all .2s",letterSpacing:".06em"}}>
-              {focusMode?"◈ Foco":"◈"}
-            </button>
-            <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",padding:0}}>↩</button>
-          </div>
-        </div>
+  // ── Sub-nav + contenido (compartido mobile/desktop) ──
+  const SubNav = () => activeSec && activeSec.subTabs.length > 1 ? (
+    <div style={{display:"flex",gap:desktop?24:20,borderBottom:"1px solid #EAE6E0",padding:desktop?"0 48px":"0 20px",flexShrink:0}}>
+      {activeSec.subTabs.map(tab=>(
+        <button key={tab.id} onClick={()=>setSubView(tab.id)}
+          style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:subView===tab.id?"#2C2825":"#B0AA9F",paddingBottom:10,borderBottom:`2px solid ${subView===tab.id?"#2C2825":"transparent"}`,transition:"all .2s",whiteSpace:"nowrap"}}>
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  ) : null;
 
-        {/* Secciones principales (3 tabs) */}
-        <div style={{display:"flex",gap:2,marginBottom:desktop?16:12}}>
-          {SECTIONS.map(sec=>(
-            <button key={sec.id} onClick={()=>setSection(sec.id)}
-              style={{
-                padding:desktop?"7px 18px":"6px 14px",
-                borderRadius:99,border:"none",cursor:"pointer",
-                background:section===sec.id?"#2C2825":"transparent",
-                color:section===sec.id?"#F5F2EE":"#B0AA9F",
-                fontFamily:"'DM Sans'",fontSize:desktop?14:13,
-                fontWeight:section===sec.id?500:400,
-                transition:"all .2s",whiteSpace:"nowrap",
-              }}>
-              {sec.label}
-            </button>
-          ))}
-        </div>
+  const AreaPills = () => showAreaPills ? (
+    <div style={{display:"flex",gap:desktop?6:4,padding:desktop?"12px 48px 0":"12px 20px 0",overflowX:"auto"}}>
+      {Object.entries(AREAS).map(([k,a])=>(
+        <button key={k} onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
+          className={desktop?"":"m-at"}
+          style={{padding:desktop?"5px 14px":"4px 10px",borderRadius:99,border:`1px solid ${activeArea===k?a.color:"transparent"}`,cursor:"pointer",background:activeArea===k?a.color:"transparent",color:activeArea===k?"white":a.color,fontFamily:"'DM Sans'",fontSize:desktop?12:11,fontWeight:500,transition:"all .2s",whiteSpace:"nowrap",flexShrink:0}}>
+          {a.label}
+        </button>
+      ))}
+    </div>
+  ) : null;
 
-        {/* Sub-tabs de la sección activa */}
-        {activeSec && activeSec.subTabs.length > 1 && (
-          <div style={{display:"flex",gap:desktop?20:16,borderBottom:"1px solid #EAE6E0",marginBottom:0}}>
-            {activeSec.subTabs.map(tab=>(
-              <button key={tab.id} onClick={()=>setSubView(tab.id)}
-                style={{
-                  background:"none",border:"none",cursor:"pointer",
-                  fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,
-                  letterSpacing:".08em",textTransform:"uppercase",
-                  color:subView===tab.id?"#2C2825":"#B0AA9F",
-                  paddingBottom:10,
-                  borderBottom:`2px solid ${subView===tab.id?"#2C2825":"transparent"}`,
-                  transition:"all .2s",whiteSpace:"nowrap",
-                }}>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Area pills — solo en tareas y proyectos */}
-        {showAreaPills && (
-          <div style={{display:"flex",gap:desktop?6:4,marginTop:desktop?14:12,overflowX:"auto",paddingBottom:2}}>
-            {Object.entries(AREAS).map(([k,a])=>(
-              <button key={k} onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
-                className={desktop?"":"m-at"}
-                style={{
-                  padding:desktop?"5px 14px":"4px 10px",
-                  borderRadius:99,border:desktop?"none":`1px solid ${activeArea===k?a.color:"transparent"}`,
-                  cursor:"pointer",
-                  background:activeArea===k?a.color:"transparent",
-                  color:activeArea===k?"white":a.color,
-                  fontFamily:"'DM Sans'",fontSize:desktop?12:11,fontWeight:500,
-                  transition:"all .2s",whiteSpace:"nowrap",flexShrink:0
-                }}>
-                {a.label}
-              </button>
-            ))}
-          </div>
-        )}
+  const TopBar = () => (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:desktop?"20px 48px 16px":"52px 20px 14px",flexShrink:0}}>
+      <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>
+        {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
       </div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
+        <button onClick={()=>{const nf=!focusMode;setFocusMode(nf);trackEvent(nf?"focus_mode_on":"focus_mode_off");}}
+          style={{background:focusMode?"#2C2825":"none",color:focusMode?"white":"#C8C3BB",border:`1px solid ${focusMode?"#2C2825":"#E5E1DB"}`,borderRadius:99,padding:"3px 12px",fontFamily:"'DM Sans'",fontSize:10,cursor:"pointer",transition:"all .2s",letterSpacing:".06em"}}>
+          {focusMode?"◈ Foco":"◈"}
+        </button>
+        <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",padding:0}}>↩</button>
+      </div>
+    </div>
+  );
 
-      {/* Divider — solo si no hay sub-tabs (que ya tienen su propia línea) */}
-      {(!activeSec || activeSec.subTabs.length <= 1) && (
-        <div style={{height:1,background:"#EAE6E0",margin:desktop?"16px 0 0":"0 20px"}}/>
+  const Content = () => (
+    <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:desktop?0:80}}>
+
+      {subView==="hoy"&&(
+        focusMode
+          ?<div style={{padding:desktop?"24px 48px":"16px 20px 0"}}>
+             <FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop={desktop}/>
+           </div>
+          :<div style={desktop?{padding:"24px 48px"}:{}}>
+             <HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop}/>
+           </div>
       )}
 
-      {/* Content */}
-      <div style={{flex:1,overflowY:desktop?"auto":"visible",padding:contentPadding,boxSizing:"border-box",WebkitOverflowScrolling:"touch"}}>
+      {subView==="semana"&&(
+        <div style={{padding:desktop?"24px 48px":"16px 20px",textAlign:"center",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14,paddingTop:60}}>
+          Vista Semana — próximamente
+        </div>
+      )}
 
-        {subView==="hoy"&&(
-          focusMode
-            ?<div style={desktop?{}:{padding:"16px 20px 0"}}>
-               <FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop={desktop}/>
-             </div>
-            :<HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop}/>
-        )}
-
-        {subView==="semana"&&(
-          <div style={desktop?{}:{padding:"16px 20px 0"}}>
-            <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",textAlign:"center",padding:"60px 0"}}>Vista Semana — próximamente</div>
-          </div>
-        )}
-
-        {subView==="tareas"&&(<>
+      {subView==="tareas"&&(
+        <div style={desktop?{padding:"24px 48px"}:{}}>
           {focusMode
             ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} desktop={desktop}/>
             :<GroupedProjectsView projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} onComplete={completeProject} reorderTasks={reorderTasks} sw={sw} desktop={desktop}/>
           }
           {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
-        </>)}
+        </div>
+      )}
 
-        {subView==="proyectos"&&(<div style={desktop?{}:{paddingBottom:0}}>
+      {subView==="proyectos"&&(
+        <div style={desktop?{padding:"24px 48px"}:{paddingBottom:0}}>
           <div style={{padding:desktop?"0 0 20px":"14px 20px 4px"}}>
             <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
           </div>
@@ -3360,23 +3336,82 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
             onClick={()=>setNewProjSheet({area:activeArea})}>
             {desktop?`+ Nuevo proyecto en ${AREAS[activeArea]?.label}`:<><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</>}
           </button>
-        </div>)}
+        </div>
+      )}
 
-        {subView==="metas"&&<MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={desktop}/>}
+      {subView==="metas"&&(
+        <div style={desktop?{padding:"0 48px"}:{}}>
+          <MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={desktop}/>
+        </div>
+      )}
 
-        {subView==="cerezo"&&<CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop={desktop}/>}
+      {subView==="cerezo"&&(
+        <div style={desktop?{padding:"24px 48px"}:{padding:"24px 20px"}}>
+          <CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop={desktop}/>
+        </div>
+      )}
 
-        {subView==="analitica"&&(
-          <div style={desktop?{maxWidth:900,width:"100%"}:{}}>
-            <AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount} desktop={desktop}/>
+      {subView==="analitica"&&(
+        <div style={desktop?{padding:"24px 48px",maxWidth:900}:{}}>
+          <AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount} desktop={desktop}/>
+        </div>
+      )}
+
+      {!desktop&&(
+        <div style={{textAlign:"center",padding:"16px 0 4px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8",userSelect:"none"}}>
+          Clarity
+        </div>
+      )}
+    </div>
+  );
+
+  // ── DESKTOP: sidebar izquierdo ──
+  if(desktop) return(
+    <div style={{height:"100vh",overflow:"hidden",background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex"}}>
+      <AppStyles/>
+      {/* Sidebar */}
+      <div className="d-sidebar">
+        <div className="d-sidebar-logo">Clarity</div>
+        {NAV_ITEMS.map(n=>(
+          <div key={n.id} className={`d-sidebar-item${section===n.id?" active":""}`} onClick={()=>setSection(n.id)}>
+            <span className={`d-sidebar-icon${section===n.id?" active":""}`}>{n.icon}</span>
+            <span className={`d-sidebar-text${section===n.id?" active":""}`}>{n.label}</span>
           </div>
-        )}
+        ))}
       </div>
+      {/* Main */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <TopBar/>
+        <SubNav/>
+        <AreaPills/>
+        <Content/>
+        <div style={{textAlign:"center",padding:"0 0 20px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8",userSelect:"none",flexShrink:0}}>
+          Clarity
+        </div>
+      </div>
+      <CelebrationToast celebrate={celebrate}/>
+      <ErrorToast message={opError} onDismiss={()=>setOpError(null)}/>
+      {sheets}
+    </div>
+  );
 
-      {/* Clarity wordmark */}
-      <div style={{textAlign:"center",padding:desktop?"0 0 24px":"16px 0 28px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8",userSelect:"none"}}>
-        Clarity
-      </div>
+  // ── MOBILE: bottom nav fija ──
+  return(
+    <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex",flexDirection:"column",position:"relative"}}>
+      <AppStyles/>
+      <TopBar/>
+      <SubNav/>
+      <AreaPills/>
+      <Content/>
+      {/* Bottom Nav */}
+      <nav className="bottom-nav">
+        {NAV_ITEMS.map(n=>(
+          <div key={n.id} className="bottom-nav-item" onClick={()=>setSection(n.id)}>
+            <div className={`bottom-nav-icon${section===n.id?" active":""}`}>{n.icon}</div>
+            <div className={`bottom-nav-label${section===n.id?" active":""}`}>{n.label}</div>
+          </div>
+        ))}
+      </nav>
       <CelebrationToast celebrate={celebrate}/>
       <ErrorToast message={opError} onDismiss={()=>setOpError(null)}/>
       {sheets}
