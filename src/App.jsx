@@ -138,7 +138,10 @@ function LoginScreen() {
     setLoading(true);
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin }
+      options: {
+        redirectTo: window.location.origin,
+        scopes: 'https://www.googleapis.com/auth/calendar.events',
+      }
     });
   }
   return (
@@ -175,6 +178,7 @@ export default function App() {
   const [projects, setProjects] = useState([]);
   const [goals,    setGoals]    = useState([]);
   const [loading,  setLoading]  = useState(true);
+  const [googleToken, setGoogleToken] = useState(null);
   const [loadError, setLoadError] = useState(false);
   const [opError,   setOpError]   = useState(null);
   const [isDesktop,setIsDesktop]= useState(window.innerWidth>=768);
@@ -297,10 +301,34 @@ export default function App() {
   const todayWork   = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p?.area==="trabajo"&&t.date===todayStr();}).sort(taskSort);
   const upcomingWork = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId); if(!p||p.area!=="trabajo"||t.done) return false; return !t.date;}).sort(taskSort);
 
+  async function createCalendarEvent(task, projectName){
+    if(!googleToken || !task.date) return;
+    try {
+      await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${googleToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          summary: task.title,
+          description: projectName ? `Proyecto: ${projectName}` : '',
+          start: { date: task.date },
+          end: { date: task.date },
+          reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 480 }] },
+        }),
+      });
+    } catch(e) { console.error('Calendar error:', e); }
+  }
+
   async function addTask(task){
     const n={id:"t"+Date.now(),...task,done:false,notes:task.notes||"",responsable:task.responsable||"",sortOrder:tasks.length};
     setTasks(ts=>[n,...ts]); setAddSheet(null);
     await safeUpsert("tasks",taskToDb(n,uid));
+    if(n.date && googleToken){
+      const proj = projects.find(p=>p.id===n.projectId);
+      createCalendarEvent(n, proj?.name);
+    }
   }
   async function toggleDone(id){
     const task=tasks.find(t=>t.id===id); if(!task) return;
