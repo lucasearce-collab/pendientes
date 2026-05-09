@@ -2517,15 +2517,22 @@ function AppStyles(){return(<style>{`
   .bottom-nav-icon.active{color:#2C2825;}
   .bottom-nav-label{font-family:'DM Sans',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#B0AA9F;}
   .bottom-nav-label.active{color:#2C2825;}
-  .d-sidebar{width:200px;background:#EDEAE4;border-right:1px solid rgba(0,0,0,.05);display:flex;flex-direction:column;padding:32px 12px;flex-shrink:0;}
-  .d-sidebar-logo{font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#C8C3BB;margin-bottom:28px;padding-left:8px;}
-  .d-sidebar-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;margin-bottom:4px;transition:all .15s;}
+  .d-sidebar{background:#EDEAE4;border-right:1px solid rgba(0,0,0,.05);display:flex;flex-direction:column;padding:24px 10px;flex-shrink:0;transition:width .25s cubic-bezier(.4,0,.2,1);overflow:hidden;}
+  .d-sidebar.open{width:200px;}
+  .d-sidebar.collapsed{width:52px;}
+  .d-sidebar-logo{font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#C8C3BB;white-space:nowrap;overflow:hidden;transition:opacity .15s;}
+  .d-sidebar.collapsed .d-sidebar-logo{opacity:0;pointer-events:none;}
+  .d-sidebar-item{display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:10px;cursor:pointer;margin-bottom:4px;transition:all .15s;white-space:nowrap;}
+  .d-sidebar.collapsed .d-sidebar-item{justify-content:center;padding:10px 0;}
   .d-sidebar-item.active{background:white;box-shadow:0 2px 8px rgba(0,0,0,.04);}
   .d-sidebar-item:hover:not(.active){background:rgba(0,0,0,.04);}
-  .d-sidebar-icon{font-size:16px;color:#B0AA9F;}
+  .d-sidebar-icon{font-size:18px;color:#B0AA9F;flex-shrink:0;width:20px;text-align:center;}
   .d-sidebar-icon.active{color:#2C2825;}
-  .d-sidebar-text{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:#B0AA9F;}
+  .d-sidebar-text{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:#B0AA9F;transition:opacity .1s;white-space:nowrap;}
+  .d-sidebar.collapsed .d-sidebar-text{opacity:0;width:0;overflow:hidden;}
   .d-sidebar-text.active{color:#2C2825;}
+  .d-sidebar-toggle{width:28px;height:28px;border-radius:8px;border:none;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#B0AA9F;transition:background .15s;flex-shrink:0;}
+  .d-sidebar-toggle:hover{background:rgba(0,0,0,.06);}
 `}</style>);}
 
 function TypeSelector({value,onChange}){
@@ -3851,13 +3858,33 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
     </div>
   );
 
-  // ── DESKTOP: sidebar izquierdo ──
+  // ── DESKTOP: sidebar izquierdo colapsable ──
+  const [sidebarOpen, setSidebarOpen] = useState(()=>{
+    try{ return localStorage.getItem('clarity_sidebar')!=='0'; }catch{ return true; }
+  });
+  function toggleSidebar(){
+    setSidebarOpen(o=>{
+      const next=!o;
+      try{ localStorage.setItem('clarity_sidebar', next?'1':'0'); }catch{}
+      return next;
+    });
+  }
+
   if(desktop) return(
     <div style={{height:"100vh",overflow:"hidden",background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex"}}>
       <AppStyles/>
       {/* Sidebar */}
-      <div className="d-sidebar">
-        <div className="d-sidebar-logo">Clarity</div>
+      <div className={`d-sidebar ${sidebarOpen?"open":"collapsed"}`}>
+        {/* Logo + toggle */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:sidebarOpen?"space-between":"center",marginBottom:24,minHeight:28}}>
+          <div className="d-sidebar-logo" style={{paddingLeft:sidebarOpen?8:0}}>Clarity</div>
+          <button className="d-sidebar-toggle" onClick={toggleSidebar} aria-label={sidebarOpen?"Colapsar":"Expandir"}>
+            {sidebarOpen
+              ? <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="1" y="1" width="13" height="13" rx="2"/><line x1="5" y1="1" x2="5" y2="14"/></svg>
+              : <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="1" y="1" width="13" height="13" rx="2"/><line x1="10" y1="1" x2="10" y2="14"/></svg>
+            }
+          </button>
+        </div>
         {NAV_ITEMS.map(n=>(
           <div key={n.id} className={`d-sidebar-item${section===n.id?" active":""}`} onClick={()=>setSection(n.id)}>
             <span className={`d-sidebar-icon${section===n.id?" active":""}`}>{n.icon}</span>
