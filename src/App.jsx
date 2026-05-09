@@ -1336,10 +1336,14 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
     });
     const projectsToSave = data.proyectos.map((p,i)=>{
       const goal = p.metaId!==null ? goalsToSave.filter(g=>g.horizon==='anio')[p.metaId] : null;
-      return {id:crypto.randomUUID(), user_id:uid, name:p.name, area:'Trabajo', importance:'normal', sort_order:i, goal_id:goal?goal.id:null, created_at:new Date().toISOString()};
+      return {id:crypto.randomUUID(), user_id:uid, name:p.name, area:'trabajo', importance:'normal', sort_order:i, goal_id:goal?goal.id:null, created_at:new Date().toISOString()};
     });
     if(goalsToSave.length>0) await supabase.from('goals').insert(goalsToSave);
-    if(projectsToSave.length>0) await supabase.from('projects').insert(projectsToSave);
+    // Si el usuario no creó ningún proyecto, crear uno "General" por defecto
+    if(projectsToSave.length===0){
+      projectsToSave.push({id:crypto.randomUUID(), user_id:uid, name:'General', area:'trabajo', importance:'normal', sort_order:0, goal_id:null, created_at:new Date().toISOString()});
+    }
+    await supabase.from('projects').insert(projectsToSave);
     // Save terms acceptance
     await supabase.from('user_profiles').upsert({id:uid, terms_accepted:true, terms_accepted_at:new Date().toISOString()});
     onComplete(goalsToSave, projectsToSave);
@@ -1598,8 +1602,13 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
             <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:s.color}}>Proyectos</span>
           </div>
           <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>{s.title}</div>
-          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:20}}>
-            {metasAnio.length>0?'Relacioná cada proyecto con la meta de este año que impulsa.':s.q}
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6,marginBottom:8}}>
+            Un proyecto es cualquier cosa que tiene más de una tarea — un cliente, una mudanza, un viaje, un objetivo de trabajo.
+          </div>
+          <div style={{background:'#F5F1ED',borderRadius:10,padding:'10px 14px',marginBottom:20}}>
+            <div style={{fontSize:11,color:'#9B8878',lineHeight:1.7}}>
+              Si no tenés proyectos claros aún, no te preocupes — la app crea uno general para vos y podés agregar tus tareas ahí.
+            </div>
           </div>
           <div style={{display:'flex',gap:8,marginBottom:14}}>
             <input value={input} onChange={e=>setInput(e.target.value)}
