@@ -2511,7 +2511,7 @@ function AppStyles(){return(<style>{`
   .dc{cursor:pointer;border:1px solid #E5E1DB;border-radius:99px;padding:4px 11px;font-size:11px;font-family:'DM Sans';color:#8C877F;background:white;transition:all .2s;white-space:nowrap;}.dc.on{background:#6B6258;border-color:#6B6258;color:white;}
   .impb{cursor:pointer;border-radius:8px;padding:8px 12px;font-family:'DM Sans';font-size:13px;border:1px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;}
   .typb{cursor:pointer;border-radius:10px;padding:10px 14px;font-family:'DM Sans';font-size:13px;border:1.5px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
-  .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;height:64px;background:rgba(245,242,238,.97);backdrop-filter:blur(10px);border-top:1px solid #EAE6E0;display:flex;align-items:center;justify-content:space-around;z-index:50;padding-bottom:env(safe-area-inset-bottom,0);}
+  .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:rgba(245,242,238,.97);backdrop-filter:blur(10px);border-top:1px solid #EAE6E0;display:flex;align-items:center;justify-content:space-around;z-index:50;padding:12px 0 calc(env(safe-area-inset-bottom,0px) + 16px);}
   .bottom-nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex:1;padding:8px 0;}
   .bottom-nav-icon{font-size:22px;color:#B0AA9F;line-height:1;}
   .bottom-nav-icon.active{color:#2C2825;}
@@ -3488,12 +3488,12 @@ function SemanaView({tasks, projects, onToggle, onOpen, onUpdate, desktop}){
         </div>
         <div style={{display:"flex",alignItems:"center",gap:0}}>
           <button onClick={()=>setViewMode("semana")}
-            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:viewMode==="semana"?"#2C2825":"#C8C3BB",fontWeight:viewMode==="semana"?500:400,padding:"10px 4px",minHeight:44}}>
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:viewMode==="semana"?"#2C2825":"#D5CFC8",fontWeight:viewMode==="semana"?500:300,padding:"10px 4px",minHeight:44}}>
             semana
           </button>
-          <span style={{fontSize:13,color:"#D5CFC8",padding:"0 6px"}}>·</span>
+          <span style={{fontSize:13,color:"#EAE6E0",padding:"0 4px"}}>·</span>
           <button onClick={()=>setViewMode("dia")}
-            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:viewMode==="dia"?"#2C2825":"#C8C3BB",fontWeight:viewMode==="dia"?500:400,padding:"10px 4px",minHeight:44}}>
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:viewMode==="dia"?"#2C2825":"#D5CFC8",fontWeight:viewMode==="dia"?500:300,padding:"10px 4px",minHeight:44}}>
             día
           </button>
         </div>
@@ -3658,12 +3658,12 @@ function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onTog
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:desktop?'0 0 14px':'8px 20px 6px'}}>
         <div style={{display:'flex',alignItems:'center',gap:0}}>
           <button onClick={()=>switchModo('todas')}
-            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:modo==='todas'?'#2C2825':'#C8C3BB',fontWeight:modo==='todas'?500:400,padding:'10px 4px',minHeight:44}}>
+            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:modo==='todas'?'#2C2825':'#D5CFC8',fontWeight:modo==='todas'?500:300,padding:'10px 4px',minHeight:44}}>
             todas
           </button>
-          <span style={{fontSize:13,color:'#D5CFC8',padding:'0 6px'}}>·</span>
+          <span style={{fontSize:13,color:'#EAE6E0',padding:'0 4px'}}>·</span>
           <button onClick={()=>switchModo('proyectos')}
-            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:modo==='proyectos'?'#2C2825':'#C8C3BB',fontWeight:modo==='proyectos'?500:400,padding:'10px 4px',minHeight:44}}>
+            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:modo==='proyectos'?'#2C2825':'#D5CFC8',fontWeight:modo==='proyectos'?500:300,padding:'10px 4px',minHeight:44}}>
             por proyecto
           </button>
         </div>
@@ -3737,7 +3737,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
           </button>
         ))}
       </div>
-      {showAreaPills&&<div style={{paddingBottom:10}}><AreaToggle/></div>}
+      {showAreaPills&&desktop&&<div style={{paddingBottom:10}}><AreaToggle/></div>}
     </div>
   ) : null;
 
@@ -3745,12 +3745,12 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
   const AreaToggle = () => showAreaPills ? (
     <div style={{display:"flex",alignItems:"center",gap:0,marginLeft:"auto",flexShrink:0}}>
       <button onClick={()=>{setActiveArea("trabajo");setActiveProjId(null);}}
-        style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:activeArea==="trabajo"?"#2C2825":"#C8C3BB",fontWeight:activeArea==="trabajo"?500:400,padding:"10px 4px",minHeight:44}}>
+        style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:activeArea==="trabajo"?"#2C2825":"#D5CFC8",fontWeight:activeArea==="trabajo"?500:300,padding:"10px 4px",minHeight:44}}>
         trabajo
       </button>
-      <span style={{fontSize:13,color:"#D5CFC8",padding:"0 6px"}}>·</span>
+      <span style={{fontSize:13,color:"#EAE6E0",padding:"0 4px"}}>·</span>
       <button onClick={()=>{setActiveArea("personal");setActiveProjId(null);}}
-        style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:activeArea==="personal"?"#2C2825":"#C8C3BB",fontWeight:activeArea==="personal"?500:400,padding:"10px 4px",minHeight:44}}>
+        style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:activeArea==="personal"?"#2C2825":"#D5CFC8",fontWeight:activeArea==="personal"?500:300,padding:"10px 4px",minHeight:44}}>
         personal
       </button>
     </div>
@@ -3774,7 +3774,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
   );
 
   const Content = () => (
-    <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:desktop?0:80}}>
+    <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:desktop?0:100}}>
 
       {subView==="hoy"&&(
         focusMode
@@ -3913,6 +3913,11 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
       <AppStyles/>
       <TopBar/>
       <SubNav/>
+      {showAreaPills&&(
+        <div style={{display:"flex",justifyContent:"flex-end",padding:"4px 20px 0"}}>
+          <AreaToggle/>
+        </div>
+      )}
       <Content/>
       {/* Bottom Nav */}
       <nav className="bottom-nav">
