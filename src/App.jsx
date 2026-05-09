@@ -3727,14 +3727,15 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
   ) : null;
 
   const AreaPills = () => showAreaPills ? (
-    <div style={{display:"flex",gap:desktop?6:4,padding:desktop?"12px 48px 0":"12px 20px 0",overflowX:"auto"}}>
-      {Object.entries(AREAS).map(([k,a])=>(
-        <button key={k} onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
-          className={desktop?"":"m-at"}
-          style={{padding:desktop?"5px 14px":"4px 10px",borderRadius:99,border:`1px solid ${activeArea===k?a.color:"transparent"}`,cursor:"pointer",background:activeArea===k?a.color:"transparent",color:activeArea===k?"white":a.color,fontFamily:"'DM Sans'",fontSize:desktop?12:11,fontWeight:500,transition:"all .2s",whiteSpace:"nowrap",flexShrink:0}}>
-          {a.label}
-        </button>
-      ))}
+    <div style={{padding:desktop?"10px 48px 0":"10px 20px 0"}}>
+      <div style={{display:"inline-flex",background:"#EAE6E0",borderRadius:99,padding:2}}>
+        {Object.entries(AREAS).map(([k,a])=>(
+          <button key={k} onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
+            style={{padding:desktop?"4px 16px":"4px 14px",borderRadius:99,border:"none",cursor:"pointer",background:activeArea===k?"white":"transparent",color:activeArea===k?"#2C2825":"#9B948C",fontFamily:"'DM Sans'",fontSize:desktop?12:11,fontWeight:activeArea===k?500:400,transition:"all .2s",whiteSpace:"nowrap",boxShadow:activeArea===k?"0 1px 4px rgba(0,0,0,.08)":"none"}}>
+            {a.label}
+          </button>
+        ))}
+      </div>
     </div>
   ) : null;
 
