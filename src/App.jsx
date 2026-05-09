@@ -3168,15 +3168,15 @@ function AsistenteMetasSheet({onClose,onInject,isDesktop}){
     {id:"largo", dbKey:"largo", label:"Largo Plazo", desc:"De 5 años en adelante"}
   ];
 
-  const handleSelect = (goal) => {
-    if(selected.some(g=>g.t===goal.t)) setSelected(selected.filter(g=>g.t!==goal.t));
-    else setSelected([...selected, goal]);
+  const handleSelect = (goalText) => {
+    if(selected.includes(goalText)) setSelected(selected.filter(g=>g!==goalText));
+    else setSelected([...selected, goalText]);
   };
 
   const submit = () => {
-    const finalGoals = selected.map(g=>({
-      title: g.t,
-      description: g.d,
+    const finalGoals = selected.map(gText=>({
+      title: gText,
+      description: "",
       horizon: HORIZONTES.find(h=>h.id===horizonte).dbKey
     }));
     onInject(finalGoals);
@@ -3248,13 +3248,12 @@ function AsistenteMetasSheet({onClose,onInject,isDesktop}){
             <div key={catName} style={{marginBottom:20}}>
               <div style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,color:"#9B8878",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>{catName}</div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {metas.map((m,i)=>{
-                  const isSel=selected.some(g=>g.t===m.t);
+                {metas.map((mText,i)=>{
+                  const isSel=selected.includes(mText);
                   return(
-                    <div key={i} onClick={()=>handleSelect(m)}
+                    <div key={i} onClick={()=>handleSelect(mText)}
                       style={{padding:"16px",borderRadius:14,border:`1px solid ${isSel?"#9B8878":"#E5E1DB"}`,background:isSel?"#F5F1ED":"#FDFBFA",cursor:"pointer",transition:"all .2s"}}>
-                      <b style={{display:"block",fontFamily:"'DM Sans'",fontSize:14,color:isSel?"#9B8878":"#2C2825",marginBottom:4,fontWeight:600}}>{m.t}</b>
-                      <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258",lineHeight:1.4,margin:0}}>{m.d}</p>
+                      <p style={{fontFamily:"'DM Sans'",fontSize:14,color:isSel?"#9B8878":"#2C2825",lineHeight:1.4,margin:0,fontWeight:isSel?500:400}}>{mText}</p>
                     </div>
                   );
                 })}
