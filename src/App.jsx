@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from "react";
+import { BANCO_METAS } from "./goalsBank.js";
 import { createClient } from "@supabase/supabase-js";
 
 // ─── Supabase ─────────────────────────────────────────────────────────────────
@@ -207,6 +208,7 @@ export default function App() {
   const [newProjSheet,setNewProjSheet]=useState(null);
   const [planSheet,setPlanSheet]=useState(null);
   const [goalSheet,setGoalSheet]=useState(null);
+  const [asistenteSheet,setAsistenteSheet]=useState(false);
   const [swipedId, setSwipedId] = useState(null);
   const [celebrate, setCelebrate] = useState(null); // {type:'task'|'project', points:N}
   const [focusMode, setFocusMode] = useState(false);
@@ -459,6 +461,22 @@ export default function App() {
     setGoals(gs=>gs.filter(g=>g.id!==id)); setGoalSheet(null);
     await safeDelete("goals",id);
   }
+
+  async function injectGoals(goalsArray){
+    addPoints(2000);
+    const newGoals = goalsArray.map((g, i) => ({
+      id: "g" + Date.now() + i,
+      title: g.title,
+      description: g.description,
+      horizon: g.horizon,
+      parentId: null
+    }));
+    setGoals(gs => [...gs, ...newGoals]);
+    setAsistenteSheet(false);
+    newGoals.forEach(g => trackEvent("goal_injected", g.id, "goal", {horizon:g.horizon}));
+    await Promise.all(newGoals.map(g => safeUpsert("goals", goalToDb(g, uid))));
+    celebrate();
+  }
   function switchSection(sectionId) {
     const sec = SECTIONS.find(s => s.id === sectionId);
     if (!sec) return;
@@ -485,6 +503,7 @@ export default function App() {
       {newProjSheet&&<><div className="sheet-overlay" onClick={()=>setNewProjSheet(null)}/><NewProjectSheet area={newProjSheet.area} onAdd={addProject} isDesktop={isDesktop}/></>}
       {planSheet  &&<><div className="sheet-overlay" onClick={()=>setPlanSheet(null)}/><PlanProjectSheet project={planSheet} onSave={updateProject} isDesktop={isDesktop} goals={goals}/></>}
       {goalSheet  &&<><div className="sheet-overlay" onClick={()=>setGoalSheet(null)}/><GoalSheet goal={goalSheet} goals={goals} projects={projects} onSave={goalSheet.id?updateGoal:addGoal} onDelete={goalSheet.id?()=>deleteGoal(goalSheet.id):null} isDesktop={isDesktop}/></>}
+      {asistenteSheet &&<><div className="sheet-overlay" onClick={()=>setAsistenteSheet(false)}/><AsistenteMetasSheet onClose={()=>setAsistenteSheet(false)} onInject={injectGoals} isDesktop={isDesktop}/></>}
     </>
   );
 
@@ -2654,7 +2673,7 @@ function NewProjectSheet({area,onAdd,isDesktop}){
 
 // ─── Metas View ───────────────────────────────────────────────────────────────
 
-function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop}){
+function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop,onOpenAsistente}){
   const horizons = [
     {key:"anio",  label:"Este año",  sub:"2025",   color:"#9B8878", bg:"#F5F1ED", border:"#C4A882"},
     {key:"medio", label:"2–5 años",  sub:"2026–30", color:"#8A8EA8", bg:"#F1F2F5", border:"#8A8EA8"},
@@ -2669,12 +2688,19 @@ function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop
 
   return(
     <div style={{padding:p}}>
-      {!isDesktop&&<div style={{padding:"0 20px 16px",fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>
-        Tu camino. Lo que hacés hoy te acerca a donde querés llegar.
-      </div>}
-      {isDesktop&&<p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:24,lineHeight:1.6,maxWidth:680}}>
-        Tu camino de vida. Cada nivel alimenta al siguiente — lo que hacés hoy construye el largo plazo.
-      </p>}
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",padding:isDesktop?"0":"0 20px 16px",marginBottom:isDesktop?24:0}}>
+        <div>
+          {!isDesktop&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6,maxWidth:220}}>
+            Tu camino. Lo que hacés hoy te acerca a donde querés llegar.
+          </div>}
+          {isDesktop&&<p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",margin:0,lineHeight:1.6,maxWidth:680}}>
+            Tu camino de vida. Cada nivel alimenta al siguiente — lo que hacés hoy construye el largo plazo.
+          </p>}
+        </div>
+        <button onClick={onOpenAsistente} style={{background:"#FBF8F2",border:"1px solid #F0DFA0",borderRadius:8,padding:"8px 12px",color:"#7A6A3A",fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 2px 4px rgba(0,0,0,0.02)"}}>
+          <i className="fa-solid fa-wand-magic-sparkles" style={{color:"#C4A882"}}></i> Asistente
+        </button>
+      </div>
 
       {/* Camino horizontal — desktop */}
       {isDesktop&&(
@@ -3099,6 +3125,175 @@ function GoalSheet({goal,goals,projects,onSave,onDelete,isDesktop}){
             </div>
           :<button onClick={()=>setConf(true)} style={{width:"100%",background:"none",border:"none",color:"#C4A89A",fontFamily:"'DM Sans'",fontSize:14,padding:"14px 0 0",cursor:"pointer"}}>Eliminar meta</button>
       )}
+    </div>
+  );
+}
+
+function AsistenteMetasSheet({onClose,onInject,isDesktop}){
+  const [step,setStep]=useState(1);
+  const [energia,setEnergia]=useState(null);
+  const [perfil,setPerfil]=useState(null);
+  const [horizonte,setHorizonte]=useState(null);
+  const [selected,setSelected]=useState([]);
+
+  const cls=isDesktop?"d-modal":"sheet";
+
+  const ENERGIAS = [
+    {id:"impacto", label:"Impacto & Dinero", desc:"Carrera, finanzas, negocios", icon:"fa-solid fa-rocket"},
+    {id:"equilibrio", label:"Equilibrio & Salud", desc:"Paz mental, bienestar, arte", icon:"fa-solid fa-leaf"},
+    {id:"vinculos", label:"Vínculos & Familia", desc:"Pareja, comunidad, hijos", icon:"fa-solid fa-house"}
+  ];
+
+  const PERFILES = {
+    impacto: [
+      {id:"corporativo",label:"Carrera Corporativa",desc:"Ascenso, liderazgo, ejecutivos"},
+      {id:"freelancer",label:"Freelancer Profesional",desc:"Independencia, marca personal"},
+      {id:"founder",label:"Founder (Startups/Agencias)",desc:"Riesgo, equipo, crecimiento"}
+    ],
+    equilibrio: [
+      {id:"creativo",label:"Creativo / Autor",desc:"Arte, obras, contenido"},
+      {id:"nomade",label:"Nómade / Viajero",desc:"Exploración, trabajo remoto"},
+      {id:"paz",label:"Paz Mental y Salud",desc:"Calma, longevidad, simpleza"}
+    ],
+    vinculos: [
+      {id:"padres",label:"Líder del Hogar",desc:"Hijos, patrimonio, valores"},
+      {id:"pareja",label:"Construcción Compartida",desc:"Proyectos de a dos, romance"},
+      {id:"comunidad",label:"Cuidado y Entorno",desc:"Mayores, voluntariado, legado"}
+    ]
+  };
+
+  const HORIZONTES = [
+    {id:"corto", dbKey:"anio", label:"Corto Plazo", desc:"Este año (12 meses)"},
+    {id:"medio", dbKey:"medio", label:"Mediano Plazo", desc:"Próximos 2 a 5 años"},
+    {id:"largo", dbKey:"largo", label:"Largo Plazo", desc:"De 5 años en adelante"}
+  ];
+
+  const handleSelect = (goal) => {
+    if(selected.some(g=>g.t===goal.t)) setSelected(selected.filter(g=>g.t!==goal.t));
+    else setSelected([...selected, goal]);
+  };
+
+  const submit = () => {
+    const finalGoals = selected.map(g=>({
+      title: g.t,
+      description: g.d,
+      horizon: HORIZONTES.find(h=>h.id===horizonte).dbKey
+    }));
+    onInject(finalGoals);
+  };
+
+  const renderStep1 = () => (
+    <div>
+      <span className="sl">¿Dónde querés enfocar tu energía?</span>
+      <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:16,lineHeight:1.5}}>Elegí el área de tu vida que requiere más atención hoy.</p>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {ENERGIAS.map(e=>(
+          <button key={e.id} onClick={()=>{setEnergia(e.id);setStep(2);}}
+            style={{display:"flex",alignItems:"center",gap:14,padding:"16px",borderRadius:12,border:`1px solid ${energia===e.id?"#C4A882":"#E5E1DB"}`,background:energia===e.id?"#FBF8F2":"white",cursor:"pointer",textAlign:"left",transition:"all .15s"}}>
+            <i className={e.icon} style={{color:"#C4A882",fontSize:18,width:20,textAlign:"center"}}></i>
+            <div>
+              <div style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,color:"#2C2825"}}>{e.label}</div>
+              <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",marginTop:2}}>{e.desc}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderStep2 = () => (
+    <div>
+      <button onClick={()=>setStep(1)} style={{background:"none",border:"none",color:"#B0AA9F",cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:6,fontFamily:"'DM Sans'",fontSize:12}}><i className="fa-solid fa-arrow-left"></i> Atrás</button>
+      <span className="sl">¿Qué perfil te describe mejor?</span>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:12}}>
+        {PERFILES[energia].map(p=>(
+          <button key={p.id} onClick={()=>{setPerfil(p.id);setStep(3);}}
+            style={{padding:"14px",borderRadius:12,border:`1px solid ${perfil===p.id?"#C4A882":"#E5E1DB"}`,background:perfil===p.id?"#FBF8F2":"white",cursor:"pointer",textAlign:"left",transition:"all .15s"}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,color:"#2C2825"}}>{p.label}</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",marginTop:2}}>{p.desc}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderStep3 = () => (
+    <div>
+      <button onClick={()=>setStep(2)} style={{background:"none",border:"none",color:"#B0AA9F",cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:6,fontFamily:"'DM Sans'",fontSize:12}}><i className="fa-solid fa-arrow-left"></i> Atrás</button>
+      <span className="sl">¿En qué horizonte necesitas metas?</span>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:12}}>
+        {HORIZONTES.map(h=>(
+          <button key={h.id} onClick={()=>{setHorizonte(h.id);setStep(4);}}
+            style={{padding:"14px",borderRadius:12,border:`1px solid ${horizonte===h.id?"#C4A882":"#E5E1DB"}`,background:horizonte===h.id?"#FBF8F2":"white",cursor:"pointer",textAlign:"left",transition:"all .15s"}}>
+            <div style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,color:"#2C2825"}}>{h.label}</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",marginTop:2}}>{h.desc}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderStep4 = () => {
+    if(!energia||!perfil||!horizonte) return null;
+    const catData = BANCO_METAS[energia][perfil][horizonte];
+    return(
+      <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+        <div style={{flexShrink:0}}>
+          <button onClick={()=>setStep(3)} style={{background:"none",border:"none",color:"#B0AA9F",cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:6,fontFamily:"'DM Sans'",fontSize:12}}><i className="fa-solid fa-arrow-left"></i> Atrás</button>
+          <span className="sl" style={{marginBottom:4}}>Sugerencias curadas</span>
+          <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:16,lineHeight:1.5}}>Seleccioná las que resuenen. Recibirás un bono de 2.000 pts al agregarlas.</p>
+        </div>
+        
+        <div style={{overflowY:"auto",flex:1,paddingRight:4,paddingBottom:20}}>
+          {Object.entries(catData).map(([catName, metas])=>(
+            <div key={catName} style={{marginBottom:20}}>
+              <div style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,color:"#9B8878",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>{catName}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {metas.map((m,i)=>{
+                  const isSel=selected.some(g=>g.t===m.t);
+                  return(
+                    <div key={i} onClick={()=>handleSelect(m)}
+                      style={{padding:"12px 14px",borderRadius:10,border:`1px solid ${isSel?"#C4A882":"#EAE6E0"}`,background:isSel?"#FBF8F2":"white",cursor:"pointer",display:"flex",gap:12,alignItems:"flex-start",transition:"all .15s"}}>
+                      <div style={{width:18,height:18,borderRadius:4,border:`1.5px solid ${isSel?"#C4A882":"#D5CFC8"}`,background:isSel?"#C4A882":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}}>
+                        {isSel&&<i className="fa-solid fa-check" style={{color:"white",fontSize:10}}></i>}
+                      </div>
+                      <div>
+                        <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:600,color:isSel?"#7A6A3A":"#2C2825",lineHeight:1.4}}>{m.t}</div>
+                        <div style={{fontFamily:"'DM Sans'",fontSize:12,color:isSel?"#9B8878":"#B0AA9F",marginTop:4,lineHeight:1.4}}>{m.d}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        <div style={{paddingTop:16,borderTop:"1px solid #EAE6E0",flexShrink:0,marginTop:"auto"}}>
+          <button className="sv" onClick={submit} disabled={selected.length===0} style={{opacity:selected.length===0?0.5:1}}>
+            {selected.length>0 ? `Agregar ${selected.length} meta${selected.length>1?'s':''} (+2.000 pts)` : "Seleccioná metas"}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  return(
+    <div className={cls} style={{height:step===4?(isDesktop?"80vh":"90vh"):"auto",display:"flex",flexDirection:"column"}}>
+      {!isDesktop&&<div className="hd"/>}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <i className="fa-solid fa-wand-magic-sparkles" style={{color:"#C4A882",fontSize:18}}></i>
+          <span style={{fontFamily:"'Lora'",fontSize:20,fontWeight:500,color:"#2C2825"}}>Asistente de Metas</span>
+        </div>
+        <button onClick={onClose} style={{background:"none",border:"none",color:"#B0AA9F",fontSize:24,cursor:"pointer",lineHeight:1,padding:0}}>&times;</button>
+      </div>
+      <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
+        {step===1&&renderStep1()}
+        {step===2&&renderStep2()}
+        {step===3&&renderStep3()}
+        {step===4&&renderStep4()}
+      </div>
     </div>
   );
 }
@@ -3868,7 +4063,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
 
       {subView==="metas"&&(
         <div style={desktop?{padding:"0 48px"}:{}}>
-          <MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={desktop}/>
+          <MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={desktop} onOpenAsistente={()=>setAsistenteSheet(true)}/>
         </div>
       )}
 
