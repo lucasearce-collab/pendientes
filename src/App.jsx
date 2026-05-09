@@ -213,6 +213,7 @@ export default function App() {
   const [celebrate, setCelebrate] = useState(null); // {type:'task'|'project', points:N}
   const [focusMode, setFocusMode] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
+  const [showTour, setShowTour] = useState(false);
   const [rescheduledCount, setRescheduledCount] = useState(0);
   const [points, setPoints] = useState(0);
 
@@ -507,12 +508,13 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,section,subView,setSection:switchSection,setSubView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline};
+  const props={tasks,projects,goals,section,subView,setSection:switchSection,setSubView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline,showTour,setShowTour};
   if(onboarding) return <OnboardingFlow uid={uid} supabase={supabase} onComplete={(gs,ps)=>{
     setGoals(gs.map(goalFromDb));
     setProjects(ps.map(projFromDb));
     setOnboarding(false);
-    switchSection("metas");
+    setShowTour(true);
+    switchSection("hoy");
   }} isDesktop={isDesktop}/>;
   return <>
     <AppLayout {...props} desktop={isDesktop}/>
@@ -1327,9 +1329,18 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
 function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
   const [step, setStep] = useState(0);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [data, setData] = useState({largo:[], medio:[], anio:[], proyectos:[]});
+  const [input, setInput] = useState('');
+  const [selectedMetaId, setSelectedMetaId] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const bg = '#F5F2EE';
+  const COLORS = {largo:'#5B6BAF', medio:'#8A8EA8', anio:'#9B8878', proyecto:'#8FAF8A'};
+
+  const STEPS = [
+    {type:'terms'},
+    {type:'intro'},
+    {type:'done'},
+  ];
 
   async function finish(){
     setSaving(true);
@@ -1339,218 +1350,336 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
     onComplete([], generalProj);
   }
 
-  const STYLE = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`;
+  function addItem(horizon){
+    if(!input.trim()) return;
+    setData(d=>({...d, [horizon]:[...d[horizon], input.trim()]}));
+    setInput('');
+  }
 
-  const Wrap = ({children, pct=0}) => (
+  function removeItem(horizon, i){
+    setData(d=>({...d, [horizon]:d[horizon].filter((_,j)=>j!==i)}));
+  }
+
+  function addProyecto(){
+    if(!input.trim()) return;
+    const metaTitle = selectedMetaId!==null && data.anio[selectedMetaId] ? data.anio[selectedMetaId] : null;
+    setData(d=>({...d, proyectos:[...d.proyectos, {name:input.trim(), metaId:selectedMetaId, metaTitle}]}));
+    setInput('');
+  }
+
+  function removeProyecto(i){
+    setData(d=>({...d, proyectos:d.proyectos.filter((_,j)=>j!==i)}));
+  }
+
+  const s = STEPS[step];
+  const bg = '#F5F2EE';
+  const pct = step<=1?0:step===STEPS.length-1?100:Math.round(((step-1)/totalSteps)*100);
+
+  // ── TERMS ──
+  if(s.type==='terms') return(
     <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
-      <style>{STYLE}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
         <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
       </div>
-      <div style={{margin:'16px 24px 0',height:2,background:'#EAE6E0',borderRadius:99,overflow:'hidden'}}>
-        <div style={{height:'100%',width:pct+'%',background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .5s cubic-bezier(.34,1,.64,1)'}}/>
+      <div style={{flex:1,padding:'32px 24px 0'}}>
+        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+          <div style={{width:7,height:7,borderRadius:'50%',background:'#9B8878'}}/>
+          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#9B8878'}}>Antes de empezar</span>
+        </div>
+        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Términos de uso</div>
+        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:20}}>Clarity es una herramienta de gestión personal. Al continuar aceptás las siguientes condiciones.</div>
+        <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:20,marginBottom:16,maxHeight:200,overflowY:'auto'}}>
+          {[
+            {title:'Propiedad intelectual', text:'Clarity, su diseño, nombre, sistema de niveles y toda la propiedad intelectual asociada pertenecen exclusivamente a su creador. Está prohibida su reproducción, copia o distribución sin autorización expresa.'},
+            {title:'Tus datos', text:'Tus metas, proyectos y tareas son privados. Nunca los compartiremos con terceros ni los utilizaremos con fines comerciales.'},
+            {title:'Versión Beta', text:'Clarity está en desarrollo activo. Podés encontrar bugs o cambios. Agradecemos tu feedback para mejorar la app.'},
+            {title:'Uso personal', text:'Esta versión beta es de uso personal y no comercial. El acceso puede ser revocado en cualquier momento durante el período beta.'},
+          ].map(({title,text})=>(
+            <div key={title} style={{marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:500,color:'#9B8878',marginBottom:6}}>{title}</div>
+              <div style={{fontSize:12,color:'#B0AA9F',lineHeight:1.7}}>{text}</div>
+            </div>
+          ))}
+        </div>
+        <div onClick={()=>setTermsAccepted(a=>!a)}
+          style={{display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer',padding:16,background:'white',borderRadius:12,border:`1px solid ${termsAccepted?'#9B8878':'#EAE6E0'}`,marginBottom:12,transition:'border-color .2s'}}>
+          <div style={{width:20,height:20,borderRadius:6,border:`1.5px solid ${termsAccepted?'#2C2825':'#C8C3BB'}`,background:termsAccepted?'#2C2825':'transparent',flexShrink:0,marginTop:1,display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}}>
+            {termsAccepted&&<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </div>
+          <span style={{fontSize:13,color:'#2C2825',lineHeight:1.5}}>Leí y acepto los Términos de Uso de Clarity</span>
+        </div>
+        <button onClick={()=>termsAccepted&&setStep(1)} disabled={!termsAccepted}
+          style={{width:'100%',background:termsAccepted?'#2C2825':'#C8C3BB',color:'white',border:'none',borderRadius:12,padding:14,fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:termsAccepted?'pointer':'not-allowed',transition:'all .3s'}}>
+          Continuar →
+        </button>
       </div>
-      {children}
+      <div style={{height:80}}/>
     </div>
   );
 
-  const BtnPrimary = ({label, onClick, disabled}) => (
-    <button onClick={onClick} disabled={disabled}
-      style={{background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'14px 0',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer',width:'100%',opacity:disabled?.5:1}}>
-      {label}
-    </button>
-  );
-
-  const BtnSkip = ({label='Saltar intro', onClick}) => (
-    <button onClick={onClick}
-      style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB',padding:'10px 0',textAlign:'center',width:'100%'}}>
-      {label}
-    </button>
-  );
-
-  // Ilustraciones SVG por pantalla
-  const IluTerms = () => (
-    <svg width="120" height="90" viewBox="0 0 120 90" style={{display:'block',margin:'0 auto'}}>
-      <rect x="25" y="10" width="70" height="58" rx="6" fill="none" stroke="#EAE6E0" strokeWidth="2"/>
-      <line x1="38" y1="28" x2="82" y2="28" stroke="#E5E1DB" strokeWidth="1.5"/>
-      <line x1="38" y1="37" x2="82" y2="37" stroke="#E5E1DB" strokeWidth="1.5"/>
-      <line x1="38" y1="46" x2="68" y2="46" stroke="#E5E1DB" strokeWidth="1.5"/>
-      <circle cx="82" cy="58" r="14" fill="#F5F2EE" stroke="#C4A882" strokeWidth="2"/>
-      <path d="M75 58 L80.5 63.5 L90 53" fill="none" stroke="#C4A882" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  );
-
-  const IluAlivio = () => (
-    <svg width="120" height="90" viewBox="0 0 120 90" style={{display:'block',margin:'0 auto'}}>
-      <ellipse cx="60" cy="38" rx="30" ry="22" fill="none" stroke="#EAE6E0" strokeWidth="2"/>
-      <path d="M42 60 Q60 75 78 60" fill="none" stroke="#EAE6E0" strokeWidth="2"/>
-      <line x1="48" y1="32" x2="72" y2="32" stroke="#E5E1DB" strokeWidth="1.5"/>
-      <line x1="46" y1="40" x2="74" y2="40" stroke="#E5E1DB" strokeWidth="1.5"/>
-      <line x1="50" y1="48" x2="70" y2="48" stroke="#E5E1DB" strokeWidth="1.5"/>
-      <path d="M76 22 L88 10" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
-      <path d="M82 28 L96 24" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
-      <path d="M78 16 L88 8" stroke="#C4A882" strokeWidth="1.2" strokeLinecap="round" opacity=".5"/>
-    </svg>
-  );
-
-  const IluOrden = () => (
-    <svg width="120" height="90" viewBox="0 0 120 90" style={{display:'block',margin:'0 auto'}}>
-      <rect x="10" y="42" width="26" height="34" rx="3" fill="none" stroke="#EAE6E0" strokeWidth="2"/>
-      <rect x="47" y="26" width="26" height="50" rx="3" fill="none" stroke="#C4A882" strokeWidth="2"/>
-      <rect x="84" y="34" width="26" height="42" rx="3" fill="none" stroke="#EAE6E0" strokeWidth="2"/>
-      <line x1="17" y1="52" x2="29" y2="52" stroke="#E5E1DB" strokeWidth="1.2"/>
-      <line x1="17" y1="59" x2="27" y2="59" stroke="#E5E1DB" strokeWidth="1.2"/>
-      <line x1="54" y1="34" x2="66" y2="34" stroke="#C4A882" strokeWidth="1.2" opacity=".7"/>
-      <line x1="54" y1="41" x2="66" y2="41" stroke="#C4A882" strokeWidth="1.2" opacity=".7"/>
-      <line x1="54" y1="48" x2="62" y2="48" stroke="#C4A882" strokeWidth="1.2" opacity=".7"/>
-      <line x1="91" y1="44" x2="103" y2="44" stroke="#E5E1DB" strokeWidth="1.2"/>
-      <line x1="91" y1="51" x2="101" y2="51" stroke="#E5E1DB" strokeWidth="1.2"/>
-    </svg>
-  );
-
-  const IluBosque = () => (
-    <svg width="120" height="90" viewBox="0 0 120 90" style={{display:'block',margin:'0 auto'}}>
-      <circle cx="60" cy="32" r="20" fill="none" stroke="#C4A882" strokeWidth="2"/>
-      <line x1="60" y1="12" x2="60" y2="6" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="80" y1="32" x2="86" y2="32" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="40" y1="32" x2="34" y2="32" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="60" y1="52" x2="60" y2="58" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="54" y1="32" x2="60" y2="24" stroke="#C4A882" strokeWidth="2.5" strokeLinecap="round"/>
-      <line x1="60" y1="24" x2="66" y2="30" stroke="#C4A882" strokeWidth="1.2" strokeLinecap="round" opacity=".4"/>
-      <path d="M15 72 Q30 50 50 62 Q70 74 90 55 Q105 44 110 72" fill="none" stroke="#EAE6E0" strokeWidth="1.5"/>
-    </svg>
-  );
-
-  const IluCerezo = () => (
-    <svg width="120" height="90" viewBox="0 0 120 90" style={{display:'block',margin:'0 auto'}}>
-      <line x1="60" y1="82" x2="60" y2="52" stroke="#C4A882" strokeWidth="3" strokeLinecap="round"/>
-      <line x1="60" y1="68" x2="44" y2="58" stroke="#C4A882" strokeWidth="2" strokeLinecap="round"/>
-      <line x1="60" y1="62" x2="76" y2="52" stroke="#C4A882" strokeWidth="2" strokeLinecap="round"/>
-      <circle cx="60" cy="36" r="20" fill="none" stroke="#EAE6E0" strokeWidth="1.5"/>
-      <circle cx="44" cy="44" r="14" fill="none" stroke="#EAE6E0" strokeWidth="1.5"/>
-      <circle cx="76" cy="42" r="16" fill="none" stroke="#EAE6E0" strokeWidth="1.5"/>
-      <circle cx="52" cy="28" r="6" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
-      <circle cx="68" cy="24" r="5" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
-      <circle cx="76" cy="36" r="5" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
-      <circle cx="44" cy="38" r="5" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
-      <circle cx="62" cy="44" r="4" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
-    </svg>
-  );
-
-  // ── TERMS ──
-  if(step===0) return(
-    <Wrap pct={0}>
-      <div style={{flex:1,padding:'28px 24px 0'}}>
-        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:12}}>
-          <div style={{width:6,height:6,borderRadius:'50%',background:'#9B8878'}}/>
-          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#9B8878'}}>Antes de empezar</span>
-        </div>
-        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:6}}>Un espacio para vos.</div>
-        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6,marginBottom:20}}>Clarity es una herramienta de gestión personal. Al continuar aceptás las siguientes condiciones.</div>
-        <div style={{marginBottom:20}}><IluTerms/></div>
-        <div style={{background:'white',borderRadius:12,border:'1px solid #EAE6E0',padding:16,marginBottom:16,maxHeight:160,overflowY:'auto'}}>
-          <p style={{fontFamily:"'DM Sans'",fontSize:12,color:'#8C877F',lineHeight:1.7,margin:0}}>
-            <strong>1. Datos personales.</strong> Clarity almacena tus tareas, proyectos y metas de forma segura en Supabase. No compartimos tu información con terceros.<br/><br/>
-            <strong>2. Privacidad.</strong> Tu contenido es privado y solo vos tenés acceso, salvo que lo compartás explícitamente.<br/><br/>
-            <strong>3. Uso responsable.</strong> Clarity es una herramienta de apoyo personal. No reemplaza asesoramiento profesional médico, legal o financiero.<br/><br/>
-            <strong>4. Cambios.</strong> Podemos actualizar estos términos. Te avisaremos ante cambios significativos.
-          </p>
-        </div>
-        <BtnPrimary label="Aceptar y continuar" onClick={()=>setStep(1)}/>
+  // ── INTRO ──
+  if(s.type==='intro') return(
+    <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+        <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
       </div>
-    </Wrap>
-  );
-
-  // ── PASO 1: ALIVIO ──
-  if(step===1) return(
-    <Wrap pct={25}>
-      <div style={{flex:1,display:'flex',flexDirection:'column',padding:'28px 24px 0'}}>
-        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:12}}>
-          <div style={{width:6,height:6,borderRadius:'50%',background:'#9B8878'}}/>
-          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#9B8878'}}>01 · Alivio</span>
+      <div style={{flex:1,padding:'32px 24px 0'}}>
+        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+          <div style={{width:7,height:7,borderRadius:'50%',background:'#C4A882'}}/>
+          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#C4A882'}}>Bienvenido</span>
         </div>
-        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Vaciate.</div>
-        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6,marginBottom:28}}>Todo lo que tenés en la cabeza, cargalo en <strong style={{color:'#9B8878',fontWeight:500}}>Tareas</strong>. No lo recordés más — la app lo hace por vos.</div>
-        <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><IluAlivio/></div>
-        <div style={{paddingBottom:32}}>
-          <BtnPrimary label="Siguiente →" onClick={()=>setStep(2)}/>
-          <BtnSkip onClick={()=>setStep(5)}/>
+        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Clarity funciona en capas</div>
+        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:24}}>Todo se conecta. Tus tareas diarias existen para avanzar proyectos, que a su vez existen para lograr metas. Vamos a construir ese árbol juntos.</div>
+        <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:20,marginBottom:24}}>
+          {[
+            {icon:'🎯', color:'#EEF0F8', titleColor:'#5B6BAF', title:'Metas de vida', desc:'Tu visión a largo, mediano y corto plazo'},
+            {icon:'📁', color:'#EEF6EE', titleColor:'#8FAF8A', title:'Proyectos', desc:'Iniciativas concretas que avanzás semana a semana'},
+            {icon:'✓', color:'#F5F1ED', titleColor:'#9B8878', title:'Tareas', desc:'Las acciones concretas de tu día a día'},
+          ].map(({icon,color,titleColor,title,desc},i,arr)=>(
+            <div key={title}>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <div style={{width:32,height:32,borderRadius:8,background:color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>{icon}</div>
+                <div>
+                  <div style={{fontSize:12,fontWeight:500,color:titleColor,marginBottom:1}}>{title}</div>
+                  <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.4}}>{desc}</div>
+                </div>
+              </div>
+              {i<arr.length-1&&(
+                <div style={{display:'flex',alignItems:'center',gap:8,margin:'10px 0',padding:'0 4px'}}>
+                  <div style={{width:32,display:'flex',justifyContent:'center'}}><div style={{width:1,height:14,background:'#EAE6E0'}}/></div>
+                  <div style={{flex:1,display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{flex:1,height:1,background:'#EAE6E0'}}/>
+                    <span style={{fontSize:10,color:'#C8C3BB'}}>{i===0?'impulsan':'se ejecutan en'}</span>
+                    <div style={{flex:1,height:1,background:'#EAE6E0'}}/>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
+        <div style={{fontSize:12,color:'#C8C3BB',textAlign:'center',lineHeight:1.6}}>Cada tarea que completás hace avanzar un proyecto.<br/>Cada proyecto completado acerca una meta.</div>
       </div>
-    </Wrap>
-  );
-
-  // ── PASO 2: ORDEN ──
-  if(step===2) return(
-    <Wrap pct={50}>
-      <div style={{flex:1,display:'flex',flexDirection:'column',padding:'28px 24px 0'}}>
-        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:12}}>
-          <div style={{width:6,height:6,borderRadius:'50%',background:'#9B8878'}}/>
-          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#9B8878'}}>02 · Orden</span>
-        </div>
-        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Agrupá el caos.</div>
-        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6,marginBottom:28}}>Una lista larga agobia. En <strong style={{color:'#9B8878',fontWeight:500}}>Proyectos</strong> agrupás tus tareas para que cada esfuerzo tenga contexto y un porqué.</div>
-        <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><IluOrden/></div>
-        <div style={{paddingBottom:32}}>
-          <BtnPrimary label="Siguiente →" onClick={()=>setStep(3)}/>
-          <BtnSkip onClick={()=>setStep(5)}/>
-        </div>
+      <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'16px 24px 32px',background:'linear-gradient(to top, #F5F2EE 70%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <button onClick={()=>setStep(0)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+        <button onClick={finish} style={{background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>{saving?'Guardando...':'Empezar →'}</button>
       </div>
-    </Wrap>
+      <div style={{height:80}}/>
+    </div>
   );
 
-  // ── PASO 3: QUE EL ÁRBOL NO TE TAPE EL BOSQUE ──
-  if(step===3) return(
-    <Wrap pct={75}>
-      <div style={{flex:1,display:'flex',flexDirection:'column',padding:'28px 24px 0'}}>
-        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:12}}>
-          <div style={{width:6,height:6,borderRadius:'50%',background:'#9B8878'}}/>
-          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#9B8878'}}>03 · Norte</span>
-        </div>
-        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8,lineHeight:1.2}}>Que el árbol no te tape el bosque.</div>
-        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6,marginBottom:28}}>Cuando estés listo, definí tus <strong style={{color:'#9B8878',fontWeight:500}}>Metas</strong>. Conectalas con lo que hacés cada día — para saber que vas por el buen camino.</div>
-        <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><IluBosque/></div>
-        <div style={{paddingBottom:32}}>
-          <BtnPrimary label="Siguiente →" onClick={()=>setStep(4)}/>
-          <BtnSkip onClick={()=>setStep(5)}/>
-        </div>
-      </div>
-    </Wrap>
-  );
-
-  // ── PASO 4: CEREZO ──
-  if(step===4) return(
-    <Wrap pct={100}>
-      <div style={{flex:1,display:'flex',flexDirection:'column',padding:'28px 24px 0'}}>
-        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:12}}>
-          <div style={{width:6,height:6,borderRadius:'50%',background:'#9B8878'}}/>
-          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#9B8878'}}>04 · Progreso</span>
-        </div>
-        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Tu árbol te guía.</div>
-        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6,marginBottom:28}}>A medida que avancés, tu <strong style={{color:'#9B8878',fontWeight:500}}>Cerezo</strong> florecerá. No solo estás tachando tareas — estás cultivando tu futuro.</div>
-        <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><IluCerezo/></div>
-        <div style={{paddingBottom:32}}>
-          {saving
-            ?<div style={{textAlign:'center',fontFamily:"'DM Sans'",fontSize:14,color:'#B0AA9F',padding:'14px 0'}}>Guardando...</div>
-            :<BtnPrimary label="Entrar a Clarity →" onClick={finish}/>
-          }
-        </div>
-      </div>
-    </Wrap>
-  );
-
-  // ── SALTAR INTRO: ir directo ──
-  if(step===5){
-    finish();
+  // ── METAS ──
+  if(s.type==='metas'){
+    const items = data[s.horizon]||[];
+    const selectedSet = new Set(items);
+    const SUGERENCIAS = {
+      largo: {
+        dinero: ["Vivir de mis rentas / Ser financieramente libre","Ser dueño de mi propio negocio o estudio","Tener mi casa propia pagada"],
+        salud:  ["Tener un cuerpo ágil y sano para toda la vida","Vivir con paz mental, sin ansiedad ni estrés","Ser experto en mi hobby — música, deporte, arte"],
+        amor:   ["Formar mi propia familia / Criar a mis hijos","Ayudar siempre a mis viejos","Tener amigos que sean como hermanos"],
+      },
+      medio: {
+        dinero: ["Cambiar de trabajo por uno que me guste más","Aprender una habilidad que me dé más plata","Saldar todas mis deudas y estar tranquilo"],
+        salud:  ["Hacer un viaje largo a ese lugar que siempre soñé","Entrenar seguido y comer mejor para verme bien","Dedicarle al menos 3 horas por semana a lo que me apasiona"],
+        amor:   ["Encontrar una pareja con la que proyectar a futuro","Pasar más tiempo de calidad con mi familia","Mudarnos a un lugar que nos haga felices a todos"],
+      },
+      anio: {
+        dinero: ["Armar mi fondo de emergencia para estar cubierto","Hacer un curso o certificación para mejorar mi perfil","Organizar mis gastos y empezar a ahorrar mes a mes"],
+        salud:  ["Entrenar al menos 3 veces por semana de forma fija","Hacerme todos los chequeos médicos pendientes","Dormir 7-8 horas diarias para rendir mejor"],
+        amor:   ["Organizar una salida semanal con gente que quiero","Llamar o visitar más seguido a mis viejos o abuelos","Hacer un viaje corto con amigos o pareja"],
+      },
+    };
+    const cats = [
+      { key:'dinero', label:'Dinero', emoji:'💰', selColor:'#5B6BAF', selBg:'#F0F1F8', selBorder:'#5B6BAF' },
+      { key:'salud',  label:'Salud',  emoji:'🍎', selColor:'#3B6D11', selBg:'#EAF3DE', selBorder:'#8FAF8A' },
+      { key:'amor',   label:'Amor',   emoji:'❤️', selColor:'#9B4A6A', selBg:'#FBF0F4', selBorder:'#C49A7A' },
+    ];
+    const sugs = SUGERENCIAS[s.horizon] || {};
+    const allSugTexts = Object.values(sugs).flat();
+    function toggleSugerencia(text){
+      if(selectedSet.has(text)) removeItem(s.horizon, items.indexOf(text));
+      else setData(d=>({...d,[s.horizon]:[...d[s.horizon],text]}));
+    }
     return(
-      <div style={{minHeight:'100vh',background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'DM Sans',sans-serif"}}>
-        <style>{STYLE}</style>
-        <div style={{fontSize:14,color:'#B0AA9F'}}>Entrando a Clarity...</div>
+      <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+          <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+          <span style={{fontSize:11,color:'#C8C3BB'}}>{stepNum} de {totalSteps}</span>
+        </div>
+        <div style={{margin:'16px 24px 0',height:2,background:'#EAE6E0',borderRadius:99,overflow:'hidden'}}>
+          <div style={{height:'100%',width:pct+'%',background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .5s cubic-bezier(.34,1,.64,1)'}}/>
+        </div>
+        <div style={{padding:'24px 24px 0'}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:10}}>
+            <div style={{width:7,height:7,borderRadius:'50%',background:s.color}}/>
+            <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:s.color}}>{s.label}</span>
+            <span style={{fontSize:10,color:'#C8C3BB'}}>{s.sub}</span>
+          </div>
+          <div style={{fontSize:24,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:4}}>{s.title}</div>
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6}}>Elegí una o más. No hace falta elegir en todas las categorías.</div>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'14px 24px 0'}}>
+          {cats.map(cat=>(
+            <div key={cat.key} style={{marginBottom:16}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:7}}>
+                <span style={{fontSize:13}}>{cat.emoji}</span>
+                <span style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#B0AA9F'}}>{cat.label}</span>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                {(sugs[cat.key]||[]).map(text=>{
+                  const sel = selectedSet.has(text);
+                  return(
+                    <div key={text} onClick={()=>toggleSugerencia(text)}
+                      style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'9px 13px',borderRadius:11,border:`1px solid ${sel?cat.selBorder:'#EAE6E0'}`,background:sel?cat.selBg:'white',fontSize:13,color:sel?cat.selColor:'#2C2825',cursor:'pointer',lineHeight:1.4,transition:'all .15s',userSelect:'none'}}>
+                      <span style={{flex:1}}>{text}</span>
+                      {sel&&<span style={{fontSize:12,flexShrink:0}}>✓</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <div style={{marginBottom:8}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:7}}>
+              <span style={{fontSize:13}}>✏️</span>
+              <span style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#B0AA9F'}}>Algo tuyo</span>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <input value={input} onChange={e=>setInput(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&addItem(s.horizon)}
+                style={{flex:1,padding:'10px 13px',borderRadius:11,border:'1px solid #E5E1DB',background:'white',fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825',outline:'none'}}
+                placeholder="Escribí una meta propia..."/>
+              <button onClick={()=>addItem(s.horizon)} disabled={!input.trim()}
+                style={{width:42,borderRadius:11,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
+            </div>
+          </div>
+          {items.filter(item=>!allSugTexts.includes(item)).map((item,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 13px',background:'white',borderRadius:11,border:'1px solid #EAE6E0',marginBottom:5}}>
+              <div style={{width:5,height:5,borderRadius:'50%',background:s.color,flexShrink:0}}/>
+              <span style={{flex:1,fontSize:13,color:'#2C2825'}}>{item}</span>
+              <button onClick={()=>removeItem(s.horizon,items.indexOf(item))} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:17,lineHeight:1}}>×</button>
+            </div>
+          ))}
+          <div style={{height:100}}/>
+        </div>
+        <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'14px 24px 32px',background:'linear-gradient(to top, #F5F2EE 75%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <button onClick={()=>setStep(step-1)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+          {items.length>0&&<span style={{fontSize:11,color:'#9B8878',background:'#F5F1ED',padding:'3px 10px',borderRadius:99}}>{items.length} elegida{items.length!==1?'s':''}</span>}
+          <button onClick={()=>setStep(step+1)}
+            style={{background:items.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'12px 24px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
+            {items.length===0?'Saltar →':'Siguiente →'}
+          </button>
+        </div>
       </div>
     );
   }
 
-  return null;
+  // ── PROYECTOS ──
+  if(s.type==='proyectos'){
+    const metasAnio = data.anio||[];
+    return(
+      <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+          <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+          <span style={{fontSize:11,color:'#C8C3BB'}}>{stepNum} de {totalSteps}</span>
+        </div>
+        <div style={{margin:'16px 24px 0',height:2,background:'#EAE6E0',borderRadius:99,overflow:'hidden'}}>
+          <div style={{height:'100%',width:'100%',background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .5s'}}/>
+        </div>
+        <div style={{flex:1,padding:'32px 24px 0'}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+            <div style={{width:7,height:7,borderRadius:'50%',background:s.color}}/>
+            <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:s.color}}>Proyectos</span>
+          </div>
+          <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>{s.title}</div>
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:20}}>
+            {metasAnio.length>0?'Relacioná cada proyecto con la meta de este año que impulsa.':s.q}
+          </div>
+          <div style={{display:'flex',gap:8,marginBottom:14}}>
+            <input value={input} onChange={e=>setInput(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&addProyecto()}
+              style={{flex:1,padding:'13px 16px',borderRadius:12,border:'1px solid #E5E1DB',background:'white',fontFamily:"'DM Sans'",fontSize:14,color:'#2C2825',outline:'none'}}
+              placeholder="Nombre del proyecto..." autoFocus/>
+            <button onClick={addProyecto} disabled={!input.trim()}
+              style={{width:46,borderRadius:12,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
+          </div>
+          {metasAnio.length>0&&(
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,fontWeight:500,letterSpacing:'.1em',textTransform:'uppercase',color:'#B0AA9F',marginBottom:8}}>Relacionar con meta de este año</div>
+              <div style={{background:'white',borderRadius:12,border:'1px solid #EAE6E0',overflow:'hidden'}}>
+                {[{id:null,title:'Sin relacionar'},...metasAnio.map((m,i)=>({id:i,title:m}))].map(({id,title})=>(
+                  <div key={id??'none'} onClick={()=>setSelectedMetaId(id)}
+                    style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:'1px solid #F5F2EE',cursor:'pointer',background:selectedMetaId===id?'#F5F1ED':'transparent',transition:'background .15s'}}>
+                    <div style={{width:16,height:16,borderRadius:'50%',border:`1.5px solid ${selectedMetaId===id?'#9B8878':'#C8C3BB'}`,background:selectedMetaId===id?'#9B8878':'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s',flexShrink:0}}>
+                      {selectedMetaId===id&&<div style={{width:6,height:6,borderRadius:'50%',background:'white'}}/>}
+                    </div>
+                    <span style={{fontSize:13,color:id===null?'#B0AA9F':'#2C2825'}}>{title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {data.proyectos.length>0&&(
+            <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',overflow:'hidden',marginBottom:20}}>
+              {data.proyectos.map((p,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:12,padding:'13px 16px',borderBottom:i<data.proyectos.length-1?'1px solid #F5F2EE':'none'}}>
+                  <div style={{width:6,height:6,borderRadius:'50%',background:s.color,flexShrink:0,marginTop:5}}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:14,color:'#2C2825'}}>{p.name}</div>
+                    {p.metaTitle?<div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>→ {p.metaTitle}</div>:<div style={{fontSize:11,color:'#EAE6E0',marginTop:2}}>Sin meta asignada</div>}
+                  </div>
+                  <button onClick={()=>removeProyecto(i)} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:18,lineHeight:1}}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'16px 24px 32px',background:'linear-gradient(to top, #F5F2EE 70%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <button onClick={()=>setStep(step-1)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+          <button onClick={()=>setStep(step+1)}
+            style={{background:data.proyectos.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
+            {data.proyectos.length===0?'Saltar →':'Empezar →'}
+          </button>
+        </div>
+        <div style={{height:80}}/>
+        <div style={{textAlign:'center',paddingBottom:24}}>
+          <button onClick={()=>onComplete([],[])} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:12,color:'#C8C3BB',textDecoration:'underline',textUnderlineOffset:2}}>
+            Prefiero empezar desde cero
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── DONE ──
+  if(s.type!=='done') return null;
+  const totalMetas = (data.largo||[]).length + (data.medio||[]).length + (data.anio||[]).length;
+  const totalProyectos = (data.proyectos||[]).length;
+  const relacionados = (data.proyectos||[]).filter(p=>p.metaId!==null).length;
+
+  return(
+    <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',fontFamily:"'DM Sans',sans-serif",padding:32,textAlign:'center'}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;}`}</style>
+      <div style={{fontSize:40,marginBottom:20}}>🌱</div>
+      <div style={{fontSize:28,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Tu árbol está listo</div>
+      <div style={{fontSize:14,color:'#B0AA9F',lineHeight:1.7,marginBottom:8,maxWidth:280}}>
+        {totalMetas} meta{totalMetas!==1?'s':''} · {totalProyectos} proyecto{totalProyectos!==1?'s':''}
+        {relacionados>0?` · ${relacionados} relacion${relacionados!==1?'es':''}`:''}.
+      </div>
+      <div style={{fontSize:12,color:'#C8C3BB',lineHeight:1.7,maxWidth:260,marginBottom:32}}>
+        Ahora podés agregar tareas desde la tab Tareas y asignarlas a cada proyecto. Cada tarea completada suma puntos y hace crecer tu cerezo.
+      </div>
+      {saving
+        ?<div style={{fontSize:14,color:'#B0AA9F'}}>Guardando...</div>
+        :<button onClick={finish} style={{background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'14px 36px',fontFamily:"'DM Sans'",fontSize:15,fontWeight:500,cursor:'pointer'}}>
+          Entrar a Clarity →
+        </button>
+      }
+    </div>
+  );
 }
 
 
@@ -3797,7 +3926,136 @@ function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onTog
   );
 }
 
-function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline,desktop}){
+
+// ─── Tour de bienvenida ────────────────────────────────────────────────────────
+function TourApp({onClose}){
+  const [step, setStep] = useState(0);
+  const bg = '#F5F2EE';
+  const STYLE = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;}`;
+
+  const PASOS = [
+    {
+      num: '01', label: 'Tareas',
+      title: 'Empezá por lo urgente.',
+      body: 'Cargá todo lo que tenés pendiente en la tab Tareas. Organizalas en proyectos cuando quieras, o dejálas sueltas.',
+      svg: (
+        <svg width="140" height="100" viewBox="0 0 140 100" fill="none">
+          <rect x="20" y="15" width="100" height="70" rx="8" stroke="#EAE6E0" strokeWidth="2"/>
+          <rect x="32" y="30" width="76" height="12" rx="4" fill="#F5F1ED" stroke="#EAE6E0" strokeWidth="1"/>
+          <circle cx="42" cy="36" r="4" stroke="#C4A882" strokeWidth="1.5"/>
+          <line x1="52" y1="36" x2="98" y2="36" stroke="#D5CFC8" strokeWidth="1.5" strokeLinecap="round"/>
+          <rect x="32" y="48" width="76" height="12" rx="4" fill="#F5F1ED" stroke="#EAE6E0" strokeWidth="1"/>
+          <circle cx="42" cy="54" r="4" stroke="#C4A882" strokeWidth="1.5"/>
+          <line x1="52" y1="54" x2="88" y2="54" stroke="#D5CFC8" strokeWidth="1.5" strokeLinecap="round"/>
+          <rect x="32" y="66" width="76" height="12" rx="4" fill="#EAF0E4" stroke="#C4A882" strokeWidth="1"/>
+          <circle cx="42" cy="72" r="4" fill="#C4A882" stroke="#C4A882" strokeWidth="1.5"/>
+          <path d="M39.5 72 L41.5 74 L44.5 70" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          <line x1="52" y1="72" x2="92" y2="72" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round" opacity=".5"/>
+        </svg>
+      ),
+    },
+    {
+      num: '02', label: 'Proyectos',
+      title: 'Dales contexto.',
+      body: 'Una lista larga agobia. En Proyectos agrupás tus tareas para que cada esfuerzo tenga un propósito claro.',
+      svg: (
+        <svg width="140" height="100" viewBox="0 0 140 100" fill="none">
+          <rect x="10" y="30" width="36" height="52" rx="5" stroke="#EAE6E0" strokeWidth="2"/>
+          <rect x="52" y="15" width="36" height="67" rx="5" stroke="#C4A882" strokeWidth="2"/>
+          <rect x="94" y="24" width="36" height="58" rx="5" stroke="#EAE6E0" strokeWidth="2"/>
+          <line x1="18" y1="42" x2="38" y2="42" stroke="#E5E1DB" strokeWidth="1.2"/>
+          <line x1="18" y1="50" x2="36" y2="50" stroke="#E5E1DB" strokeWidth="1.2"/>
+          <line x1="60" y1="27" x2="80" y2="27" stroke="#C4A882" strokeWidth="1.2" opacity=".7"/>
+          <line x1="60" y1="35" x2="80" y2="35" stroke="#C4A882" strokeWidth="1.2" opacity=".7"/>
+          <line x1="60" y1="43" x2="74" y2="43" stroke="#C4A882" strokeWidth="1.2" opacity=".7"/>
+          <line x1="102" y1="36" x2="122" y2="36" stroke="#E5E1DB" strokeWidth="1.2"/>
+          <line x1="102" y1="44" x2="118" y2="44" stroke="#E5E1DB" strokeWidth="1.2"/>
+        </svg>
+      ),
+    },
+    {
+      num: '03', label: 'Metas',
+      title: 'Que el árbol no te tape el bosque.',
+      body: 'Cuando estés listo, definí tus Metas en la tab Metas y conectalas con tus proyectos. Así sabés que cada tarea suma a algo más grande.',
+      svg: (
+        <svg width="140" height="100" viewBox="0 0 140 100" fill="none">
+          <circle cx="70" cy="38" r="22" stroke="#C4A882" strokeWidth="2"/>
+          <line x1="70" y1="16" x2="70" y2="10" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
+          <line x1="92" y1="38" x2="98" y2="38" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
+          <line x1="48" y1="38" x2="42" y2="38" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
+          <line x1="70" y1="60" x2="70" y2="66" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
+          <line x1="62" y1="38" x2="70" y2="28" stroke="#C4A882" strokeWidth="2.5" strokeLinecap="round"/>
+          <line x1="70" y1="28" x2="78" y2="36" stroke="#C4A882" strokeWidth="1.2" strokeLinecap="round" opacity=".4"/>
+          <path d="M16 82 Q35 60 55 70 Q75 80 95 62 Q110 50 124 82" stroke="#EAE6E0" strokeWidth="1.5" fill="none"/>
+        </svg>
+      ),
+    },
+    {
+      num: '04', label: 'Cerezo',
+      title: 'Tu progreso florece.',
+      body: 'Cada tarea completada suma puntos y hace crecer tu Cerezo. No solo estás siendo productivo — estás cultivando tu futuro.',
+      svg: (
+        <svg width="140" height="100" viewBox="0 0 140 100" fill="none">
+          <line x1="70" y1="90" x2="70" y2="58" stroke="#C4A882" strokeWidth="3" strokeLinecap="round"/>
+          <line x1="70" y1="76" x2="52" y2="64" stroke="#C4A882" strokeWidth="2" strokeLinecap="round"/>
+          <line x1="70" y1="68" x2="88" y2="56" stroke="#C4A882" strokeWidth="2" strokeLinecap="round"/>
+          <circle cx="70" cy="40" r="22" stroke="#EAE6E0" strokeWidth="1.5"/>
+          <circle cx="50" cy="50" r="16" stroke="#EAE6E0" strokeWidth="1.5"/>
+          <circle cx="90" cy="48" r="18" stroke="#EAE6E0" strokeWidth="1.5"/>
+          <circle cx="58" cy="30" r="7" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
+          <circle cx="78" cy="26" r="6" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
+          <circle cx="88" cy="40" r="6" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
+          <circle cx="52" cy="44" r="6" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
+          <circle cx="70" cy="50" r="5" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
+        </svg>
+      ),
+    },
+  ];
+
+  const paso = PASOS[step];
+  const isLast = step === PASOS.length - 1;
+
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(44,40,37,.6)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <style>{STYLE}</style>
+      <div style={{width:'100%',maxWidth:430,background:bg,borderRadius:'20px 20px 0 0',padding:'28px 24px 40px',fontFamily:"'DM Sans',sans-serif"}}>
+
+        {/* Header */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:10,fontWeight:500,letterSpacing:'.1em',textTransform:'uppercase',color:'#C4A882'}}>{paso.num} · {paso.label}</span>
+          </div>
+          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB',padding:0}}>
+            Saltar tour
+          </button>
+        </div>
+
+        {/* Barra de progreso */}
+        <div style={{height:2,background:'#EAE6E0',borderRadius:99,marginBottom:20,overflow:'hidden'}}>
+          <div style={{height:'100%',width:`${((step+1)/PASOS.length)*100}%`,background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .4s cubic-bezier(.34,1,.64,1)'}}/>
+        </div>
+
+        {/* Ilustración */}
+        <div style={{display:'flex',justifyContent:'center',marginBottom:20}}>
+          {paso.svg}
+        </div>
+
+        {/* Texto */}
+        <div style={{fontSize:22,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8,lineHeight:1.2}}>{paso.title}</div>
+        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.7,marginBottom:24}}>{paso.body}</div>
+
+        {/* Botones */}
+        <button onClick={isLast ? onClose : ()=>setStep(s=>s+1)}
+          style={{width:'100%',background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'14px 0',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
+          {isLast ? 'Empezar →' : 'Siguiente →'}
+        </button>
+
+      </div>
+    </div>
+  );
+}
+
+function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline,desktop,showTour,setShowTour}){
 
   const activeSec = SECTIONS.find(s => s.id === section);
   const showAreaPills = subView==="tareas" || subView==="proyectos";
@@ -3986,6 +4244,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
       <CelebrationToast celebrate={celebrate}/>
       <ErrorToast message={opError} onDismiss={()=>setOpError(null)}/>
       {sheets}
+      {showTour&&<TourApp onClose={()=>setShowTour(false)}/>}
     </div>
   );
 
@@ -4013,6 +4272,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
       <CelebrationToast celebrate={celebrate}/>
       <ErrorToast message={opError} onDismiss={()=>setOpError(null)}/>
       {sheets}
+      {showTour&&<TourApp onClose={()=>setShowTour(false)}/>}
     </div>
   );
 }
