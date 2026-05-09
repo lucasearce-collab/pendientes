@@ -2599,14 +2599,12 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[]}){
     <TypeSelector value={type} onChange={setType}/>
     {areaProjects.length>1&&<div style={{marginBottom:14}}>
       <span className="sl">Proyecto</span>
-      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+      <select value={selProjId} onChange={e=>setSelProjId(e.target.value)}
+        className="si" style={{cursor:"pointer"}}>
         {areaProjects.map(p=>(
-          <button key={p.id} onClick={()=>setSelProjId(p.id)}
-            className={`dc${selProjId===p.id?" on":""}`}>
-            {p.name}
-          </button>
+          <option key={p.id} value={p.id}>{p.name}</option>
         ))}
-      </div>
+      </select>
     </div>}
     <div style={{marginBottom:14}}>
       <span className="sl">Responsable (opcional)</span>
