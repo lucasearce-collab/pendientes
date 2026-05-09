@@ -3481,12 +3481,12 @@ function SemanaView({tasks, projects, onToggle, onOpen, onUpdate, desktop}){
         </div>
         <div style={{display:"flex",alignItems:"center",gap:0}}>
           <button onClick={()=>setViewMode("semana")}
-            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:10,letterSpacing:".04em",color:viewMode==="semana"?"#2C2825":"#C8C3BB",fontWeight:viewMode==="semana"?500:400,padding:"2px 0"}}>
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:viewMode==="semana"?"#2C2825":"#C8C3BB",fontWeight:viewMode==="semana"?500:400,padding:"10px 4px",minHeight:44}}>
             semana
           </button>
-          <span style={{fontSize:10,color:"#D5CFC8",padding:"0 5px"}}>·</span>
+          <span style={{fontSize:13,color:"#D5CFC8",padding:"0 6px"}}>·</span>
           <button onClick={()=>setViewMode("dia")}
-            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:10,letterSpacing:".04em",color:viewMode==="dia"?"#2C2825":"#C8C3BB",fontWeight:viewMode==="dia"?500:400,padding:"2px 0"}}>
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:viewMode==="dia"?"#2C2825":"#C8C3BB",fontWeight:viewMode==="dia"?500:400,padding:"10px 4px",minHeight:44}}>
             día
           </button>
         </div>
@@ -3647,22 +3647,22 @@ function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onTog
 
   return(
     <div style={desktop?{padding:"24px 48px"}:{}}>
-      {/* Toggle + botón + tarea */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:desktop?'0 0 16px':'10px 20px 8px'}}>
+      {/* Toggle todas/por proyecto + botón + tarea — mismo estilo que semana/día */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:desktop?'0 0 14px':'8px 20px 6px'}}>
         <div style={{display:'flex',alignItems:'center',gap:0}}>
           <button onClick={()=>switchModo('todas')}
-            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,letterSpacing:'.06em',color:modo==='todas'?'#2C2825':'#C8C3BB',padding:'4px 0',borderBottom:`2px solid ${modo==='todas'?'#2C2825':'transparent'}`,transition:'all .2s'}}>
-            Todas
+            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:modo==='todas'?'#2C2825':'#C8C3BB',fontWeight:modo==='todas'?500:400,padding:'10px 4px',minHeight:44}}>
+            todas
           </button>
-          <span style={{fontSize:11,color:'#D5CFC8',padding:'0 10px'}}>·</span>
+          <span style={{fontSize:13,color:'#D5CFC8',padding:'0 6px'}}>·</span>
           <button onClick={()=>switchModo('proyectos')}
-            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,letterSpacing:'.06em',color:modo==='proyectos'?'#2C2825':'#C8C3BB',padding:'4px 0',borderBottom:`2px solid ${modo==='proyectos'?'#2C2825':'transparent'}`,transition:'all .2s'}}>
-            Por proyecto
+            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:modo==='proyectos'?'#2C2825':'#C8C3BB',fontWeight:modo==='proyectos'?500:400,padding:'10px 4px',minHeight:44}}>
+            por proyecto
           </button>
         </div>
         <button onClick={addTareaRapida}
-          style={{background:'#2C2825',color:'white',border:'none',borderRadius:99,padding:'5px 14px',fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,cursor:'pointer',display:'flex',alignItems:'center',gap:5}}>
-          <span style={{fontSize:16,lineHeight:1}}>+</span> tarea
+          style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:12,color:'#9B8878',padding:0,display:'flex',alignItems:'center',gap:4}}>
+          <span style={{fontSize:18,lineHeight:1,color:'#9B8878'}}>+</span> tarea
         </button>
       </div>
 
@@ -3716,28 +3716,34 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
 
   // ── Sub-nav + contenido (compartido mobile/desktop) ──
   const SubNav = () => activeSec && activeSec.subTabs.length > 1 ? (
-    <div style={{display:"flex",gap:desktop?24:20,borderBottom:"1px solid #EAE6E0",padding:desktop?"0 48px":"0 20px",flexShrink:0}}>
-      {activeSec.subTabs.map(tab=>(
-        <button key={tab.id} onClick={()=>setSubView(tab.id)}
-          style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:subView===tab.id?"#2C2825":"#B0AA9F",paddingBottom:10,borderBottom:`2px solid ${subView===tab.id?"#2C2825":"transparent"}`,transition:"all .2s",whiteSpace:"nowrap"}}>
-          {tab.label}
-        </button>
-      ))}
-    </div>
-  ) : null;
-
-  const AreaPills = () => showAreaPills ? (
-    <div style={{padding:desktop?"10px 48px 0":"10px 20px 0"}}>
-      <div style={{display:"inline-flex",background:"#EAE6E0",borderRadius:99,padding:2}}>
-        {Object.entries(AREAS).map(([k,a])=>(
-          <button key={k} onClick={()=>{setActiveArea(k);setActiveProjId(null);}}
-            style={{padding:desktop?"4px 16px":"4px 14px",borderRadius:99,border:"none",cursor:"pointer",background:activeArea===k?"white":"transparent",color:activeArea===k?"#2C2825":"#9B948C",fontFamily:"'DM Sans'",fontSize:desktop?12:11,fontWeight:activeArea===k?500:400,transition:"all .2s",whiteSpace:"nowrap",boxShadow:activeArea===k?"0 1px 4px rgba(0,0,0,.08)":"none"}}>
-            {a.label}
+    <div style={{display:"flex",alignItems:"center",borderBottom:"1px solid #EAE6E0",padding:desktop?"0 48px":"0 20px",flexShrink:0}}>
+      <div style={{display:"flex",gap:desktop?24:20,flex:1}}>
+        {activeSec.subTabs.map(tab=>(
+          <button key={tab.id} onClick={()=>setSubView(tab.id)}
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:subView===tab.id?"#2C2825":"#B0AA9F",paddingBottom:10,borderBottom:`2px solid ${subView===tab.id?"#2C2825":"transparent"}`,transition:"all .2s",whiteSpace:"nowrap"}}>
+            {tab.label}
           </button>
         ))}
       </div>
+      {showAreaPills&&<div style={{paddingBottom:10}}><AreaToggle/></div>}
     </div>
   ) : null;
+
+  // Toggle área — mismo estilo que semana/día, va dentro del SubNav
+  const AreaToggle = () => showAreaPills ? (
+    <div style={{display:"flex",alignItems:"center",gap:0,marginLeft:"auto",flexShrink:0}}>
+      <button onClick={()=>{setActiveArea("trabajo");setActiveProjId(null);}}
+        style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:activeArea==="trabajo"?"#2C2825":"#C8C3BB",fontWeight:activeArea==="trabajo"?500:400,padding:"10px 4px",minHeight:44}}>
+        trabajo
+      </button>
+      <span style={{fontSize:13,color:"#D5CFC8",padding:"0 6px"}}>·</span>
+      <button onClick={()=>{setActiveArea("personal");setActiveProjId(null);}}
+        style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:activeArea==="personal"?"#2C2825":"#C8C3BB",fontWeight:activeArea==="personal"?500:400,padding:"10px 4px",minHeight:44}}>
+        personal
+      </button>
+    </div>
+  ) : null;
+  const AreaPills = AreaToggle; // alias por compatibilidad
 
   const TopBar = () => (
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:desktop?"20px 48px 16px":"52px 20px 14px",flexShrink:0}}>
@@ -3858,7 +3864,6 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <TopBar/>
         <SubNav/>
-        <AreaPills/>
         <Content/>
         <div style={{textAlign:"center",padding:"0 0 20px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8",userSelect:"none",flexShrink:0}}>
           Clarity
@@ -3876,7 +3881,6 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
       <AppStyles/>
       <TopBar/>
       <SubNav/>
-      <AreaPills/>
       <Content/>
       {/* Bottom Nav */}
       <nav className="bottom-nav">
