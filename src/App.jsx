@@ -1465,9 +1465,83 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
   // ── METAS ──
   if(s.type==='metas'){
     const items = data[s.horizon]||[];
+    const selectedSet = new Set(items);
+
+    const SUGERENCIAS = {
+      largo: {
+        dinero: [
+          "Vivir de mis rentas / Ser financieramente libre",
+          "Ser dueño de mi propio negocio o estudio",
+          "Tener mi casa propia pagada",
+        ],
+        salud: [
+          "Tener un cuerpo ágil y sano para toda la vida",
+          "Vivir con paz mental, sin ansiedad ni estrés",
+          "Ser experto en mi hobby — música, deporte, arte",
+        ],
+        amor: [
+          "Formar mi propia familia / Criar a mis hijos",
+          "Ayudar siempre a mis viejos",
+          "Tener amigos que sean como hermanos",
+        ],
+      },
+      medio: {
+        dinero: [
+          "Cambiar de trabajo por uno que me guste más",
+          "Aprender una habilidad que me dé más plata",
+          "Saldar todas mis deudas y estar tranquilo",
+        ],
+        salud: [
+          "Hacer un viaje largo a ese lugar que siempre soñé",
+          "Entrenar seguido y comer mejor para verme bien",
+          "Dedicarle al menos 3 horas por semana a lo que me apasiona",
+        ],
+        amor: [
+          "Encontrar una pareja con la que proyectar a futuro",
+          "Pasar más tiempo de calidad con mi familia",
+          "Mudarnos a un lugar que nos haga felices a todos",
+        ],
+      },
+      anio: {
+        dinero: [
+          "Armar mi fondo de emergencia para estar cubierto",
+          "Hacer un curso o certificación para mejorar mi perfil",
+          "Organizar mis gastos y empezar a ahorrar mes a mes",
+        ],
+        salud: [
+          "Entrenar al menos 3 veces por semana de forma fija",
+          "Hacerme todos los chequeos médicos pendientes",
+          "Dormir 7-8 horas diarias para rendir mejor",
+        ],
+        amor: [
+          "Organizar una salida semanal con gente que quiero",
+          "Llamar o visitar más seguido a mis viejos o abuelos",
+          "Hacer un viaje corto con amigos o pareja",
+        ],
+      },
+    };
+
+    const cats = [
+      { key:'dinero', label:'Dinero', emoji:'💰', selColor:'#5B6BAF', selBg:'#F0F1F8', selBorder:'#5B6BAF' },
+      { key:'salud',  label:'Salud',  emoji:'🍎', selColor:'#3B6D11', selBg:'#EAF3DE', selBorder:'#8FAF8A' },
+      { key:'amor',   label:'Amor',   emoji:'❤️', selColor:'#9B4A6A', selBg:'#FBF0F4', selBorder:'#C49A7A' },
+    ];
+
+    const sugs = SUGERENCIAS[s.horizon] || {};
+    const allSugTexts = Object.values(sugs).flat();
+
+    function toggleSugerencia(text){
+      if(selectedSet.has(text)){
+        removeItem(s.horizon, items.indexOf(text));
+      } else {
+        setData(d=>({...d,[s.horizon]:[...d[s.horizon],text]}));
+      }
+    }
+
     return(
       <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
           <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
           <span style={{fontSize:11,color:'#C8C3BB'}}>{stepNum} de {totalSteps}</span>
@@ -1475,42 +1549,87 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
         <div style={{margin:'16px 24px 0',height:2,background:'#EAE6E0',borderRadius:99,overflow:'hidden'}}>
           <div style={{height:'100%',width:pct+'%',background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .5s cubic-bezier(.34,1,.64,1)'}}/>
         </div>
-        <div style={{flex:1,padding:'32px 24px 0'}}>
-          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+
+        <div style={{padding:'24px 24px 0'}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:10}}>
             <div style={{width:7,height:7,borderRadius:'50%',background:s.color}}/>
             <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:s.color}}>{s.label}</span>
             <span style={{fontSize:10,color:'#C8C3BB'}}>{s.sub}</span>
           </div>
-          <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>{s.title}</div>
-          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:24}}>{s.q}</div>
-          <div style={{display:'flex',gap:8,marginBottom:14}}>
-            <input value={input} onChange={e=>setInput(e.target.value)}
-              onKeyDown={e=>e.key==='Enter'&&addItem(s.horizon)}
-              style={{flex:1,padding:'13px 16px',borderRadius:12,border:'1px solid #E5E1DB',background:'white',fontFamily:"'DM Sans'",fontSize:14,color:'#2C2825',outline:'none'}}
-              placeholder="Escribí una meta..." autoFocus/>
-            <button onClick={()=>addItem(s.horizon)} disabled={!input.trim()}
-              style={{width:46,borderRadius:12,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
-          </div>
-          {items.length>0&&(
-            <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',overflow:'hidden',marginBottom:20}}>
-              {items.map((item,i)=>(
-                <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'13px 16px',borderBottom:i<items.length-1?'1px solid #F5F2EE':'none'}}>
-                  <div style={{width:6,height:6,borderRadius:'50%',background:s.color,flexShrink:0}}/>
-                  <span style={{flex:1,fontSize:14,color:'#2C2825'}}>{item}</span>
-                  <button onClick={()=>removeItem(s.horizon,i)} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:18,lineHeight:1}}>×</button>
-                </div>
-              ))}
-            </div>
-          )}
+          <div style={{fontSize:24,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:6}}>{s.title}</div>
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6}}>Elegí lo que resuena. Podés modificarlos después.</div>
         </div>
-        <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'16px 24px 32px',background:'linear-gradient(to top, #F5F2EE 70%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+
+        <div style={{flex:1,overflowY:'auto',padding:'16px 24px 0'}}>
+
+          {cats.map(cat=>(
+            <div key={cat.key} style={{marginBottom:18}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+                <span style={{fontSize:14}}>{cat.emoji}</span>
+                <span style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#B0AA9F'}}>{cat.label}</span>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {(sugs[cat.key]||[]).map(text=>{
+                  const sel = selectedSet.has(text);
+                  return(
+                    <div key={text} onClick={()=>toggleSugerencia(text)}
+                      style={{
+                        display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,
+                        padding:'10px 14px',borderRadius:12,
+                        border:`1px solid ${sel?cat.selBorder:'#EAE6E0'}`,
+                        background:sel?cat.selBg:'white',
+                        fontSize:13,color:sel?cat.selColor:'#2C2825',
+                        cursor:'pointer',lineHeight:1.4,transition:'all .15s',userSelect:'none',
+                      }}>
+                      <span style={{flex:1}}>{text}</span>
+                      {sel&&<span style={{fontSize:13,flexShrink:0}}>✓</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          {/* Campo libre */}
+          <div style={{marginBottom:10}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+              <span style={{fontSize:14}}>✏️</span>
+              <span style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#B0AA9F'}}>Algo tuyo</span>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <input value={input} onChange={e=>setInput(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&addItem(s.horizon)}
+                style={{flex:1,padding:'11px 14px',borderRadius:12,border:'1px solid #E5E1DB',background:'white',fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825',outline:'none'}}
+                placeholder="Escribí una meta propia..."/>
+              <button onClick={()=>addItem(s.horizon)} disabled={!input.trim()}
+                style={{width:44,borderRadius:12,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
+            </div>
+          </div>
+
+          {/* Metas propias (no sugerencias) */}
+          {items.filter(item=>!allSugTexts.includes(item)).map((item,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'white',borderRadius:12,border:'1px solid #EAE6E0',marginBottom:6}}>
+              <div style={{width:6,height:6,borderRadius:'50%',background:s.color,flexShrink:0}}/>
+              <span style={{flex:1,fontSize:13,color:'#2C2825'}}>{item}</span>
+              <button onClick={()=>removeItem(s.horizon,items.indexOf(item))} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:18,lineHeight:1}}>×</button>
+            </div>
+          ))}
+
+          <div style={{height:100}}/>
+        </div>
+
+        <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'14px 24px 32px',background:'linear-gradient(to top, #F5F2EE 75%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <button onClick={()=>setStep(step-1)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+          {items.length>0&&(
+            <span style={{fontSize:11,color:'#9B8878',background:'#F5F1ED',padding:'3px 10px',borderRadius:99}}>
+              {items.length} elegida{items.length!==1?'s':''}
+            </span>
+          )}
           <button onClick={()=>setStep(step+1)}
-            style={{background:items.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
+            style={{background:items.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'12px 24px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
             {items.length===0?'Saltar →':'Siguiente →'}
           </button>
         </div>
-        <div style={{height:80}}/>
       </div>
     );
   }
