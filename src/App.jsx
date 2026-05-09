@@ -2553,7 +2553,6 @@ function TypeSelector({value,onChange}){
 function EditSheet({task,projects,onSave,onDelete,isDesktop}){
   const [form,setForm]=useState({...task,type:task.type||"normal"});
   const proj=projects.find(p=>p.id===task.projectId);
-  const isWork=proj?.area==="trabajo";
   const cls=isDesktop?"d-modal":"sheet";
   return(<div className={cls}>
     {!isDesktop&&<div className="hd"/>}
@@ -2565,7 +2564,7 @@ function EditSheet({task,projects,onSave,onDelete,isDesktop}){
       <span className="sl">Responsable (opcional)</span>
       <input className="si" value={form.responsable||""} onChange={e=>setForm(f=>({...f,responsable:e.target.value}))} placeholder="Nombre de quien lo ejecuta..."/>
     </div>
-    {isWork&&<div style={{marginBottom:12}}>
+    <div style={{marginBottom:12}}>
       <span className="sl">Fecha (opcional)</span>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {[{l:"Hoy",v:todayStr()},{l:"Mañana",v:tomorrow()}].map(q=>(
@@ -2587,7 +2586,6 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop}){
   const [type,setType]=useState("normal");
   const [date,setDate]=useState("");
   const [responsable,setResponsable]=useState("");
-  const isWork=area==="trabajo";
   const cls=isDesktop?"d-modal":"sheet";
   function go(){if(!title.trim())return;onAdd({projectId,title:title.trim(),type,date,responsable});}
   return(<div className={cls}>
@@ -2600,7 +2598,7 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop}){
       <span className="sl">Responsable (opcional)</span>
       <input className="si" value={responsable} onChange={e=>setResponsable(e.target.value)} placeholder="Nombre de quien lo ejecuta..."/>
     </div>
-    {isWork&&<div style={{marginBottom:14}}>
+    <div style={{marginBottom:14}}>
       <span className="sl">Fecha (opcional)</span>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {[{l:"Hoy",v:todayStr()},{l:"Mañana",v:tomorrow()}].map(q=>(
