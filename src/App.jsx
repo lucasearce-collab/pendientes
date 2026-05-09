@@ -2589,9 +2589,11 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[]}){
   const [date,setDate]=useState("");
   const [responsable,setResponsable]=useState("");
   const [selProjId,setSelProjId]=useState(projectId);
+  const [projOpen,setProjOpen]=useState(false);
   const cls=isDesktop?"d-modal":"sheet";
   // Proyectos del área para el selector
   const areaProjects = projects.filter(p=>p.area===area);
+  const selProj = areaProjects.find(p=>p.id===selProjId);
   function go(){if(!title.trim())return;onAdd({projectId:selProjId,title:title.trim(),type,date,responsable});}
   return(<div className={cls}>
     {!isDesktop&&<div className="hd"/>}
@@ -2599,17 +2601,24 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[]}){
     <input className="si" value={title} onChange={e=>setTitle(e.target.value)} autoFocus
       placeholder="¿Qué hay que hacer?" onKeyDown={e=>e.key==="Enter"&&go()} style={{marginBottom:16}}/>
     <TypeSelector value={type} onChange={setType}/>
-    {areaProjects.length>1&&<div style={{marginBottom:14}}>
+    {areaProjects.length>1&&<div style={{marginBottom:14,position:"relative"}}>
       <span className="sl">Proyecto</span>
-      <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:160,overflowY:"auto",background:"white",borderRadius:10,border:"1px solid #E5E1DB"}}>
+      {/* Valor seleccionado — toco para desplegar */}
+      <div onClick={()=>setProjOpen(o=>!o)}
+        style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"white",borderRadius:10,border:"1px solid #E5E1DB",cursor:"pointer"}}>
+        <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#2C2825"}}>{selProj?.name||"General"}</span>
+        <span style={{fontSize:11,color:"#C8C3BB",transition:"transform .2s",display:"inline-block",transform:projOpen?"rotate(180deg)":"rotate(0)"}}>▾</span>
+      </div>
+      {/* Lista desplegable */}
+      {projOpen&&<div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:20,background:"white",borderRadius:10,border:"1px solid #E5E1DB",boxShadow:"0 4px 16px rgba(0,0,0,.08)",overflow:"hidden",marginTop:4}}>
         {areaProjects.map((p,i)=>(
-          <div key={p.id} onClick={()=>setSelProjId(p.id)}
-            style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",cursor:"pointer",borderBottom:i<areaProjects.length-1?"1px solid #F5F2EE":"none",background:selProjId===p.id?"#F5F1ED":"transparent",transition:"background .15s"}}>
+          <div key={p.id} onClick={()=>{setSelProjId(p.id);setProjOpen(false);}}
+            style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 14px",cursor:"pointer",borderBottom:i<areaProjects.length-1?"1px solid #F5F2EE":"none",background:selProjId===p.id?"#F5F1ED":"white",transition:"background .15s"}}>
             <span style={{fontFamily:"'DM Sans'",fontSize:13,color:selProjId===p.id?"#9B8878":"#2C2825"}}>{p.name}</span>
             {selProjId===p.id&&<span style={{fontSize:12,color:"#9B8878"}}>✓</span>}
           </div>
         ))}
-      </div>
+      </div>}
     </div>}
     <div style={{marginBottom:14}}>
       <span className="sl">Responsable (opcional)</span>
