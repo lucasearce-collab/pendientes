@@ -1422,7 +1422,6 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
       <div style={{height:80}}/>
     </div>
     </div>
-    </div>
   );
 
   // ── INTRO ──
@@ -1474,7 +1473,6 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
         <button onClick={finish} style={{background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>{saving?'Guardando...':'Empezar →'}</button>
       </div>
       <div style={{height:80}}/>
-    </div>
     </div>
     </div>
   );
