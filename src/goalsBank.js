@@ -1,494 +1,497 @@
+// goalsBank.js - Clarity "Pure Vision" Edition
+// Estructura limpia: Arquetipo -> Sub-Arquetipo -> Horizonte -> Categoría -> [Metas]
+
 export const BANCO_METAS = {
-    impacto: {
-        corporativo: {
-            title: "Carrera Corporativa",
-            corto: {
-                Dinero: [
-                    {t: "Visibilidad Estratégica", d: "Asumir un proyecto de alta visibilidad que justifique un ascenso en el próximo ciclo de revisión."},
-                    {t: "Negociación Salarial", d: "Negociar una mejora salarial o un bono por desempeño atado a objetivos concretos."},
-                    {t: "Ahorro Automático", d: "Establecer un sistema automático de retención del 20% de mis ingresos mensuales."}
-                ],
-                Salud: [
-                    {t: "Base de Fuerza", d: "Consolidar una rutina de ejercicio de fuerza 3 veces por semana antes de la oficina."},
-                    {t: "Corte Digital", d: "Establecer un límite estricto de desconexión a las 19:30 hs para mejorar mi descanso."},
-                    {t: "Nutrición Sin Fatiga", d: "Reemplazar almuerzos pesados por opciones ligeras que eviten la fatiga vespertina."}
-                ],
-                Amor: [
-                    {t: "Cena Exclusiva", d: "Agendar una cena semanal dedicada exclusivamente a mi pareja, sin menciones laborales."},
-                    {t: "Alianzas Internas", d: "Iniciar reuniones uno a uno con colegas clave para fortalecer mi red de contactos internos."},
-                    {t: "Rescate de Mentores", d: "Retomar el contacto con ex-jefes para mantener vivas las relaciones profesionales."}
-                ]
-            },
-            medio: {
-                Dinero: [
-                    {t: "Silla Directiva", d: "Alcanzar una posición de dirección o gerencia senior con equipo a cargo."},
-                    {t: "Fondo de Respaldo", d: "Formar un fondo de inversión personal equivalente a un año de mis gastos fijos."},
-                    {t: "Primer Activo", d: "Adquirir una propiedad o activo que comience a generar rentabilidad pasiva."}
-                ],
-                Salud: [
-                    {t: "Desafío de Disciplina", d: "Completar un desafío físico estructurado (media maratón, torneo amateur)."},
-                    {t: "Terapia Ejecutiva", d: "Mantener un espacio de terapia regular para gestionar la presión directiva."},
-                    {t: "Higiene en Ruta", d: "Optimizar mi rutina de sueño para asegurar un descanso reparador durante viajes de negocios."}
-                ],
-                Amor: [
-                    {t: "Mentoría Activa", d: "Convertirme en mentor formal de profesionales jóvenes dentro de mi organización."},
-                    {t: "Desconexión Familiar", d: "Organizar un viaje internacional de desconexión total de al menos tres semanas con mi familia."},
-                    {t: "Board Personal", d: "Establecer un 'personal board of directors' con colegas de confianza para debatir decisiones."}
-                ]
-            },
-            largo: {
-                Dinero: [
-                    {t: "Elección Estratégica", d: "Lograr la independencia financiera para que mi trabajo sea una elección y no una necesidad."},
-                    {t: "Silla de Board Externo", d: "Ocupar un asiento en el directorio de una empresa del sector o de una ONG."},
-                    {t: "Ingresos Cruzados", d: "Estructurar mis inversiones para que los rendimientos cubran mis gastos operativos mensuales."}
-                ],
-                Salud: [
-                    {t: "Biomarcadores de Élite", d: "Mantener métricas de salud preventiva excelentes pasados los 50 años."},
-                    {t: "Antifragilidad al Burnout", d: "Conservar la energía necesaria para afrontar semanas de alta exigencia sin quemarme."},
-                    {t: "Hábitos de Longevidad", d: "Incorporar rutinas que protejan mi desgaste cognitivo y físico a largo plazo."}
-                ],
-                Amor: [
-                    {t: "Desarrollo Generacional", d: "Ser el pilar financiero que facilite la educación de la próxima generación familiar."},
-                    {t: "Red Trascendente", d: "Cultivar una red de relaciones profunda que trascienda mi rol actual en la industria."},
-                    {t: "Flexibilidad Total", d: "Disponer de agenda libre para acompañar los hitos vitales de mis seres queridos."}
-                ]
-            }
-        },
-        freelancer: {
-            title: "Freelancer Profesional",
-            corto: {
-                Dinero: [
-                    {t: "Subida de Tarifas", d: "Aumentar mis honorarios un 20% para reflejar mi experiencia real en el mercado."},
-                    {t: "Suelo de Ingresos", d: "Asegurar al menos tres clientes recurrentes que cubran mi piso de gastos mensuales."},
-                    {t: "Contabilidad Separada", d: "Dividir formalmente las finanzas personales de las del negocio con cuentas distintas."}
-                ],
-                Salud: [
-                    {t: "Almuerzo Protegido", d: "Respetar un horario fijo para comer, alejándome por completo de la computadora."},
-                    {t: "Descanso Nocturno", d: "Dormir al menos 7.5 horas cada noche, erradicando el mal hábito de trabajar de madrugada."},
-                    {t: "Pausas de Movilidad", d: "Implementar micropausas activas cada 90 minutos para evitar dolores cervicales."}
-                ],
-                Amor: [
-                    {t: "Fin de Semana Limpio", d: "Dejar los fines de semana libres de entregas, revisiones o correos de clientes."},
-                    {t: "Comunidad de Pares", d: "Unirme a un espacio de coworking físico o virtual para compartir experiencias."},
-                    {t: "Tarde Sagrada", d: "Reservar una tarde a la semana exclusiva para ocio con mi círculo íntimo."}
-                ]
-            },
-            medio: {
-                Dinero: [
-                    {t: "Producto Paquetizado", d: "Desarrollar un servicio o producto que se venda independientemente de mis horas facturables."},
-                    {t: "Autoridad de Nicho", d: "Posicionarme como un referente de mi especialidad a través de publicaciones o charlas."},
-                    {t: "Fondo Anticaídas", d: "Construir un colchón financiero que cubra seis meses enteros de inactividad profesional."}
-                ],
-                Salud: [
-                    {t: "Seguro de Tranquilidad", d: "Contratar un seguro médico completo y de alto nivel para mi cobertura personal."},
-                    {t: "Deporte Innegociable", d: "Fijar el entrenamiento físico como una cita obligatoria en mi calendario laboral."},
-                    {t: "Chequeos Preventivos", d: "Realizarme una auditoría médica completa cada doce meses sin postergaciones."}
-                ],
-                Amor: [
-                    {t: "Vacaciones Reales", d: "Tomarme tres semanas seguidas al año sin que mi economía colapse por mi desconexión."},
-                    {t: "Alianzas Estratégicas", d: "Construir una red con otros 3 freelancers para derivarnos trabajo cruzado."},
-                    {t: "Burbuja No Laboral", d: "Ampliar mi círculo social con amistades que no tengan nada que ver con mi profesión."}
-                ]
-            },
-            largo: {
-                Dinero: [
-                    {t: "Marca Selectiva", d: "Consolidar una reputación que me permita elegir a mis clientes y rechazar los problemáticos."},
-                    {t: "Diversificación de Riqueza", d: "Tener inversiones que representen el 50% de mis ingresos mensuales totales."},
-                    {t: "Libertad de Coordenadas", d: "Operar mi negocio desde distintos países durante varios meses al año con total normalidad."}
-                ],
-                Salud: [
-                    {t: "Postura Intacta", d: "Llegar a la madurez con un cuerpo ágil, contrarrestando el daño del trabajo de escritorio."},
-                    {t: "Resiliencia de Mercado", d: "Desarrollar una mentalidad estoica para lidiar con los vaivenes de clientes sin ansiedad."},
-                    {t: "Movimiento Integrado", d: "Lograr que el deporte no sea una obligación, sino una parte fundamental de mi identidad."}
-                ],
-                Amor: [
-                    {t: "Familia sin Horarios", d: "Formar un proyecto de familia sabiendo que puedo acomodar mis tiempos para estar presente."},
-                    {t: "Pro Bono Estratégico", d: "Dedicar un porcentaje de mis horas a asesorar causas sociales o talento joven gratis."},
-                    {t: "Red Internacional", d: "Mantener relaciones duraderas y significativas en diversas partes del mundo."}
-                ]
-            }
-        },
-        founder: {
-            title: "Founder (Startups/Agencias)",
-            corto: {
-                Dinero: [
-                    {t: "Delegación Operativa", d: "Contratar o promover un mando clave para soltar la gestión del día a día del negocio."},
-                    {t: "Optimización de Margen", d: "Mejorar la rentabilidad de mi producto principal en un 10% mediante eficiencia."},
-                    {t: "Runway de Seguridad", d: "Asegurar un fondo de contingencia que cubra al menos tres nóminas completas del equipo."}
-                ],
-                Salud: [
-                    {t: "Escape del Bucle", d: "Bloquear al menos dos tardes por semana para hacer ejercicio fuera de la oficina."},
-                    {t: "Menos Cortisol", d: "Reducir radicalmente la cafeína y mejorar la higiene del sueño para frenar la ansiedad."},
-                    {t: "Soporte Psicológico", d: "Iniciar sesiones de coaching ejecutivo o terapia para gestionar la presión extrema del rol."}
-                ],
-                Amor: [
-                    {t: "Cena sin Empresa", d: "Lograr que mis temas de conversación con la familia no giren solo sobre la startup."},
-                    {t: "Reconexión Social", d: "Retomar una actividad lúdica los fines de semana con amigos alejados del ecosistema."},
-                    {t: "Límites de Urgencia", d: "Establecer reglas claras para que el equipo no me contacte en domingo salvo emergencia vital."}
-                ]
-            },
-            medio: {
-                Dinero: [
-                    {t: "Hito de Expansión", d: "Levantar una ronda de inversión institucional o abrir operaciones en un mercado extranjero."},
-                    {t: "Máquina Sistematizada", d: "Sistematizar los procesos clave para que la empresa escale sin depender de mis microdecisiones."},
-                    {t: "Patrimonio Blindado", d: "Comenzar a retirar utilidades periódicas o vender acciones secundarias para mi seguridad personal."}
-                ],
-                Salud: [
-                    {t: "Liderazgo en Calma", d: "Mejorar mis marcadores de estrés adoptando un rol estratégico menos reactivo."},
-                    {t: "Prueba de Ausencia", d: "Tomarme dos semanas completas de vacaciones con la certeza de que mi equipo liderará con éxito."},
-                    {t: "Energía de Crecimiento", d: "Cultivar un nivel de estado físico que me brinde la resistencia para la fase de mayor expansión."}
-                ],
-                Amor: [
-                    {t: "Deuda Emocional", d: "Devolverle tiempo sostenido a mi familia para compensar los sacrificios de los primeros años."},
-                    {t: "Círculo de Confianza", d: "Construir una relación de lealtad absoluta y desarrollo mutuo con mi equipo directivo."},
-                    {t: "Comunidad de Pares", d: "Integrarme a un grupo cerrado de founders para compartir cicatrices y sentirme comprendido."}
-                ]
-            },
-            largo: {
-                Dinero: [
-                    {t: "El Exit o la Sucesión", d: "Preparar la empresa para una venta (M&A) exitosa o delegar el rol de CEO asumiendo la presidencia."},
-                    {t: "Descorrelación de Riesgo", d: "Diversificar mi patrimonio para que mi libertad financiera no dependa de mi propia compañía."},
-                    {t: "Rol de Inversor", d: "Convertirme en inversor ángel para devolverle al ecosistema el capital y conocimiento ganado."}
-                ],
-                Salud: [
-                    {t: "Éxito Biológico", d: "Disfrutar de una vitalidad plena, demostrando que el éxito empresarial no me costó la salud."},
-                    {t: "Decisiones en Frío", d: "Mantener un equilibrio mental que me permita navegar turbulencias de mercado con absoluta frialdad."},
-                    {t: "Salida de la Trinchera", d: "Delegar definitivamente cualquier tarea que me suponga un desgaste operativo o físico."}
-                ],
-                Amor: [
-                    {t: "Trampolín Familiar", d: "Ser el respaldo institucional para los proyectos, viviendas o educación de mis hijos."},
-                    {t: "Mentoría de la Industria", d: "Invertir tiempo en guiar a jóvenes emprendedores para elevar el estándar de mi sector."},
-                    {t: "Núcleo Blindado", d: "Consolidar un círculo íntimo que me haya bancado en las peores crisis de la construcción del negocio."}
-                ]
-            }
-        }
+  impacto: {
+    corporativo: {
+      title: "Impacto",
+      corto: {
+        Dinero: [
+          "Migrar mi estructura de compensación hacia un esquema 100% en moneda dura, eliminando el riesgo país de mi flujo de caja.",
+          "Ejecutar una negociación salarial basada estrictamente en métricas de ahorro o ganancia neta generada para la compañía.",
+          "Diversificar el 20% del ingreso mensual en activos líquidos fuera del sistema local para proteger el capital."
+        ],
+        Salud: [
+          "Implementar protocolos de exposición al frío y calor para regular el sistema nervioso ante el estrés ejecutivo.",
+          "Bloquear 3 horas de trabajo profundo diario sin notificaciones para proteger mi capacidad de análisis complejo.",
+          "Garantizar una recuperación del sueño superior al 85% mediante control de biorritmos y suplementación."
+        ],
+        Amor: [
+          "Agendar una ventana semanal innegociable dedicada a mi pareja, con prohibición total de dispositivos o temas laborales.",
+          "Iniciar reuniones con colegas de nivel superior que funcionen como un consejo consultivo personal y apoyo mutuo.",
+          "Identificar y empezar a formar a un sucesor clave para asegurar que mi influencia trascienda mi cargo actual."
+        ]
+      },
+      medio: {
+        Dinero: [
+          "Alcanzar una posición en un advisory board o directorio para influir en decisiones estratégicas sin la carga operativa.",
+          "Consolidar un fondo de inversión personal equivalente a un año de gastos fijos para ganar poder de negociación laboral.",
+          "Adquirir una propiedad premium como escudo contra la inflación y base de mi patrimonio real."
+        ],
+        Salud: [
+          "Completar un desafío físico de alta exigencia para forzar la disciplina y resistencia biológica.",
+          "Mantener un espacio de terapia o coaching ejecutivo para liderar bajo crisis sin quiebres emocionales.",
+          "Sistematizar una rutina de descanso y nutrición que anule el impacto del jet-lag en mi rendimiento durante viajes."
+        ],
+        Amor: [
+          "Consolidarme como mentor formal de profesionales jóvenes, dejando una marca profunda en su desarrollo.",
+          "Organizar un periodo de desconexión total con mi familia, garantizando que el sistema profesional opere sin mí.",
+          "Haber destilado mi red social hacia personas que eleven mis estándares de vida, pensamiento y ética."
+        ]
+      },
+      largo: {
+        Dinero: [
+          "Lograr un patrimonio neto de 1.2M USD para que el trabajo sea una elección intelectual y no una necesidad.",
+          "Ocupar un asiento en el directorio de una empresa del sector o de una ONG para volcar mi experiencia estratégica.",
+          "Estructurar mis inversiones para que los rendimientos cubran el 100% de mis gastos operativos mensuales."
+        ],
+        Salud: [
+          "Mantener métricas de salud preventiva de élite pasados los 50 años, con foco en masa muscular y movilidad.",
+          "Conservar la energía y claridad mental necesaria para afrontar alta exigencia sin desgaste biológico.",
+          "Incorporar hábitos de longevidad activa que protejan mi capacidad de decisión y foco a largo plazo."
+        ],
+        Amor: [
+          "Ser el respaldo financiero que facilite el desarrollo educativo y profesional de las próximas generaciones familiares.",
+          "Cultivar relaciones profundas que trasciendan mi rol o cargo actual, basadas en la lealtad y el respeto mutuo.",
+          "Disponer de la libertad de agenda necesaria para estar presente en cada hito vital de mi círculo íntimo."
+        ]
+      }
     },
-    equilibrio: {
-        creativo: {
-            title: "Creativo / Autor",
-            corto: {
-                Dinero: [
-                    {t: "Ingreso Ancla", d: "Estabilizar un trabajo freelance de baja carga cognitiva que pague mis cuentas fijas sin drenarme."},
-                    {t: "Control de Gastos", d: "Auditar y recortar consumos innecesarios para ganar meses de tranquilidad financiera."},
-                    {t: "Primera Monetización", d: "Generar mis primeros ingresos cobrando directamente por mi obra personal (patreon, tienda)."}
-                ],
-                Salud: [
-                    {t: "Las Horas Sagradas", d: "Proteger innegociablemente 3 horas matutinas diarias para la creación sin interrupciones."},
-                    {t: "Caminatas de Oxígeno", d: "Implementar paseos largos sin rumbo para destrabar ideas y descansar los ojos de la pantalla."},
-                    {t: "Blindaje de Atención", d: "Poner límites técnicos estrictos a mis redes sociales para evitar la fatiga y comparación mental."}
-                ],
-                Amor: [
-                    {t: "Taller Comunitario", d: "Unirme a un grupo físico o virtual de creadores locales para recibir y dar retroalimentación."},
-                    {t: "El No Defensivo", d: "Rechazar sin culpa planes sociales de bajo valor para proteger mi energía creativa del fin de semana."},
-                    {t: "Espacio Vulnerable", d: "Fomentar relaciones donde pueda admitir mis bloqueos creativos sin ser juzgado."}
-                ]
-            },
-            medio: {
-                Dinero: [
-                    {t: "Mitad y Mitad", d: "Alcanzar el punto donde el 50% de mis ingresos provenga directamente de mi arte o contenido."},
-                    {t: "El Refugio Físico", d: "Alquilar o acondicionar un espacio físico dedicado exclusivamente a ser mi estudio de producción."},
-                    {t: "Fondo de Proyecto", d: "Ahorrar para poder tomarme 6 meses de enfoque total en un proyecto ambicioso sin presión."}
-                ],
-                Salud: [
-                    {t: "Terapia Continua", d: "Mantener apoyo psicológico para lidiar con el síndrome del impostor y la inestabilidad de la carrera."},
-                    {t: "Ancla Biológica", d: "Forjar una rutina deportiva estricta que me dé estructura los días que la musa no aparece."},
-                    {t: "Periodos de Barbecho", d: "Agendar meses de descanso intencional para nutrirme de experiencias y evitar agotar mis ideas."}
-                ],
-                Amor: [
-                    {t: "Base de Fans Reales", d: "Construir una audiencia de verdaderos seguidores que respalden directamente mi proceso creativo."},
-                    {t: "Colaboraciones de Nivel", d: "Cruzar barreras y trabajar junto a artistas que admiro y que expongan mis debilidades técnicas."},
-                    {t: "Pareja Protegida", d: "Mantener mi relación romántica a salvo de las neurosis y fluctuaciones anímicas de mi oficio."}
-                ]
-            },
-            largo: {
-                Dinero: [
-                    {t: "Rendimientos de Obra", d: "Lograr que mi catálogo, libros o licencias generen un flujo de regalías mensuales automáticas."},
-                    {t: "Suficiencia Auténtica", d: "Alcanzar el número económico que necesito para vivir bien sin ceder mis derechos de autor."},
-                    {t: "Rechazo de Encargos", d: "Trabajar únicamente en proyectos que me obsesionen, pudiendo decir que no a todo lo transaccional."}
-                ],
-                Salud: [
-                    {t: "Aceptación Pacífica", d: "Dejar ir el perfeccionismo paralizante y alcanzar la serenidad con mis capacidades actuales."},
-                    {t: "Longevidad en la Creación", d: "Envejecer con la energía y salud ocular/manual intacta para crear hasta mi último día."},
-                    {t: "Postura a Prueba de Años", d: "Resolver problemas ergonómicos mediante kinesiología preventiva y buen mobiliario."}
-                ],
-                Amor: [
-                    {t: "La Obra Cumbre", d: "Compartir con el mundo un proyecto fundamental que me enorgullezca y aporte valor cultural real."},
-                    {t: "Transmisión del Oficio", d: "Dedicar parte de mi tiempo maduro a enseñar mis técnicas y secretos a creadores emergentes."},
-                    {t: "Red de Toda la Vida", d: "Conservar amistades cementadas en el respeto intelectual que hayan sobrevivido a nuestras carreras."}
-                ]
-            }
-        },
-        nomade: {
-            title: "Nómade / Viajero",
-            corto: {
-                Dinero: [
-                    {t: "Ingresos Independientes", d: "Validar mis primeros ingresos online que me permitan sostener este estilo de vida sin oficinas."},
-                    {t: "Cálculo de Supervivencia", d: "Armar un presupuesto de viaje realista incluyendo seguros médicos, visas y margen de contingencia."},
-                    {t: "Desconexión Fiscal", d: "Simplificar mi arquitectura bancaria abriendo cuentas multidivisas amigables con viajeros."}
-                ],
-                Salud: [
-                    {t: "Entrenamiento Sin Gimnasio", d: "Aprender y cumplir una rutina de calistenia que pueda ejecutar en cualquier cuarto de hotel o parque."},
-                    {t: "Comida Real en Ruta", d: "Obligarme a comprar en mercados locales y cocinar para no destrozar mi digestión en restaurantes."},
-                    {t: "Control de Biorritmos", d: "Optimizar el manejo del jet lag y fatiga de traslado usando bloqueadores de luz y suplementación."}
-                ],
-                Amor: [
-                    {t: "Arraigo Telefónico", d: "Fijar videollamadas semanales inamovibles con mi familia para mantener los hilos con mi origen."},
-                    {t: "Socialización Activa", d: "Asistir a eventos o meetups de expats cada vez que llego a un nuevo destino para no aislarme."},
-                    {t: "Espacio Personal en Tránsito", d: "Acordar reglas de silencio y tiempo a solas con mi pareja cuando compartimos 24/7 en viaje."}
-                ]
-            },
-            medio: {
-                Dinero: [
-                    {t: "Carga Laboral Reducida", d: "Sistematizar procesos para reducir mis horas de trabajo activo a 25h semanales mientras viajo."},
-                    {t: "La Base de Operaciones", d: "Establecer una 'residencia base' en un país de buena calidad/precio para pasar los inviernos."},
-                    {t: "Diversificación de Fuentes", d: "Asegurar mis ingresos mediante clientes o proyectos distintos para que una caída no corte el viaje."}
-                ],
-                Salud: [
-                    {t: "Exploración Física", d: "Integrar el senderismo avanzado o deportes de montaña como forma prioritaria de conocer un país."},
-                    {t: "Ancla Mental", d: "Cultivar la meditación profunda para combatir el agotamiento sensorial de cambiar de estímulos siempre."},
-                    {t: "Turismo Médico Preventivo", d: "Aprovechar las estadías en países con buen nivel de salud para realizar mis chequeos anuales."}
-                ],
-                Amor: [
-                    {t: "Amistades Globales", d: "Consolidar vínculos internacionales duraderos con los que pueda encontrarme en diferentes continentes."},
-                    {t: "Equipo de Exploración", d: "Fortalecer una relación de pareja resiliente que disfrute los contratiempos logísticos de esta vida."},
-                    {t: "Compartir el Viaje", d: "Planear y financiar el viaje de un familiar cercano para que venga a visitarme a otro continente."}
-                ]
-            },
-            largo: {
-                Dinero: [
-                    {t: "Libertad Económica Eterna", d: "Construir la espalda financiera que me permita pausar el trabajo meses si el viaje lo amerita."},
-                    {t: "Inversiones Internacionales", d: "Poseer un portafolio de activos distribuidos globalmente que protejan mi dinero contra crisis locales."},
-                    {t: "El Refugio Propio", d: "Comprar un pequeño departamento en mi lugar favorito del mundo para tener siempre una llave propia."}
-                ],
-                Salud: [
-                    {t: "Mochila sin Dolores", d: "Envejecer conservando la movilidad espinal y fuerza de piernas necesaria para caminar sin límites."},
-                    {t: "Estabilidad Sensorial", d: "Alcanzar un equilibrio donde pueda disfrutar tanto de Tokio de noche como del campo en absoluto silencio."},
-                    {t: "Reversión del Daño Solar", d: "Cuidar meticulosamente la prevención dermatológica tras años de vida extrema al aire libre."}
-                ],
-                Amor: [
-                    {t: "La Red de Sofás", d: "Haber cultivado una comunidad tan grande que literalmente tenga una casa amiga en 20 países distintos."},
-                    {t: "Narrador de Historias", d: "Llevar la sabiduría global y la paciencia adquiridas a mi comunidad local cuando decido frenar."},
-                    {t: "Equilibrio entre Movimiento y Raíz", d: "Hacer las paces definitivamente con mi necesidad de explorar y mi deseo biológico de hogar."}
-                ]
-            }
-        },
-        paz: {
-            title: "Paz Mental y Salud",
-            corto: {
-                Dinero: [
-                    {t: "Muerte de las Cuotas", d: "Liquidar absolutamente toda la deuda de consumo y tarjetas que ensucia mi flujo mensual."},
-                    {t: "Presupuesto de Calma", d: "Armar un esquema de gastos donde sepa exactamente a dónde va mi plata, quitándome la ansiedad."},
-                    {t: "Freno al Consumo", d: "Implementar la regla de esperar 48 horas obligatorias antes de cualquier compra online no vital."}
-                ],
-                Salud: [
-                    {t: "Despertar Silencioso", d: "Bloquear mis primeros 40 minutos de la mañana solo para café y lectura, sin tocar el móvil."},
-                    {t: "Mapeo Físico", d: "Agendar y ejecutar todos los turnos médicos postergados para abordar cualquier molestia incipiente."},
-                    {t: "Movimiento Gentil", d: "Sumar 20 minutos de caminata reparadora diaria sin audífonos para bajar el ruido interno."}
-                ],
-                Amor: [
-                    {t: "El Poder del No", d: "Declinar sin culpa todas las invitaciones a eventos masivos o reuniones que me drenen socialmente."},
-                    {t: "Bordes Afilados", d: "Tener esa conversación difícil pendiente para ponerle límites a la demanda excesiva de un familiar."},
-                    {t: "Círculo Nutritivo", d: "Identificar y proteger mi tiempo con esos dos amigos que automáticamente me relajan cuando los veo."}
-                ]
-            },
-            medio: {
-                Dinero: [
-                    {t: "El Colchón de F-You", d: "Ahorrar 12 meses exactos de mis costos fijos para saber que puedo renunciar a mi trabajo si me abruma."},
-                    {t: "Rechazar Promociones", d: "Optar por quedarme en un rol o facturación que controle bien, priorizando salir todos los días a las 18h."},
-                    {t: "Cero Exhibición", d: "Diseñar mi economía basada en confort y calidad, pero desprendida por completo del estatus externo."}
-                ],
-                Salud: [
-                    {t: "Erradicar Inflamación", d: "Investigar y curar mis molestias digestivas o dolores crónicos adaptando radicalmente mi alimentación."},
-                    {t: "Inmersiones en la Naturaleza", d: "Agendar como innegociable un fin de semana al mes escapando de la ciudad al silencio verde."},
-                    {t: "Soberanía Emocional", d: "Llegar al punto donde las malas caras en la oficina o tráfico no modifiquen mi ritmo cardíaco."}
-                ],
-                Amor: [
-                    {t: "Poda Social", d: "Distanciarme permanentemente de personas que se comunican exclusivamente a través del drama y la queja."},
-                    {t: "Amor en Silencio", d: "Cultivar mi relación de pareja priorizando actividades pacíficas como leer juntos o cocinar en calma."},
-                    {t: "Apoyo sin Carga", d: "Ayudar a mi entorno escuchando de forma activa, pero sin cargarme emocionalmente con sus problemas."}
-                ]
-            },
-            largo: {
-                Dinero: [
-                    {t: "Vida de Baja Fricción", d: "Armar una vida con costos fijos tan bajos e inversiones tan claras que el dinero deje de ser un tema."},
-                    {t: "Minimalismo Estructural", d: "Habitar un espacio limpio, con pocas cosas de altísima calidad, para no perder fines de semana limpiando."},
-                    {t: "Excedentes para la Calma", d: "Destinar todo sobrante económico exclusivo a compras de tiempo: limpiezas, masajes, buena comida."}
-                ],
-                Salud: [
-                    {t: "Antienvejecimiento Sereno", d: "Transitar las décadas sin el envejecimiento acelerado del estrés, conservando una vitalidad luminosa."},
-                    {t: "Instinto Preventivo", d: "Que el buen comer, el buen dormir y el buen pensar operen en automático en mi día a día."},
-                    {t: "La Quietud Atenta", d: "Llegar a un estado basal de felicidad donde no requiera estímulos externos, compras ni fiestas para estar pleno."}
-                ],
-                Amor: [
-                    {t: "Transparencia Radical", d: "Llegar al punto de la relación de pareja donde haya cero porcentaje de cosas no dichas por miedo."},
-                    {t: "El Pilar Calmo", d: "Ser la persona que todo el grupo familiar busca cuando hay una crisis grande, por mi perspectiva fría y cálida."},
-                    {t: "Despedidas en Paz", d: "Atravesar las pérdidas naturales de la vida desde un lugar de agradecimiento maduro y no desde el dolor crónico."}
-                ]
-            }
-        }
+    freelancer: {
+      title: "Impacto",
+      corto: {
+        Dinero: [
+          "Aumentar mis honorarios un 20% para reflejar mi experiencia real y filtrar clientes de bajo valor.",
+          "Asegurar tres clientes recurrentes que cubran el 100% de mis gastos fijos mensuales.",
+          "Dividir formalmente las finanzas personales de las del negocio con infraestructura bancaria distinta."
+        ],
+        Salud: [
+          "Respetar un horario fijo para comer, alejándome por completo de la pantalla y el flujo de mensajes.",
+          "Dormir al menos 7.5 horas cada noche, erradicando el hábito de trabajar de madrugada.",
+          "Implementar micropausas de movilidad cada 90 minutos para evitar el deterioro postural del escritorio."
+        ],
+        Amor: [
+          "Dejar los sábados y domingos libres de entregas o contacto con clientes para priorizar mi entorno íntimo.",
+          "Unirme a un espacio de coworking o mastermind para intercambiar desafíos con otros profesionales de mi nivel.",
+          "Reservar una tarde a la semana exclusiva para actividades recreativas con mi círculo íntimo."
+        ]
+      },
+      medio: {
+        Dinero: [
+          "Desarrollar un servicio o activo digital que se venda independientemente de mi tiempo facturable.",
+          "Posicionarme como referente en mi nicho mediante publicaciones técnicas o conferencias.",
+          "Construir un fondo de reserva que cubra seis meses enteros de inactividad profesional sin estrés."
+        ],
+        Salud: [
+          "Contratar la mejor cobertura médica disponible para garantizar acceso a medicina preventiva de alto nivel.",
+          "Fijar el entrenamiento físico como una tarea inamovible en mi calendario laboral diario.",
+          "Realizarme chequeos preventivos completos anualmente para detectar desgastes antes de que sean síntomas."
+        ],
+        Amor: [
+          "Tomarme tres semanas seguidas al año sin que mi economía dependa de mi conexión diaria.",
+          "Construir una red con otros 3 freelancers para derivarnos trabajo y darnos soporte logístico mutuo.",
+          "Cultivar amistades y actividades que no tengan ninguna relación con mi industria profesional."
+        ]
+      },
+      largo: {
+        Dinero: [
+          "Consolidar una reputación que me permita trabajar exclusivamente con clientes de alto impacto y rechazar el resto.",
+          "Tener inversiones que representen el 50% de mis ingresos mensuales, reduciendo mi dependencia de la facturación.",
+          "Operar mi negocio desde cualquier lugar del mundo con total normalidad logística y financiera."
+        ],
+        Salud: [
+          "Llegar a la vejez con un cuerpo ágil y sin dolores crónicos derivados del sedentarismo laboral.",
+          "Desarrollar una resiliencia emocional total ante los vaivenes del mercado y la incertidumbre de clientes.",
+          "Lograr que el deporte sea una parte fundamental de mi identidad y no un pendiente en la lista."
+        ],
+        Amor: [
+          "Mantener un proyecto de vida familiar sabiendo que mi tiempo me pertenece y puedo estar en cada momento clave.",
+          "Dedicar parte de mi experiencia a guiar causas sociales o talentos emergentes sin fines de lucro.",
+          "Haber cultivado relaciones profundas en diversas partes del mundo, teniendo un hogar en cada continente."
+        ]
+      }
     },
-    vinculos: {
-        padres: {
-            title: "Líder del Hogar",
-            corto: {
-                Dinero: [
-                    {t: "La Bóveda de Imprevistos", d: "Crear un sub-fondo específico para roturas de casa, auto o médicos de los chicos, para no endeudarnos."},
-                    {t: "Presupuesto Visibilizado", d: "Sentarnos mensualmente a organizar el gasto de supermercado, colegio y cuotas del mes sin sorpresas."},
-                    {t: "Auditoría de Protección", d: "Asegurarme de que la prepaga y el seguro de vida de ambos adultos estén al día y cubran todo."}
-                ],
-                Salud: [
-                    {t: "Domingo de Prep", d: "Dejar cocinada la base de alimentos saludables el fin de semana para no caer en el delivery los martes."},
-                    {t: "Relevos de Descanso", d: "Pactar con mi pareja ventanas de 3 horas exclusivas para que cada uno pueda ir al gimnasio o dormir."},
-                    {t: "Toque de Queda Digital", d: "Implementar que a las 20h todos los dispositivos se guarden en una caja hasta el día siguiente."}
-                ],
-                Amor: [
-                    {t: "La Mesa Redonda", d: "Establecer que la cena sea en la mesa, mirándonos a la cara, al menos 4 veces a la semana."},
-                    {t: "Día de Hijos Únicos", d: "Salir a solas a merendar o pasear con cada uno de mis hijos por separado, una vez al mes."},
-                    {t: "Blindaje de Pareja", d: "No permitir que la paternidad nos coma el rol de pareja; agendar una salida romántica mensual."}
-                ]
-            },
-            medio: {
-                Dinero: [
-                    {t: "Semilla Universitaria", d: "Empezar a depositar automáticamente plata en un ETF intocable para los estudios superiores de los chicos."},
-                    {t: "Mejora del Cuartel", d: "Hacer esa remodelación necesaria en casa (habitaciones, patio) para que el crecimiento no nos asfixie."},
-                    {t: "Vacaciones Sagradas", d: "Ahorrar sistemáticamente cada mes para poder irnos todos juntos a un lindo lugar sin pedir tarjetas prestadas."}
-                ],
-                Salud: [
-                    {t: "La Manada Activa", d: "Instituir una costumbre de salir en bicicleta, trekking o deporte todos juntos un día del fin de semana."},
-                    {t: "Regulación de Crisis", d: "Invertir en talleres de crianza o terapia para aprender a no gritar ni perder los nervios ante el caos."},
-                    {t: "Mantenimiento Personal", d: "Priorizar mi fuerza muscular; necesito tener energía física para acompañar la adolescencia de mis hijos."}
-                ],
-                Amor: [
-                    {t: "Cultura Propia", d: "Instaurar ritos únicos de nuestra familia (el desayuno de los domingos, el viaje de fin de año)."},
-                    {t: "Músculo de Independencia", d: "Enseñar tareas domésticas y responsabilidades reales a los chicos para que no sean adultos inútiles."},
-                    {t: "La Aldea Local", d: "Tejer red con 2-3 padres del colegio o barrio para hacernos el aguante con la logística de llevar y traer."}
-                ]
-            },
-            largo: {
-                Dinero: [
-                    {t: "Plataforma de Despegue", d: "Tener los recursos para financiar el empujón inicial de su vida adulta sin tocar mis propios ahorros jubilatorios."},
-                    {t: "El Castillo Pagado", d: "Liquidar la hipoteca y tener el título de propiedad en mi cajón para garantizar nuestra tranquilidad eterna."},
-                    {t: "Sucesión en Orden", d: "Dejar todos los papeles, firmas y voluntades claras y legales para no dejarles un infierno burocrático si falto."}
-                ],
-                Salud: [
-                    {t: "Abuelos Terrenos", d: "Cuidar mis articulaciones y movilidad desde hoy para poder jugar a la pelota con mis nietos el día de mañana."},
-                    {t: "Envejecer con Orgullo", d: "Demostrarle a mi familia con mi propio ejemplo físico que la salud es una responsabilidad personal."},
-                    {t: "Neuro-Elasticidad", d: "Mantener mi mente despierta debatiendo, leyendo y aprendiendo cosas nuevas para conectar con sus generaciones."}
-                ],
-                Amor: [
-                    {t: "Transición a Consejero", d: "Aceptar el nido vacío con amor, pasando de ser el capitán del barco a ser el faro de consulta."},
-                    {t: "Gravedad Familiar", d: "Que mi casa siga siendo tan cálida y unida que todos quieran juntarse a celebrar Navidad acá por decisión propia."},
-                    {t: "El Reencuentro de Dos", d: "Rencontrarme con mi pareja cuando los chicos se vayan, reenamorándonos de la calma y el silencio juntos."}
-                ]
-            }
-        },
-        pareja: {
-            title: "Construcción Compartida",
-            corto: {
-                Dinero: [
-                    {t: "La Bolsa Común", d: "Crear una cuenta conjunta fondeada proporcionalmente para pagar la luz, comida y gastos compartidos."},
-                    {t: "Honestidad Brutal Financiera", d: "Abrir los números sobre cuánto gana y cuánto debe cada uno, y armar un plan de pago de deudas."},
-                    {t: "El Fondo de Salidas", d: "Separar un 5% de ambos ingresos solo para usarlo en cosas divertidas o cenas sin culpa."}
-                ],
-                Salud: [
-                    {t: "Frontera de Dormitorio", d: "Acordar que la cama no es lugar para discutir cuentas ni responder mensajes de la oficina."},
-                    {t: "Socios de Gimnasio", d: "Empujarnos mutuamente los días de frío a ir a entrenar, siendo el soporte moral del otro."},
-                    {t: "Carga Mental Dividida", d: "Armar un cronograma de supermercado, lavado y limpieza que evite que uno sienta que es el empleado del otro."}
-                ],
-                Amor: [
-                    {t: "Cita Inviolable", d: "Fijar un viernes cada 15 días donde uno de los dos organiza una salida sorpresa para el otro."},
-                    {t: "Retiros de Check-in", d: "Escaparnos a algún lugar cercano un finde cada trimestre solo para hablar de nosotros y cómo venimos."},
-                    {t: "Mundos Paralelos", d: "Asegurarnos de que cada uno haga un plan con sus propios amigos al menos un par de veces al mes."}
-                ]
-            },
-            medio: {
-                Dinero: [
-                    {t: "Ladrillo Compartido", d: "Ahorrar agresivamente nuestro porcentaje excedente para llegar al anticipo de nuestro primer departamento."},
-                    {t: "El Gran Hito", d: "Financiar en efectivo un viaje de sueños por Asia/Europa o el festejo de nuestra unión legal."},
-                    {t: "Malla de Contención Mutua", d: "Tener liquidez suficiente por si uno quiere renunciar a un trabajo tóxico o emprender sin que la casa quiebre."}
-                ],
-                Salud: [
-                    {t: "El Refugio Estético", d: "Invertir en decorar nuestra casa con luz, sillones cómodos y estilo, para que realmente se sienta un hogar."},
-                    {t: "Responsabilidad Cruzada", d: "Hacernos cargo de sacar los turnos médicos y obligar al otro a hacerse los chequeos de rutina."},
-                    {t: "Nuevos Integrantes", d: "Estar estables económica, emocional y logísticamente para decidir si adoptamos un perro, gato o pensamos en un hijo."}
-                ],
-                Amor: [
-                    {t: "Evolución de Conflicto", d: "Pulir nuestras discusiones al punto en el que nunca haya agresión verbal, solo búsqueda de soluciones."},
-                    {t: "Proyectos Paralelos", d: "Arrancar un hobby fuerte, un podcast o un negocito lateral solo para divertirnos trabajando juntos."},
-                    {t: "Blindaje ante el Resto", d: "Hacer bloque juntos frente a críticas, pedidos excesivos o presiones de nuestras respectivas familias de origen."}
-                ]
-            },
-            largo: {
-                Dinero: [
-                    {t: "Abundancia de Equipo", d: "Lograr que la suma de nuestras carreras financieras nos permita un nivel de vida de alta gama sin deudas."},
-                    {t: "Plan de Retiro Combinado", d: "Armar portafolios de inversión que garanticen que los dos vamos a poder dejar de trabajar si queremos a los 55."},
-                    {t: "Protección Documentada", d: "Firmar los poderes y testamentos necesarios para que, si pasa una desgracia, la familia del otro no lo deje en la calle."}
-                ],
-                Salud: [
-                    {t: "Compañeros de Vitalidad", d: "Festejar los 60 años yendo a subir una montaña, sanos, fuertes y comiendo con consciencia juntos."},
-                    {t: "Seguro de Ocaso", d: "Adquirir juntos planes médicos robustos para asegurarnos los mejores tratamientos geriátricos o críticos futuros."},
-                    {t: "El Hospital Hogareño", d: "Transformar nuestra relación en un entorno de tan bajo estrés que nos sume años biológicos de vida."}
-                ],
-                Amor: [
-                    {t: "Revolución de Roles", d: "Acompañarnos con admiración cuando la vida nos obligue a cambiar de forma de pensar o de gustos en el futuro."},
-                    {t: "Amor Probado en Fuego", d: "Saber que mantuvimos la atracción y el respeto intactos después de mudanzas, pérdidas o crisis mundiales."},
-                    {t: "El Contrato Inquebrantable", d: "Mirarnos de viejos y estar profundamente orgullosos del imperio emocional y material que hicimos de la nada."}
-                ]
-            }
-        },
-        comunidad: {
-            title: "Cuidado y Entorno",
-            corto: {
-                Dinero: [
-                    {t: "Auditoría de los Mayores", d: "Sentarme con mis padres a revisar cuánto gastan, cuánto ganan y qué deudas ocultan para ayudarlos a limpiar."},
-                    {t: "Mi Aporte Fijo", d: "Desviar el 10% de mis gastos frívolos mensuales para un fondo exclusivamente para ayudar a mis familiares de ser necesario."},
-                    {t: "Subsidio Local", d: "Hacerme socio benefactor de la biblioteca, club o escuelita de mi barrio pagando una pequeña cuota mensual."}
-                ],
-                Salud: [
-                    {t: "Escolta Médico", d: "Empezar a acompañar a mis padres a los médicos importantes para hacer las preguntas que ellos no se animan a hacer."},
-                    {t: "Mis Propios Límites", d: "Cortar el teléfono o no ir un fin de semana si siento que el cuidado de familiares me está llevando al burnout."},
-                    {t: "Terapia de Contención", d: "Pedir ayuda profesional para mí mismo, para manejar la tristeza o frustración que me da ver envejecer a mis seres queridos."}
-                ],
-                Amor: [
-                    {t: "Tiempo Real, No Trámite", d: "Ir a tomar un café o merendar con mis padres/abuelos sin estar apurado, solo para charlar un rato largo."},
-                    {t: "El Conciliador", d: "Oficiar de mediador tranquilo para solucionar esa histórica pelea boluda que mantiene distanciados a dos hermanos."},
-                    {t: "La Puerta Abierta", d: "Ofrecerme espontáneamente a ir a buscar a los chicos de un amigo al colegio para regalarle un día libre."}
-                ]
-            },
-            medio: {
-                Dinero: [
-                    {t: "Reformas de Accesibilidad", d: "Juntar la plata con mis hermanos para arreglar el baño de mis padres, poner barras o adaptarlo a su movilidad."},
-                    {t: "Apoyo Directo a Proyectos", d: "Involucrarme ad-honorem en ayudar a organizar financieramente el proyecto barrial o la ONG en la que participo."},
-                    {t: "Tercerizar el Agotamiento", d: "Contratar horas de un cuidador o empleado de limpieza para mis padres, dándome respiro a mí y a ellos."}
-                ],
-                Salud: [
-                    {t: "Prevención de Fuerza", d: "Entrenar mi fuerza lumbar y core sabiendo que voy a necesitar levantar cajas, sillas de ruedas o apoyar físicamente a otros."},
-                    {t: "Vacunas y Chequeos Generales", d: "Tomar las riendas para obligar de forma cariñosa a todo mi entorno mayor a que se haga sus colonoscopias y refuerzos de vacunas."},
-                    {t: "Combatir el Aislamiento", d: "Llevar o anotar a mis padres a talleres o salidas que los saquen de ver la televisión todo el santo día."}
-                ],
-                Amor: [
-                    {t: "Rescatar el Archivo", d: "Sentarme con el grabador del teléfono a preguntarles y guardar para siempre las anécdotas de juventud de mis mayores."},
-                    {t: "Reuniones Obligatorias", d: "Tomar la posta de organizar los asados o almuerzos mensuales para que los primos y la familia extendida no pierdan relación."},
-                    {t: "Liderazgo Barrial", d: "Tomar una posición en la junta del edificio o asociación vecinal aportando cordura y paz a los conflictos diarios."}
-                ]
-            },
-            largo: {
-                Dinero: [
-                    {t: "Sucesión en Paz Absoluta", d: "Dejar cerrado en vida y por escribano el traspaso de bienes familiares para que cuando falten no haya buitres ni peleas."},
-                    {t: "Donación Póstuma y Filantropía", d: "Dejar programada una parte de mi riqueza para fondear becas, donaciones u ONGs cuando yo ya no esté."},
-                    {t: "Dignidad Material Absoluta", d: "Asegurar que mis padres transiten su última etapa de vida con enfermeros, cuidadores o el nivel de confort más alto posible."}
-                ],
-                Salud: [
-                    {t: "Final Sin Dolor", d: "Tener la madurez y la fortaleza para tomar decisiones médicas difíciles asegurando tratamientos paliativos y compasivos de calidad."},
-                    {t: "Cuidado de mi Propio Fin", d: "Llevar una vida tan saludable que yo no le imponga esta carga de cuidado extremo y prematuro a la generación de mis hijos."},
-                    {t: "Cultivar Prevención", d: "Pasarle la posta a los más jóvenes de mi familia sobre la importancia de comer bien y moverse, usando la historia médica de la familia."}
-                ],
-                Amor: [
-                    {t: "El Faro Moral", d: "Llegar a viejo siendo el patriarca/matriarca al que todos los sobrinos y primos llaman cuando no saben qué decisión tomar."},
-                    {t: "Historia Intacta", d: "Dejar un legado de integridad: que la gente de mi barrio y entorno me recuerde como un buen vecino que siempre dio una mano."},
-                    {t: "Aceptación del Ciclo", d: "Despedir a mis seres queridos desde un lugar de amor y orgullo profundo, y no de cuentas pendientes o dolor crónico."}
-                ]
-            }
-        }
+    founder: {
+      title: "Impacto",
+      corto: {
+        Dinero: [
+          "Contratar o promover un mando clave para soltar la operación diaria y enfocarme en la visión estratégica.",
+          "Mejorar el margen de rentabilidad mediante eficiencia operativa, eliminando gastos de bajo retorno.",
+          "Asegurar un fondo de contingencia que cubra al menos tres meses de nómina completa del equipo."
+        ],
+        Salud: [
+          "Bloquear dos tardes por semana para entrenamiento físico fuera del entorno de la oficina.",
+          "Reducir radicalmente la cafeína y optimizar el descanso para mitigar la ansiedad del cargo.",
+          "Iniciar coaching o terapia para gestionar la carga emocional de liderar una estructura en crecimiento."
+        ],
+        Amor: [
+          "Garantizar que las conversaciones familiares no giren exclusivamente sobre los problemas de la empresa.",
+          "Apagar los canales de comunicación de la startup durante los sábados y domingos.",
+          "Establecer una ventana semanal de conexión romántica libre de menciones operativas."
+        ]
+      },
+      medio: {
+        Dinero: [
+          "Levantar inversión institucional o abrir mercados internacionales para escalar la valoración del activo.",
+          "Documentar procesos para que el negocio escale sin requerir mi intervención en microdecisiones.",
+          "Realizar retiros de utilidades o ventas secundarias para asegurar mi seguridad financiera personal."
+        ],
+        Salud: [
+          "Mejorar marcadores biológicos de estrés mediante una gestión estratégica menos reactiva y más planificada.",
+          "Tomarme dos semanas de vacaciones para validar que el equipo puede operar con éxito sin mi presencia.",
+          "Cultivar un estado físico que soporte la carga de energía necesaria para la fase de mayor crecimiento."
+        ],
+        Amor: [
+          "Devolver tiempo de calidad a mi familia para compensar los sacrificios de la fase de inicio.",
+          "Construir una relación de lealtad absoluta y desarrollo mutuo con mi equipo directivo de confianza.",
+          "Integrarme a un círculo cerrado de pares para compartir desafíos y reducir el aislamiento del rol."
+        ]
+      },
+      largo: {
+        Dinero: [
+          "Preparar la empresa para una adquisición exitosa o delegar el rol de CEO para asumir el directorio.",
+          "Diversificar el patrimonio personal para que mi seguridad no dependa de un único activo empresarial.",
+          "Transicionar hacia el rol de inversor ángel, devolviendo capital y conocimiento al ecosistema."
+        ],
+        Salud: [
+          "Disfrutar de una salud plena, demostrando que la construcción del negocio no destruyó mi biología.",
+          "Mantener un equilibrio mental que me permita navegar turbulencias de mercado con absoluta calma.",
+          "Soltar definitivamente cualquier tarea operativa que suponga un desgaste físico o mental innecesario."
+        ],
+        Amor: [
+          "Ser la plataforma financiera para los proyectos y educación de mis hijos sin afectar mi jubilación.",
+          "Invertir tiempo en guiar a emprendedores emergentes para elevar los estándares éticos del sector.",
+          "Consolidar un círculo íntimo basado en la lealtad que haya sobrevivido a las crisis de construcción del negocio."
+        ]
+      }
     }
+  },
+  equilibrio: {
+    creativo: {
+      title: "Equilibrio",
+      corto: {
+        Dinero: [
+          "Estabilizar un ingreso freelance de baja carga mental que cubra mis costos fijos sin drenar mi creatividad.",
+          "Auditar consumos y ganar meses de tranquilidad financiera mediante un presupuesto austero.",
+          "Lograr los primeros ingresos cobrando directamente por mi obra personal."
+        ],
+        Salud: [
+          "Proteger 3 horas matutinas diarias para la creación profunda sin interrupciones digitales.",
+          "Implementar paseos largos en silencio para destrabar ideas y descansar la vista de las pantallas.",
+          "Poner límites técnicos a las redes sociales para evitar la fatiga por comparación y el ruido mental."
+        ],
+        Amor: [
+          "Unirme a un círculo de creadores para recibir retroalimentación técnica honesta y sin complacencia.",
+          "Decir no a planes sociales de bajo valor para proteger mi energía creativa durante los fines de semana.",
+          "Fomentar vínculos donde pueda admitir mis bloqueos creativos sin temor a ser juzgado."
+        ]
+      },
+      medio: {
+        Dinero: [
+          "Lograr que el 50% de mis ingresos provenga directamente de mi arte o contenido propio.",
+          "Acondicionar un espacio físico dedicado exclusivamente a ser mi estudio de producción personal.",
+          "Ahorrar para poder dedicar 6 meses a un proyecto ambicioso sin la presión de facturar."
+        ],
+        Salud: [
+          "Mantener apoyo psicológico para gestionar la inestabilidad emocional de la carrera creativa.",
+          "Forjar una rutina deportiva estricta que funcione como ancla en los días de baja inspiración.",
+          "Agendar periodos de descanso intencional para nutrirme de experiencias y evitar el agotamiento de ideas."
+        ],
+        Amor: [
+          "Construir una base de seguidores que respalden directamente mi proceso y visión artística.",
+          "Trabajar con artistas que admiro y que expongan mis debilidades técnicas para obligarme a crecer.",
+          "Mantener mi vínculo de pareja a salvo de las neurosis y altibajos anímicos de mi proceso creativo."
+        ]
+      },
+      largo: {
+        Dinero: [
+          "Lograr que mi obra o licencias generen un flujo de regalías automáticas que sostenga mi estilo de vida.",
+          "Alcanzar el número económico que me permita vivir bien sin ceder autonomía ni derechos creativos.",
+          "Trabajar únicamente en obras que me obsesionen, rechazando todo lo puramente transaccional."
+        ],
+        Salud: [
+          "Abandonar el perfeccionismo paralizante y alcanzar la paz con mi producción y capacidades.",
+          "Llegar a la madurez con la energía y salud ocular intactas para producir hasta el final.",
+          "Resolver problemas ergonómicos mediante kinesiología para proteger mi herramienta de trabajo."
+        ],
+        Amor: [
+          "Compartir un proyecto fundamental que sienta que aporta un valor cultural real a mi comunidad.",
+          "Dedicar tiempo a transmitir mis técnicas y secretos a las nuevas generaciones de creadores.",
+          "Conservar amistades basadas en el respeto intelectual que hayan sobrevivido a nuestras carreras."
+        ]
+      }
+    },
+    nomade: {
+      title: "Equilibrio",
+      corto: {
+        Dinero: [
+          "Asegurar los primeros ingresos 100% digitales que me permitan sostener el viaje sin depender de oficinas.",
+          "Diseñar un cálculo de gastos realista incluyendo seguros internacionales y margen de contingencia.",
+          "Configurar cuentas multidivisa y setups fiscales amigables con el movimiento constante."
+        ],
+        Salud: [
+          "Aprender y cumplir una rutina de calistenia que pueda ejecutar en cualquier entorno o clima.",
+          "Comprar en mercados locales y cocinar para evitar el deterioro digestivo de comer siempre fuera.",
+          "Optimizar el manejo de la fatiga de traslado mediante protocolos de luz y suplementación básica."
+        ],
+        Amor: [
+          "Fijar videollamadas semanales con mi familia para mantener el arraigo emocional a la distancia.",
+          "Asistir a eventos locales en cada nueva ciudad para combatir el aislamiento del viajero solitario.",
+          "Acordar reglas de silencio y tiempo personal con mi pareja al compartir espacios reducidos en tránsito."
+        ]
+      },
+      medio: {
+        Dinero: [
+          "Sistematizar tareas para reducir la jornada activa a 25 horas semanales mientras sigo en ruta.",
+          "Establecer una base de operaciones en un país de alta calidad/precio para pasar periodos de calma.",
+          "Asegurar ingresos mediante múltiples proyectos para que una caída local no interrumpa el estilo de vida."
+        ],
+        Salud: [
+          "Integrar el senderismo avanzado y deportes de aventura como forma prioritaria de conocer cada país.",
+          "Cultivar la meditación profunda para mitigar el agotamiento sensorial de cambiar de estímulos constantemente.",
+          "Aprovechar estancias en países con medicina de alto nivel para realizar auditorías de salud preventivas."
+        ],
+        Amor: [
+          "Consolidar vínculos internacionales con los que pueda coincidir en diversos puntos del globo.",
+          "Fortalecer un vínculo romántico que disfrute y sepa gestionar los contratiempos logísticos del viaje.",
+          "Financiar el viaje de un familiar cercano para compartir mi estilo de vida en otro continente."
+        ]
+      },
+      largo: {
+        Dinero: [
+          "Construir la espalda financiera que me permita pausar el trabajo durante meses si el viaje lo requiere.",
+          "Poseer activos distribuidos globalmente que protejan mi poder adquisitivo ante crisis de cualquier país.",
+          "Adquirir un refugio físico en mi ciudad favorita del mundo para tener siempre un lugar al cual regresar."
+        ],
+        Salud: [
+          "Envejecer conservando la movilidad y fuerza necesaria para seguir explorando sin límites físicos.",
+          "Alcanzar un estado donde disfrute tanto de la intensidad urbana como del silencio absoluto en la naturaleza.",
+          "Cuidar meticulosamente la salud de la piel tras años de exposición extrema al aire libre."
+        ],
+        Amor: [
+          "Haber cultivado una red tan sólida que posea un hogar amigo en las ciudades más importantes del mundo.",
+          "Llevar la sabiduría y paciencia adquiridas en mis viajes a mi comunidad local al decidir frenar.",
+          "Hacer las paces definitivamente con mi necesidad de exploración y mi deseo biológico de pertenencia."
+        ]
+      }
+    },
+    paz: {
+      title: "Equilibrio",
+      corto: {
+        Dinero: [
+          "Liquidar toda deuda de consumo que genere ruido mental y ensucie mi flujo de caja mensual.",
+          "Organizar mis gastos para saber exactamente a dónde va mi dinero, eliminando la incertidumbre.",
+          "Implementar la regla de espera de 48 horas para cualquier gasto no vital, frenando la impulsividad."
+        ],
+        Salud: [
+          "Bloquear los primeros 40 minutos del día para lectura y café, sin contacto con dispositivos móviles.",
+          "Ejecutar todos los turnos médicos postergados para abordar molestias físicas incipientes.",
+          "Sumar 20 minutos de caminata diaria sin audífonos para reducir el ruido interno y conectar con el entorno."
+        ],
+        Amor: [
+          "Declinar sin culpa invitaciones a eventos o reuniones que drenen mi energía de forma innecesaria.",
+          "Tener la conversación pendiente para frenar la demanda excesiva de tiempo de familiares.",
+          "Identificar y priorizar el tiempo con las personas que automáticamente me relajan al verlas."
+        ]
+      },
+      medio: {
+        Dinero: [
+          "Ahorrar 12 meses de costos fijos para tener el poder de renunciar a situaciones laborales tóxicas.",
+          "Optar por roles o niveles de facturación que controle bien, priorizando mi horario sobre el ascenso.",
+          "Diseñar mis finanzas basadas en la calidad y el confort real, desprendidas del estatus externo."
+        ],
+        Salud: [
+          "Resolver problemas digestivos o musculares adaptando radicalmente mi nutrición y hábitos físicos.",
+          "Instituir un fin de semana al mes de desconexión total en la naturaleza como hábito innegociable.",
+          "Llegar al punto donde el tráfico o los humores ajenos no alteren mi paz mental."
+        ],
+        Amor: [
+          "Distanciarme de personas que se comunican exclusivamente a través del conflicto y la queja constante.",
+          "Cultivar mi relación de pareja priorizando actividades pacíficas y de bajo estímulo.",
+          "Ayudar a mi entorno mediante la escucha activa, sin cargarme emocionalmente con sus problemas."
+        ]
+      },
+      largo: {
+        Dinero: [
+          "Armar una vida con costos tan bajos e inversiones tan claras que el dinero deje de ocupar espacio mental.",
+          "Habitar un espacio limpio, con pocas cosas pero excelentes, que no requiera tiempo de mantenimiento.",
+          "Destinar excedentes económicos exclusivamente a comprar tiempo: servicios, masajes y buena nutrición."
+        ],
+        Salud: [
+          "Transitar las décadas sin el desgaste del estrés crónico, conservando una vitalidad luminosa.",
+          "Que el buen comer, el buen dormir y el buen pensar operen en automático como parte de mi identidad.",
+          "Alcanzar un estado de felicidad donde no requiera estímulos externos ni compras para estar pleno."
+        ],
+        Amor: [
+          "Llegar a un nivel de relación de pareja donde no exista nada que no se pueda decir por miedo.",
+          "Ser la persona a la que el grupo familiar busca en crisis por mi capacidad de aportar calma.",
+          "Atravesar las pérdidas naturales de la vida desde la aceptación y no desde el dolor crónico."
+        ]
+      }
+    }
+  },
+  vinculos: {
+    padres: {
+      title: "Vínculos",
+      corto: {
+        Dinero: [
+          "Crear un sub-fondo específico para reparaciones del hogar o gastos médicos familiares inesperados.",
+          "Organizar mensualmente el presupuesto familiar para eliminar sorpresas y estrés.",
+          "Asegurarme de que la cobertura médica y de vida de los adultos sea de primer nivel."
+        ],
+        Salud: [
+          "Dejar organizada la comida saludable el fin de semana para evitar el delivery industrial.",
+          "Pactar con mi pareja ventanas exclusivas para que cada uno pueda entrenar o descansar.",
+          "Implementar un horario límite para guardar todos los móviles en casa y priorizar el sueño."
+        ],
+        Amor: [
+          "Establecer la cena en la mesa, sin pantallas, al menos 4 veces por semana para fomentar la comunicación.",
+          "Salir a solas con cada uno de mis hijos por separado una vez al mes para fortalecer el vínculo.",
+          "No permitir que la paternidad anule el rol de pareja; agendar una salida a solas mensualmente."
+        ]
+      },
+      medio: {
+        Dinero: [
+          "Sistematizar depósitos automáticos en un fondo indexado para los estudios superiores de mis hijos.",
+          "Ejecutar las remodelaciones necesarias en casa para que el crecimiento familiar no genere asfixia.",
+          "Fondear mensualmente las vacaciones familiares para viajar sin recurrir a deudas."
+        ],
+        Salud: [
+          "Instituir una costumbre deportiva familiar los fines de semana al aire libre.",
+          "Invertir en herramientas de crianza para evitar reacciones reactivas ante el caos doméstico.",
+          "Priorizar mi fuerza física; necesito vitalidad para acompañar el crecimiento de mis hijos."
+        ],
+        Amor: [
+          "Consolidar tradiciones únicas de nuestra familia que generen sentido de pertenencia.",
+          "Asignar responsabilidades reales en el hogar a mis hijos para formarlos como adultos capaces.",
+          "Tejer alianza con otros padres de confianza para darnos apoyo mutuo con los traslados."
+        ]
+      },
+      largo: {
+        Dinero: [
+          "Tener los recursos para financiar el inicio de la vida adulta de mis hijos sin afectar mi retiro.",
+          "Liquidar cualquier deuda hipotecaria para garantizar un techo libre de cargas futuro.",
+          "Dejar establecidos todos los documentos legales y sucesorios para evitar conflictos futuros."
+        ],
+        Salud: [
+          "Cuidar mi movilidad desde hoy para poder participar activamente en la vida de mis futuros nietos.",
+          "Demostrar a mi familia mediante mi estado físico que la salud es una responsabilidad innegociable.",
+          "Mantener la curiosidad intelectual para seguir conectando con las próximas generaciones."
+        ],
+        Amor: [
+          "Aceptar el nido vacío con madurez, pasando de ser el director del hogar a ser un consejero.",
+          "Lograr que mi casa sea un espacio tan cálido que mis hijos deseen volver por decisión propia.",
+          "Redescubrir la vida en pareja tras la partida de los hijos, disfrutando de la nueva calma."
+        ]
+      }
+    },
+    pareja: {
+      title: "Vínculos",
+      corto: {
+        Dinero: [
+          "Establecer una cuenta conjunta para gastos fijos basada en la honestidad total de ingresos.",
+          "Diseñar un plan de ataque para saldar deudas personales que comprometan el flujo de caja.",
+          "Separar un pequeño porcentaje mensual para cenas o salidas de pareja sin remordimiento."
+        ],
+        Salud: [
+          "Acordar que el dormitorio es un lugar libre de discusiones financieras o tareas laborales.",
+          "Apoyarnos mutuamente en los días de baja motivación para cumplir con el entrenamiento.",
+          "Armar un cronograma de tareas domésticas que evite que uno cargue con el peso operativo."
+        ],
+        Amor: [
+          "Fijar una salida romántica cada 15 días donde uno organiza y sorprende al otro.",
+          "Escaparnos un fin de semana cada trimestre exclusivamente para hablar de nuestra visión.",
+          "Fomentar que cada uno mantenga sus planes individuales con amigos para nutrir la propia identidad."
+        ]
+      },
+      medio: {
+        Dinero: [
+          "Ahorrar agresivamente el excedente conjunto para alcanzar el anticipo de nuestra primera propiedad.",
+          "Financiar en efectivo una experiencia internacional larga que solidifique nuestra historia.",
+          "Tener liquidez para que cualquiera pueda pausar o cambiar de carrera sin poner en riesgo la estabilidad."
+        ],
+        Salud: [
+          "Invertir en acondicionar nuestro hogar para que sea un espacio de relajación real.",
+          "Hacernos cargo de los chequeos preventivos del otro, impulsándonos a una medicina de alto nivel.",
+          "Estar estables emocional y económicamente antes de decidir la llegada de un hijo."
+        ],
+        Amor: [
+          "Pulir nuestra comunicación para debatir temas críticos sin caer jamás en la agresión.",
+          "Iniciar un emprendimiento o hobby compartido que nos entusiasme y nos obligue a colaborar.",
+          "Hacer bloque juntos frente a pedidos excesivos o presiones de nuestras familias de origen."
+        ]
+      },
+      largo: {
+        Dinero: [
+          "Alcanzar un nivel patrimonial que financie un estilo de vida de alta gama sin depender de deudas.",
+          "Poseer portafolios de inversión que garanticen que ambos podamos dejar de operar a los 55 años.",
+          "Estructurar testamentos y poderes para protegernos mutuamente ante contingencias."
+        ],
+        Salud: [
+          "Llegar a los 60 años sanos, fuertes y con energía para seguir explorando el mundo juntos.",
+          "Contar con coberturas médicas robustas que garanticen los mejores tratamientos preventivos.",
+          "Haber construido una relación tan pacífica que sume años biológicos de vida a ambos."
+        ],
+        Amor: [
+          "Mantener el respeto y la curiosidad mutua adaptándonos a los cambios personales de cada década.",
+          "Saber que mantuvimos la lealtad y el afecto intactos tras mudanzas, crisis y pérdidas.",
+          "Mirar atrás y saber que construimos un patrimonio emocional y material sólido."
+        ]
+      }
+    },
+    comunidad: {
+      title: "Vínculos",
+      corto: {
+        Dinero: [
+          "Ayudar a mis padres a organizar sus finanzas y deudas para identificar necesidades de apoyo.",
+          "Asignar un porcentaje mensual a un fondo exclusivo para asistir a familiares en situaciones críticas.",
+          "Contribuir mensualmente a una institución o club de mi barrio para fortalecer el tejido social."
+        ],
+        Salud: [
+          "Empezar a acompañar a los adultos mayores de la familia a sus turnos críticos.",
+          "Aprender a decir no cuando el cuidado de otros pone en riesgo mi propia higiene de sueño.",
+          "Buscar apoyo profesional para gestionar la frustración de ver envejecer a mis seres queridos."
+        ],
+        Amor: [
+          "Visitar a mis mayores para conversar sin prisas, honrando su historia y presencia.",
+          "Aportar calma en los conflictos familiares, buscando soluciones en lugar de alimentar discusiones.",
+          "Ofrecerme a ayudar a alguien de mi entorno cercano que necesite apoyo logístico."
+        ]
+      },
+      medio: {
+        Dinero: [
+          "Financiar las adaptaciones necesarias en la vivienda de mis padres para que sea segura.",
+          "Involucrarme en la organización estratégica o financiera de una entidad benéfica local.",
+          "Contratar asistencia profesional para mis mayores, aliviando la carga física familiar."
+        ],
+        Salud: [
+          "Entrenar mi resistencia física sabiendo que debo ser el pilar de apoyo para quienes dependen de mí.",
+          "Asegurar que los miembros vulnerables de mi entorno cumplan con sus esquemas de salud.",
+          "Inscribir a mis padres en talleres o actividades que combatan su aislamiento social."
+        ],
+        Amor: [
+          "Documentar profesionalmente las historias y enseñanzas de mis mayores antes de que se pierdan.",
+          "Tomar el liderazgo de organizar encuentros familiares mensuales para que los vínculos no mueran.",
+          "Participar en la asociación vecinal aportando cordura y visión constructiva."
+        ]
+      },
+      largo: {
+        Dinero: [
+          "Dejar organizada la planificación patrimonial familiar para evitar conflictos tras la partida de mis padres.",
+          "Establecer fondos o legados sistemáticos que sigan apoyando a mi comunidad a largo plazo.",
+          "Garantizar que los mayores de mi familia transiten su última etapa con el máximo confort."
+        ],
+        Salud: [
+          "Asegurar cuidados paliativos de alta calidad para mis seres queridos, evitando dolores innecesarios.",
+          "Mantener mi salud para no imponer una carga de cuidado prematuro a la generación que me sigue.",
+          "Haber influido en los hábitos de todo mi clan familiar mediante el ejemplo sostenido."
+        ],
+        Amor: [
+          "Llegar a la madurez siendo la figura de consulta y apoyo moral para mi círculo extendido.",
+          "Dejar un nombre que sea sinónimo de ayuda genuina y decencia dentro de mi comunidad.",
+          "Despedir a mis seres queridos con orgullo profundo, honrando su memoria con mi propia vida."
+        ]
+      }
+    }
+  }
 };
