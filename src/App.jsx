@@ -132,8 +132,8 @@ const fmtDate = (d) => {
   const [,m,day]=d.split("-"); return `${day}/${m}`;
 };
 
-const projToDb  = (p,uid) => ({ id:p.id, area:p.area, name:p.name, monto:p.monto||"", importance:p.importance||"normal", description:p.description||"", main_goal:p.mainGoal||"", secondary_goals:p.secondaryGoals||[], goal_id:p.goal_id||null, sort_order:p.sortOrder||0, user_id:uid });
-const projFromDb = r => ({ id:r.id, area:r.area, name:r.name, monto:r.monto||"", importance:r.importance||"normal", description:r.description||"", mainGoal:r.main_goal||"", secondaryGoals:r.secondary_goals||[], goal_id:r.goal_id||null, sortOrder:r.sort_order||0 });
+const projToDb  = (p,uid) => ({ id:p.id, area:p.area, name:p.name, monto:p.monto||"", importance:p.importance||"normal", description:p.description||"", main_goal:p.mainGoal||"", secondary_goals:p.secondaryGoals||[], goal_id:p.goal_id||null, goal_ids:p.goal_ids||[], sort_order:p.sortOrder||0, user_id:uid });
+const projFromDb = r => { const goalIds = (r.goal_ids&&r.goal_ids.length>0) ? r.goal_ids : (r.goal_id ? [r.goal_id] : []); return { id:r.id, area:r.area, name:r.name, monto:r.monto||"", importance:r.importance||"normal", description:r.description||"", mainGoal:r.main_goal||"", secondaryGoals:r.secondary_goals||[], goal_id:goalIds[0]||null, goal_ids:goalIds, sortOrder:r.sort_order||0 }; };
 const taskToDb  = (t,uid) => ({ id:t.id, project_id:t.projectId, title:t.title, type:t.type||"normal", date:t.date||"", responsable:t.responsable||"", notes:t.notes||"", done:t.done||false, sort_order:t.sortOrder||0, user_id:uid, completed_at:t.completed_at||null, snoozed_count:t.snoozed_count||0 });
 const taskFromDb = r => ({ id:r.id, projectId:r.project_id, title:r.title, type:r.type||"normal", date:r.date||"", responsable:r.responsable||"", notes:r.notes||"", done:r.done||false, sortOrder:r.sort_order||0, completed_at:r.completed_at||null, snoozed_count:r.snoozed_count||0 });
 
@@ -972,7 +972,7 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
     let orphaned = 0;
     tasks.filter(t=>!t.done).forEach(t=>{
       const p = projects.find(x=>x.id===t.projectId);
-      const hasGoal = p?.goal_id ? true : false;
+      const hasGoal = (p?.goal_ids&&p.goal_ids.length>0) || p?.goal_id ? true : false;
       const taskValue = t.type==='urgente'?25:t.type==='estrategica'?50:10;
       if(p?.importance==='estrategica'){
         strategicWeight += taskValue * (hasGoal ? 1.5 : 1.1);
@@ -992,8 +992,10 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
     const tasksByGoal = {};
     tasks.filter(t=>!t.done).forEach(t=>{
       const p = projects.find(x=>x.id===t.projectId);
-      const goalId = p?.goal_id || 'none';
-      tasksByGoal[goalId] = (tasksByGoal[goalId]||0) + 1;
+      const goalIds = (p?.goal_ids&&p.goal_ids.length>0) ? p.goal_ids : (p?.goal_id ? [p.goal_id] : ['none']);
+      goalIds.forEach(goalId => {
+        tasksByGoal[goalId] = (tasksByGoal[goalId]||0) + 1;
+      });
     });
     const goalKeys = Object.keys(tasksByGoal).filter(k=>k!=='none');
     const totalWithGoal = goalKeys.reduce((s,k)=>s+tasksByGoal[k],0);
@@ -2599,12 +2601,15 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[]}){
     <TypeSelector value={type} onChange={setType}/>
     {areaProjects.length>1&&<div style={{marginBottom:14}}>
       <span className="sl">Proyecto</span>
-      <select value={selProjId} onChange={e=>setSelProjId(e.target.value)}
-        className="si" style={{cursor:"pointer"}}>
-        {areaProjects.map(p=>(
-          <option key={p.id} value={p.id}>{p.name}</option>
+      <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:160,overflowY:"auto",background:"white",borderRadius:10,border:"1px solid #E5E1DB"}}>
+        {areaProjects.map((p,i)=>(
+          <div key={p.id} onClick={()=>setSelProjId(p.id)}
+            style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",cursor:"pointer",borderBottom:i<areaProjects.length-1?"1px solid #F5F2EE":"none",background:selProjId===p.id?"#F5F1ED":"transparent",transition:"background .15s"}}>
+            <span style={{fontFamily:"'DM Sans'",fontSize:13,color:selProjId===p.id?"#9B8878":"#2C2825"}}>{p.name}</span>
+            {selProjId===p.id&&<span style={{fontSize:12,color:"#9B8878"}}>✓</span>}
+          </div>
         ))}
-      </select>
+      </div>
     </div>}
     <div style={{marginBottom:14}}>
       <span className="sl">Responsable (opcional)</span>
@@ -2649,7 +2654,7 @@ function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop
 
   // Build connections: for each goal, find children (goals that have this as parent)
   const getChildren = (id) => goals.filter(g=>g.parentId===id);
-  const getProjects = (goalId) => projects.filter(p=>p.goal_id===goalId);
+  const getProjects = (goalId) => projects.filter(p=>(p.goal_ids&&p.goal_ids.includes(goalId))||p.goal_id===goalId);
 
   const p = isDesktop ? "28px 0 40px" : "16px 0 40px";
 
@@ -2669,7 +2674,7 @@ function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop
 
           {/* Unlinked projects warning */}
           {(() => {
-            const unlinked = projects.filter(p=>p.area==="trabajo"&&!p.goal_id);
+            const unlinked = projects.filter(p=>p.area==="trabajo"&&(!p.goal_ids||p.goal_ids.length===0)&&!p.goal_id);
             if(unlinked.length===0) return null;
             return(
               <div style={{padding:"12px 16px",background:"#FBF8F2",borderRadius:10,border:"1px solid #F0DFA0",display:"flex",alignItems:"center",gap:10,maxWidth:680}}>
@@ -2716,7 +2721,7 @@ function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop
 
           {/* Unlinked warning mobile */}
           {(() => {
-            const unlinked = projects.filter(p=>p.area==="trabajo"&&!p.goal_id);
+            const unlinked = projects.filter(p=>p.area==="trabajo"&&(!p.goal_ids||p.goal_ids.length===0)&&!p.goal_id);
             if(unlinked.length===0) return null;
             return(
               <div style={{padding:"10px 14px",background:"#FBF8F2",borderRadius:10,border:"1px solid #F0DFA0",display:"flex",alignItems:"center",gap:8}}>
@@ -3090,7 +3095,13 @@ function GoalSheet({goal,goals,projects,onSave,onDelete,isDesktop}){
 }
 
 function PlanProjectSheet({project,onSave,isDesktop,goals=[]}){
-  const [form,setForm]=useState({...project,monto:project.monto||"",goal_id:project.goal_id||null,secondaryGoals:project.secondaryGoals?.length>0?[...project.secondaryGoals]:[""]});
+  const [form,setForm]=useState({...project,monto:project.monto||"",goal_id:project.goal_id||null,goal_ids:project.goal_ids||[],secondaryGoals:project.secondaryGoals?.length>0?[...project.secondaryGoals]:[""]});
+  function toggleGoal(gid){
+    setForm(f=>{
+      const ids = f.goal_ids.includes(gid) ? f.goal_ids.filter(x=>x!==gid) : [...f.goal_ids,gid];
+      return {...f, goal_ids:ids, goal_id:ids[0]||null};
+    });
+  }
   function updGoal(i,val){const g=[...form.secondaryGoals];g[i]=val;setForm(f=>({...f,secondaryGoals:g}));}
   function addGoal(){setForm(f=>({...f,secondaryGoals:[...f.secondaryGoals,""]}));}
   function remGoal(i){setForm(f=>({...f,secondaryGoals:f.secondaryGoals.filter((_,j)=>j!==i)}));}
@@ -3110,14 +3121,18 @@ function PlanProjectSheet({project,onSave,isDesktop,goals=[]}){
     </div>
     {goals&&goals.filter(g=>g.horizon==="anio").length>0&&(
       <div style={{marginBottom:16}}>
-        <span className="sl">Meta vinculada (opcional)</span>
+        <span className="sl">Metas vinculadas (opcional)</span>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {goals.filter(g=>g.horizon==="anio").map(g=>(
-            <button key={g.id} onClick={()=>setForm(f=>({...f,goal_id:f.goal_id===g.id?null:g.id}))}
-              style={{textAlign:"left",padding:"8px 12px",borderRadius:8,border:`1px solid ${form.goal_id===g.id?"#9B8878":"#E5E1DB"}`,background:form.goal_id===g.id?"#F5F1ED":"white",color:form.goal_id===g.id?"#9B8878":"#6B6258",fontFamily:"'DM Sans'",fontSize:13,cursor:"pointer",transition:"all .15s"}}>
-              {g.title}
-            </button>
-          ))}
+          {goals.filter(g=>g.horizon==="anio").map(g=>{
+            const sel=(form.goal_ids||[]).includes(g.id);
+            return(
+              <button key={g.id} onClick={()=>toggleGoal(g.id)}
+                style={{textAlign:"left",padding:"8px 12px",borderRadius:8,border:`1px solid ${sel?"#9B8878":"#E5E1DB"}`,background:sel?"#F5F1ED":"white",color:sel?"#9B8878":"#6B6258",fontFamily:"'DM Sans'",fontSize:13,cursor:"pointer",transition:"all .15s",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                <span style={{flex:1}}>{g.title}</span>
+                {sel&&<span style={{fontSize:12,color:"#9B8878",flexShrink:0}}>✓</span>}
+              </button>
+            );
+          })}
         </div>
       </div>
     )}
