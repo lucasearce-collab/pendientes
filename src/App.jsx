@@ -89,20 +89,26 @@ const SECTIONS = [
     ],
   },
   {
-    id: "metas",
-    label: "Metas",
+    id: "tareas",
+    label: "Tareas",
     subTabs: [
       { id: "tareas",    label: "Tareas"    },
       { id: "proyectos", label: "Proyectos" },
-      { id: "metas",     label: "Metas"     },
+    ],
+  },
+  {
+    id: "metas",
+    label: "Metas",
+    subTabs: [
+      { id: "metas", label: "Metas" },
     ],
   },
   {
     id: "progreso",
     label: "Progreso",
     subTabs: [
-      { id: "cerezo",    label: "🌱"        },
       { id: "analitica", label: "Analítica" },
+      { id: "cerezo",    label: "🌱"        },
     ],
   },
 ];
@@ -3989,28 +3995,7 @@ function TourApp({onClose}){
           <path d="M16 82 Q35 60 55 70 Q75 80 95 62 Q110 50 124 82" stroke="#EAE6E0" strokeWidth="1.5" fill="none"/>
         </svg>
       ),
-    },
-    {
-      num: '04', label: 'Cerezo',
-      title: 'Tu progreso florece.',
-      body: 'Cada tarea completada suma puntos y hace crecer tu Cerezo. No solo estás siendo productivo — estás cultivando tu futuro.',
-      svg: (
-        <svg width="140" height="100" viewBox="0 0 140 100" fill="none">
-          <line x1="70" y1="90" x2="70" y2="58" stroke="#C4A882" strokeWidth="3" strokeLinecap="round"/>
-          <line x1="70" y1="76" x2="52" y2="64" stroke="#C4A882" strokeWidth="2" strokeLinecap="round"/>
-          <line x1="70" y1="68" x2="88" y2="56" stroke="#C4A882" strokeWidth="2" strokeLinecap="round"/>
-          <circle cx="70" cy="40" r="22" stroke="#EAE6E0" strokeWidth="1.5"/>
-          <circle cx="50" cy="50" r="16" stroke="#EAE6E0" strokeWidth="1.5"/>
-          <circle cx="90" cy="48" r="18" stroke="#EAE6E0" strokeWidth="1.5"/>
-          <circle cx="58" cy="30" r="7" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
-          <circle cx="78" cy="26" r="6" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
-          <circle cx="88" cy="40" r="6" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
-          <circle cx="52" cy="44" r="6" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
-          <circle cx="70" cy="50" r="5" fill="#F5F1ED" stroke="#C4A882" strokeWidth="1.5"/>
-        </svg>
-      ),
-    },
-  ];
+    }  ];
 
   const paso = PASOS[step];
   const isLast = step === PASOS.length - 1;
@@ -4062,6 +4047,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
 
   const NAV_ITEMS = [
     { id:"hoy",      label:"Hoy",      icon:"⊙" },
+    { id:"tareas",   label:"Tareas",   icon:"☐" },
     { id:"metas",    label:"Metas",    icon:"⋈" },
     { id:"progreso", label:"Progreso", icon:"❀" },
   ];
