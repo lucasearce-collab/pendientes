@@ -2697,9 +2697,10 @@ function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop
             Tu camino de vida. Cada nivel alimenta al siguiente — lo que hacés hoy construye el largo plazo.
           </p>}
         </div>
-        <div onClick={onOpenAsistente} style={{width:44,height:44,background:"#2C2825",color:"#D4AF37",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",flexShrink:0}}>
-          <i className="fa-solid fa-wand-magic-sparkles"></i>
-        </div>
+        <button onClick={onOpenAsistente}
+          style={{background:"none",border:"1px solid #E5E1DB",borderRadius:10,padding:"6px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",flexShrink:0,transition:"all .2s"}}>
+          <span style={{fontSize:15}}>✦</span> Asistente
+        </button>
       </div>
 
       {/* Camino horizontal — desktop */}
@@ -3135,165 +3136,130 @@ function AsistenteMetasSheet({onClose,onInject,isDesktop}){
   const [perfil,setPerfil]=useState(null);
   const [horizonte,setHorizonte]=useState(null);
   const [selected,setSelected]=useState([]);
-
   const cls=isDesktop?"d-modal":"sheet";
 
-  const ENERGIAS = [
-    {id:"impacto", label:"Impacto", desc:"Carrera, finanzas, negocios", icon:"fa-solid fa-rocket"},
-    {id:"equilibrio", label:"Equilibrio", desc:"Paz mental, bienestar, arte", icon:"fa-solid fa-leaf"},
-    {id:"vinculos", label:"Vínculos", desc:"Pareja, comunidad, hijos", icon:"fa-solid fa-house-user"}
+  const ENERGIAS=[
+    {id:"impacto",  label:"Impacto",    desc:"Carrera, finanzas, negocios", icon:"◈"},
+    {id:"equilibrio",label:"Equilibrio",desc:"Paz mental, bienestar, arte",  icon:"◎"},
+    {id:"vinculos", label:"Vínculos",   desc:"Pareja, comunidad, hijos",     icon:"◯"},
+  ];
+  const PERFILES={
+    impacto:[
+      {id:"corporativo",label:"Carrera corporativa",desc:"Ascenso, liderazgo, ejecutivos"},
+      {id:"freelancer", label:"Freelancer",          desc:"Independencia, marca personal"},
+      {id:"founder",    label:"Founder",             desc:"Startup, equipo, crecimiento"},
+    ],
+    equilibrio:[
+      {id:"creativo",label:"Creativo",    desc:"Arte, obras, contenido"},
+      {id:"nomade",  label:"Nómade",      desc:"Exploración, trabajo remoto"},
+      {id:"paz",     label:"Paz y salud", desc:"Calma, longevidad, simpleza"},
+    ],
+    vinculos:[
+      {id:"padres",    label:"Líder del hogar",         desc:"Hijos, patrimonio, valores"},
+      {id:"pareja",    label:"Construcción compartida", desc:"Proyectos de a dos, romance"},
+      {id:"comunidad", label:"Comunidad",               desc:"Mayores, voluntariado, legado"},
+    ],
+  };
+  const HORIZONTES=[
+    {id:"corto",dbKey:"anio", label:"Este año",       desc:"Próximos 12 meses"},
+    {id:"medio",dbKey:"medio",label:"2 a 5 años",     desc:"Mediano plazo"},
+    {id:"largo",dbKey:"largo",label:"5 años o más",   desc:"Largo plazo"},
   ];
 
-  const PERFILES = {
-    impacto: [
-      {id:"corporativo",label:"Carrera Corporativa",desc:"Ascenso, liderazgo, ejecutivos"},
-      {id:"freelancer",label:"Freelancer Profesional",desc:"Independencia, marca personal"},
-      {id:"founder",label:"Founder (Startups/Agencias)",desc:"Riesgo, equipo, crecimiento"}
-    ],
-    equilibrio: [
-      {id:"creativo",label:"Creativo / Autor",desc:"Arte, obras, contenido"},
-      {id:"nomade",label:"Nómade / Viajero",desc:"Exploración, trabajo remoto"},
-      {id:"paz",label:"Paz Mental y Salud",desc:"Calma, longevidad, simpleza"}
-    ],
-    vinculos: [
-      {id:"padres",label:"Líder del Hogar",desc:"Hijos, patrimonio, valores"},
-      {id:"pareja",label:"Construcción Compartida",desc:"Proyectos de a dos, romance"},
-      {id:"comunidad",label:"Cuidado y Entorno",desc:"Mayores, voluntariado, legado"}
-    ]
+  const handleSelect=(t)=>setSelected(s=>s.includes(t)?s.filter(x=>x!==t):[...s,t]);
+  const submit=()=>{
+    onInject(selected.map(t=>({title:t,description:"",horizon:HORIZONTES.find(h=>h.id===horizonte).dbKey})));
   };
 
-  const HORIZONTES = [
-    {id:"corto", dbKey:"anio", label:"Corto Plazo", desc:"Este año (12 meses)"},
-    {id:"medio", dbKey:"medio", label:"Mediano Plazo", desc:"Próximos 2 a 5 años"},
-    {id:"largo", dbKey:"largo", label:"Largo Plazo", desc:"De 5 años en adelante"}
-  ];
-
-  const handleSelect = (goalText) => {
-    if(selected.includes(goalText)) setSelected(selected.filter(g=>g!==goalText));
-    else setSelected([...selected, goalText]);
-  };
-
-  const submit = () => {
-    const finalGoals = selected.map(gText=>({
-      title: gText,
-      description: "",
-      horizon: HORIZONTES.find(h=>h.id===horizonte).dbKey
-    }));
-    onInject(finalGoals);
-  };
-
-  const renderStep1 = () => (
-    <div>
-      <p style={{fontFamily:"'DM Sans'",fontSize:14,color:"#6B6258",marginBottom:24,textAlign:"center"}}>¿En qué está enfocada tu energía?</p>
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {ENERGIAS.map(e=>(
-          <div key={e.id} onClick={()=>{setEnergia(e.id);setStep(2);}}
-            style={{padding:"20px",borderRadius:16,border:`1px solid ${energia===e.id?"#9B8878":"#E5E1DB"}`,background:energia===e.id?"white":"#FDFBFA",cursor:"pointer",display:"flex",alignItems:"center",gap:15,transition:"all .2s"}}>
-            <i className={e.icon} style={{color:"#D4AF37",fontSize:24,width:30,textAlign:"center"}}></i>
-            <div>
-              <b style={{display:"block",fontFamily:"'DM Sans'",fontSize:15,color:"#2C2825",marginBottom:3,fontWeight:600}}>{e.label}</b>
-              <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F"}}>{e.desc}</span>
-            </div>
-          </div>
-        ))}
-      </div>
+  // Opción — chip seleccionable
+  const Opcion=({label,desc,sel,onClick})=>(
+    <div onClick={onClick}
+      style={{padding:"12px 14px",borderRadius:10,border:`1px solid ${sel?"#C4A882":"#EAE6E0"}`,background:sel?"#FBF8F2":"white",cursor:"pointer",transition:"all .15s",marginBottom:6}}>
+      <div style={{fontFamily:"'DM Sans'",fontSize:13,color:sel?"#9B8878":"#2C2825",fontWeight:sel?500:400,marginBottom:desc?2:0}}>{label}</div>
+      {desc&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F"}}>{desc}</div>}
     </div>
   );
 
-  const renderStep2 = () => (
-    <div>
-      <p style={{fontFamily:"'DM Sans'",fontSize:14,color:"#6B6258",marginBottom:24,textAlign:"center"}}>¿Qué perfil te describe mejor?</p>
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:12}}>
-        {PERFILES[energia].map(p=>(
-          <div key={p.id} onClick={()=>{setPerfil(p.id);setStep(3);}}
-            style={{padding:"20px",borderRadius:16,border:`1px solid ${perfil===p.id?"#9B8878":"#E5E1DB"}`,background:perfil===p.id?"white":"#FDFBFA",cursor:"pointer",display:"flex",alignItems:"center",gap:15,transition:"all .2s"}}>
-            <div>
-              <b style={{display:"block",fontFamily:"'DM Sans'",fontSize:15,color:"#2C2825",marginBottom:3,fontWeight:600}}>{p.label}</b>
-              <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F"}}>{p.desc}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderStep3 = () => (
-    <div>
-      <p style={{fontFamily:"'DM Sans'",fontSize:14,color:"#6B6258",marginBottom:24,textAlign:"center"}}>¿En qué horizonte necesitas metas?</p>
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:12}}>
-        {HORIZONTES.map(h=>(
-          <div key={h.id} onClick={()=>{setHorizonte(h.id);setStep(4);}}
-            style={{padding:"20px",borderRadius:16,border:`1px solid ${horizonte===h.id?"#9B8878":"#E5E1DB"}`,background:horizonte===h.id?"white":"#FDFBFA",cursor:"pointer",display:"flex",alignItems:"center",gap:15,transition:"all .2s"}}>
-            <div>
-              <b style={{display:"block",fontFamily:"'DM Sans'",fontSize:15,color:"#2C2825",marginBottom:3,fontWeight:600}}>{h.label}</b>
-              <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F"}}>{h.desc}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderStep4 = () => {
-    if(!energia||!perfil||!horizonte) return null;
-    const catData = BANCO_METAS[energia][perfil][horizonte];
-    return(
-      <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
-        <div style={{flexShrink:0}}>
-          <p style={{fontFamily:"'DM Sans'",fontSize:14,color:"#6B6258",marginBottom:16,textAlign:"center"}}>Seleccioná las que resuenen.<br/><span style={{fontSize:12}}>Recibirás un bono de 2.000 pts al agregarlas.</span></p>
-        </div>
-        
-        <div style={{overflowY:"auto",flex:1,paddingRight:4,paddingBottom:20}}>
-          {Object.entries(catData).map(([catName, metas])=>(
-            <div key={catName} style={{marginBottom:20}}>
-              <div style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,color:"#9B8878",letterSpacing:".08em",textTransform:"uppercase",marginBottom:10}}>{catName}</div>
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {metas.map((mText,i)=>{
-                  const isSel=selected.includes(mText);
-                  return(
-                    <div key={i} onClick={()=>handleSelect(mText)}
-                      style={{padding:"16px",borderRadius:14,border:`1px solid ${isSel?"#9B8878":"#E5E1DB"}`,background:isSel?"#F5F1ED":"#FDFBFA",cursor:"pointer",transition:"all .2s"}}>
-                      <p style={{fontFamily:"'DM Sans'",fontSize:14,color:isSel?"#9B8878":"#2C2825",lineHeight:1.4,margin:0,fontWeight:isSel?500:400}}>{mText}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-        
-        <div style={{paddingTop:16,borderTop:"1px solid #EAE6E0",flexShrink:0,marginTop:"auto"}}>
-          <button onClick={submit} disabled={selected.length===0} 
-            style={{width:"100%",padding:"16px",borderRadius:14,border:"none",background:"#2C2825",color:"white",fontSize:15,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans'",transition:"background 0.2s",opacity:selected.length===0?0.5:1}}>
-            {selected.length>0 ? `Agregar ${selected.length} meta${selected.length>1?'s':''} (+2.000 pts)` : "Seleccioná metas"}
-          </button>
-        </div>
-      </div>
-    );
-  };
+  // Progreso textual
+  const stepLabels=["Tu energía","Tu perfil","Horizonte","Tus metas"];
 
   return(
-    <div className={cls} style={{height:step===4?(isDesktop?"80vh":"90vh"):"auto",display:"flex",flexDirection:"column"}}>
+    <div className={cls} style={{display:"flex",flexDirection:"column",height:step===4?(isDesktop?"80vh":"88vh"):"auto"}}>
       {!isDesktop&&<div className="hd"/>}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20,flexShrink:0,position:"relative"}}>
-        {step>1 && <button onClick={()=>setStep(step-1)} style={{position:"absolute",left:0,background:"none",border:"none",color:"#B0AA9F",fontSize:18,cursor:"pointer"}}><i className="fa-solid fa-chevron-left"></i></button>}
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-          <span style={{fontFamily:"'DM Sans'",fontSize:16,fontWeight:500,color:"#2C2825"}}>Asistente de metas</span>
-          <span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",marginTop:4}}>Paso {step} de 4</span>
+
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,flexShrink:0}}>
+        {step>1
+          ?<button onClick={()=>setStep(s=>s-1)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",padding:0}}>← Atrás</button>
+          :<div style={{width:48}}/>
+        }
+        <div style={{textAlign:"center"}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#2C2825"}}>✦ Asistente</div>
+          <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginTop:1}}>{stepLabels[step-1]}</div>
         </div>
-        <button onClick={onClose} style={{position:"absolute",right:0,background:"none",border:"none",color:"#B0AA9F",fontSize:24,cursor:"pointer",lineHeight:1}}>&times;</button>
+        <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:20,color:"#C8C3BB",lineHeight:1,padding:0}}>×</button>
       </div>
-      <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:24}}>
-        {[1,2,3,4].map(s=>(
-          <div key={s} style={{width:8,height:8,borderRadius:"50%",background:s<=step?"#9B8878":"#E5E1DB",transition:"0.3s"}}></div>
-        ))}
+
+      {/* Barra de progreso */}
+      <div style={{height:2,background:"#EAE6E0",borderRadius:99,margin:"12px 0 20px",flexShrink:0}}>
+        <div style={{height:"100%",width:`${(step/4)*100}%`,background:"linear-gradient(to right,#C4A882,#9B8878)",borderRadius:99,transition:"width .4s cubic-bezier(.34,1,.64,1)"}}/>
       </div>
-      <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
-        {step===1&&renderStep1()}
-        {step===2&&renderStep2()}
-        {step===3&&renderStep3()}
-        {step===4&&renderStep4()}
+
+      {/* Contenido */}
+      <div style={{flex:1,overflowY:"auto",minHeight:0}}>
+        {step===1&&(
+          <div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:16}}>¿En qué está enfocada tu energía ahora?</div>
+            {ENERGIAS.map(e=><Opcion key={e.id} label={`${e.icon} ${e.label}`} desc={e.desc} sel={energia===e.id} onClick={()=>{setEnergia(e.id);setStep(2);}}/>)}
+          </div>
+        )}
+        {step===2&&energia&&(
+          <div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:16}}>¿Qué perfil te describe mejor?</div>
+            {PERFILES[energia].map(p=><Opcion key={p.id} label={p.label} desc={p.desc} sel={perfil===p.id} onClick={()=>{setPerfil(p.id);setStep(3);}}/>)}
+          </div>
+        )}
+        {step===3&&(
+          <div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:16}}>¿En qué horizonte querés definir metas?</div>
+            {HORIZONTES.map(h=><Opcion key={h.id} label={h.label} desc={h.desc} sel={horizonte===h.id} onClick={()=>{setHorizonte(h.id);setStep(4);}}/>)}
+          </div>
+        )}
+        {step===4&&energia&&perfil&&horizonte&&(()=>{
+          const catData=BANCO_METAS[energia][perfil][horizonte];
+          return(
+            <div>
+              <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:16}}>Elegí las que resuenen. Podés modificarlas después.</div>
+              {Object.entries(catData).map(([catName,metas])=>(
+                <div key={catName} style={{marginBottom:18}}>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:10,fontWeight:500,letterSpacing:".08em",textTransform:"uppercase",color:"#C4A882",marginBottom:8}}>{catName}</div>
+                  {metas.map((mText,i)=>{
+                    const isSel=selected.includes(mText);
+                    return(
+                      <div key={i} onClick={()=>handleSelect(mText)}
+                        style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"10px 14px",borderRadius:10,border:`1px solid ${isSel?"#C4A882":"#EAE6E0"}`,background:isSel?"#FBF8F2":"white",cursor:"pointer",transition:"all .15s",marginBottom:5}}>
+                        <span style={{fontFamily:"'DM Sans'",fontSize:13,color:isSel?"#9B8878":"#2C2825",lineHeight:1.4,flex:1}}>{mText}</span>
+                        {isSel&&<span style={{fontSize:12,color:"#C4A882",flexShrink:0}}>✓</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+              <div style={{height:80}}/>
+            </div>
+          );
+        })()}
       </div>
+
+      {/* Footer — solo en paso 4 */}
+      {step===4&&(
+        <div style={{paddingTop:14,borderTop:"1px solid #EAE6E0",flexShrink:0}}>
+          <button onClick={submit} disabled={selected.length===0}
+            className="sv" style={{opacity:selected.length===0?.4:1,margin:0}}>
+            {selected.length>0?`Agregar ${selected.length} meta${selected.length>1?"s":""}`:"Seleccioná al menos una"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
