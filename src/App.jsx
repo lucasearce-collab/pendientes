@@ -2687,9 +2687,10 @@ function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop
             Tu camino de vida. Cada nivel alimenta al siguiente — lo que hacés hoy construye el largo plazo.
           </p>}
         </div>
-        <div onClick={onOpenAsistente} style={{width:44,height:44,background:"#2C2825",color:"#D4AF37",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",flexShrink:0}}>
-          ✦
-        </div>
+        <button onClick={onOpenAsistente}
+          style={{background:"none",border:"1px solid #E5E1DB",borderRadius:10,padding:"6px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",flexShrink:0,transition:"all .2s"}}>
+          <span style={{fontSize:14}}>✦</span> Asistente de metas
+        </button>
       </div>
 
       {/* Camino horizontal — desktop */}
@@ -3179,8 +3180,8 @@ function AsistenteMetasSheet({onClose,onInject,isDesktop}){
           ?<button onClick={()=>setStep(s=>s-1)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",padding:0}}>← Atrás</button>
           :<div style={{width:48}}/>
         }
-        <div style={{textAlign:"center"}}>
-          <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#2C2825"}}>✦ Asistente</div>
+        <div style={{textAlign:"center",flex:1}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#2C2825"}}>✦ Asistente de metas</div>
           <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginTop:1}}>{stepLabels[step-1]}</div>
         </div>
         <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:20,color:"#C8C3BB",lineHeight:1,padding:0}}>×</button>
