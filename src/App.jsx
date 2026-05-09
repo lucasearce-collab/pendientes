@@ -295,7 +295,7 @@ export default function App() {
       loadPoints(session.user.id);
       // Load rescheduled count for analytics
       supabase.from('events').select('id',{count:'exact'}).eq('user_id',session.user.id).eq('event_type','task_rescheduled').then(({count})=>setRescheduledCount(count||0));
-      // Onboarding si nunca aceptó los términos
+      // Mostrar onboarding si el usuario nunca aceptó los términos
       const {data: profile} = await supabase.from('user_profiles').select('terms_accepted').eq('id',session.user.id).single();
       if(!profile || !profile.terms_accepted){
         setOnboarding(true);
@@ -1319,11 +1319,10 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
     {type:'metas', horizon:'largo', label:'5+ años', sub:'2031+', color:COLORS.largo, title:'Tu visión a largo plazo', q:'¿Dónde querés estar en 5 años o más? Empezá por lo grande.'},
     {type:'metas', horizon:'medio', label:'2–5 años', sub:'2026–30', color:COLORS.medio, title:'Tus metas de mediano plazo', q:'¿Qué necesitás lograr en los próximos 2 a 5 años para acercarte a esa visión?'},
     {type:'metas', horizon:'anio', label:'Este año', sub:'2025', color:COLORS.anio, title:'Tus metas para este año', q:'¿Qué querés conseguir este año? Esto es lo que vas a ejecutar en los próximos meses.'},
-    {type:'proyectos', color:COLORS.proyecto, title:'Tus proyectos actuales', q:'¿En qué proyectos estás trabajando ahora? Relacioná cada uno con una meta de este año.'},
     {type:'done'},
   ];
 
-  const totalSteps = 4; // metas (3) + proyectos (1)
+  const totalSteps = 3; // metas: largo, medio, anio
   const stepNum = step <= 1 ? 0 : step - 1; // visible step number
 
   async function finish(){
@@ -1339,7 +1338,6 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
       return {id:crypto.randomUUID(), user_id:uid, name:p.name, area:'trabajo', importance:'normal', sort_order:i, goal_id:goal?goal.id:null, created_at:new Date().toISOString()};
     });
     if(goalsToSave.length>0) await supabase.from('goals').insert(goalsToSave);
-    // Si el usuario no creó ningún proyecto, crear uno "General" por defecto
     if(projectsToSave.length===0){
       projectsToSave.push({id:crypto.randomUUID(), user_id:uid, name:'General', area:'trabajo', importance:'normal', sort_order:0, goal_id:null, created_at:new Date().toISOString()});
     }
@@ -1472,7 +1470,6 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
   if(s.type==='metas'){
     const items = data[s.horizon]||[];
     const selectedSet = new Set(items);
-
     const SUGERENCIAS = {
       largo: {
         dinero: ["Vivir de mis rentas / Ser financieramente libre","Ser dueño de mi propio negocio o estudio","Tener mi casa propia pagada"],
@@ -1490,24 +1487,17 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
         amor:   ["Organizar una salida semanal con gente que quiero","Llamar o visitar más seguido a mis viejos o abuelos","Hacer un viaje corto con amigos o pareja"],
       },
     };
-
     const cats = [
       { key:'dinero', label:'Dinero', emoji:'💰', selColor:'#5B6BAF', selBg:'#F0F1F8', selBorder:'#5B6BAF' },
       { key:'salud',  label:'Salud',  emoji:'🍎', selColor:'#3B6D11', selBg:'#EAF3DE', selBorder:'#8FAF8A' },
       { key:'amor',   label:'Amor',   emoji:'❤️', selColor:'#9B4A6A', selBg:'#FBF0F4', selBorder:'#C49A7A' },
     ];
-
     const sugs = SUGERENCIAS[s.horizon] || {};
     const allSugTexts = Object.values(sugs).flat();
-
     function toggleSugerencia(text){
-      if(selectedSet.has(text)){
-        removeItem(s.horizon, items.indexOf(text));
-      } else {
-        setData(d=>({...d,[s.horizon]:[...d[s.horizon],text]}));
-      }
+      if(selectedSet.has(text)) removeItem(s.horizon, items.indexOf(text));
+      else setData(d=>({...d,[s.horizon]:[...d[s.horizon],text]}));
     }
-
     return(
       <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
@@ -1524,49 +1514,49 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
             <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:s.color}}>{s.label}</span>
             <span style={{fontSize:10,color:'#C8C3BB'}}>{s.sub}</span>
           </div>
-          <div style={{fontSize:24,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:6}}>{s.title}</div>
-          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6}}>Elegí lo que resuena. Podés modificarlos después.</div>
+          <div style={{fontSize:24,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:4}}>{s.title}</div>
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6}}>Elegí una o más. No hace falta elegir en todas las categorías.</div>
         </div>
-        <div style={{flex:1,overflowY:'auto',padding:'16px 24px 0'}}>
+        <div style={{flex:1,overflowY:'auto',padding:'14px 24px 0'}}>
           {cats.map(cat=>(
-            <div key={cat.key} style={{marginBottom:18}}>
-              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
-                <span style={{fontSize:14}}>{cat.emoji}</span>
+            <div key={cat.key} style={{marginBottom:16}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:7}}>
+                <span style={{fontSize:13}}>{cat.emoji}</span>
                 <span style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#B0AA9F'}}>{cat.label}</span>
               </div>
-              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              <div style={{display:'flex',flexDirection:'column',gap:5}}>
                 {(sugs[cat.key]||[]).map(text=>{
                   const sel = selectedSet.has(text);
                   return(
                     <div key={text} onClick={()=>toggleSugerencia(text)}
-                      style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'10px 14px',borderRadius:12,border:`1px solid ${sel?cat.selBorder:'#EAE6E0'}`,background:sel?cat.selBg:'white',fontSize:13,color:sel?cat.selColor:'#2C2825',cursor:'pointer',lineHeight:1.4,transition:'all .15s',userSelect:'none'}}>
+                      style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'9px 13px',borderRadius:11,border:`1px solid ${sel?cat.selBorder:'#EAE6E0'}`,background:sel?cat.selBg:'white',fontSize:13,color:sel?cat.selColor:'#2C2825',cursor:'pointer',lineHeight:1.4,transition:'all .15s',userSelect:'none'}}>
                       <span style={{flex:1}}>{text}</span>
-                      {sel&&<span style={{fontSize:13,flexShrink:0}}>✓</span>}
+                      {sel&&<span style={{fontSize:12,flexShrink:0}}>✓</span>}
                     </div>
                   );
                 })}
               </div>
             </div>
           ))}
-          <div style={{marginBottom:10}}>
-            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
-              <span style={{fontSize:14}}>✏️</span>
+          <div style={{marginBottom:8}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:7}}>
+              <span style={{fontSize:13}}>✏️</span>
               <span style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#B0AA9F'}}>Algo tuyo</span>
             </div>
             <div style={{display:'flex',gap:8}}>
               <input value={input} onChange={e=>setInput(e.target.value)}
                 onKeyDown={e=>e.key==='Enter'&&addItem(s.horizon)}
-                style={{flex:1,padding:'11px 14px',borderRadius:12,border:'1px solid #E5E1DB',background:'white',fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825',outline:'none'}}
+                style={{flex:1,padding:'10px 13px',borderRadius:11,border:'1px solid #E5E1DB',background:'white',fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825',outline:'none'}}
                 placeholder="Escribí una meta propia..."/>
               <button onClick={()=>addItem(s.horizon)} disabled={!input.trim()}
-                style={{width:44,borderRadius:12,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
+                style={{width:42,borderRadius:11,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
             </div>
           </div>
           {items.filter(item=>!allSugTexts.includes(item)).map((item,i)=>(
-            <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'white',borderRadius:12,border:'1px solid #EAE6E0',marginBottom:6}}>
-              <div style={{width:6,height:6,borderRadius:'50%',background:s.color,flexShrink:0}}/>
+            <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 13px',background:'white',borderRadius:11,border:'1px solid #EAE6E0',marginBottom:5}}>
+              <div style={{width:5,height:5,borderRadius:'50%',background:s.color,flexShrink:0}}/>
               <span style={{flex:1,fontSize:13,color:'#2C2825'}}>{item}</span>
-              <button onClick={()=>removeItem(s.horizon,items.indexOf(item))} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:18,lineHeight:1}}>×</button>
+              <button onClick={()=>removeItem(s.horizon,items.indexOf(item))} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:17,lineHeight:1}}>×</button>
             </div>
           ))}
           <div style={{height:100}}/>
@@ -1602,13 +1592,8 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
             <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:s.color}}>Proyectos</span>
           </div>
           <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>{s.title}</div>
-          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6,marginBottom:8}}>
-            Un proyecto es cualquier cosa que tiene más de una tarea — un cliente, una mudanza, un viaje, un objetivo de trabajo.
-          </div>
-          <div style={{background:'#F5F1ED',borderRadius:10,padding:'10px 14px',marginBottom:20}}>
-            <div style={{fontSize:11,color:'#9B8878',lineHeight:1.7}}>
-              Si no tenés proyectos claros aún, no te preocupes — la app crea uno general para vos y podés agregar tus tareas ahí.
-            </div>
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:20}}>
+            {metasAnio.length>0?'Relacioná cada proyecto con la meta de este año que impulsa.':s.q}
           </div>
           <div style={{display:'flex',gap:8,marginBottom:14}}>
             <input value={input} onChange={e=>setInput(e.target.value)}
@@ -3613,6 +3598,111 @@ function SemanaView({tasks, projects, onToggle, onOpen, onUpdate, desktop}){
   );
 }
 
+// ─── Tareas View (con toggle todas / por proyecto) ───────────────────────────
+function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks,addTask,addProject,sw,desktop,focusMode,activeProjId}){
+  const STORAGE_KEY = 'clarity_tareas_modo';
+  const [modo, setModo] = useState(()=>{
+    try{ return localStorage.getItem(STORAGE_KEY)||'todas'; }catch{ return 'todas'; }
+  });
+
+  function switchModo(m){
+    setModo(m);
+    try{ localStorage.setItem(STORAGE_KEY, m); }catch{}
+  }
+
+  // Todas las tareas del área activa, sin agrupar
+  const todasLasTareas = projects.flatMap(p=>
+    tasksForProject(p.id).filter(t=>!t.done).map(t=>({...t,_proj:p}))
+  ).sort(taskSort);
+
+  // Encontrar o crear el proyecto General para tareas rápidas
+  async function addTareaRapida(){
+    let general = (allProjects||[]).find(p=>p.name==='General'&&p.area===activeArea);
+    if(!general){
+      // Crear proyecto General on the fly
+      const newProj = {id:'p'+Date.now(), area:activeArea, name:'General', monto:'', importance:'normal', description:'', mainGoal:'', secondaryGoals:[], goal_id:null, sortOrder:0};
+      await addProject(activeArea, 'General');
+      // Buscar el recién creado (addProject actualiza el estado)
+      // Pequeño delay para que el estado se actualice
+      setTimeout(()=>{
+        const created = (allProjects||[]).find(p=>p.name==='General'&&p.area===activeArea);
+        if(created) onAddTask(created);
+      }, 100);
+    } else {
+      onAddTask(general);
+    }
+  }
+
+  if(focusMode) return(
+    <FocusProjectMode
+      projects={projects}
+      tasksForProject={tasksForProject}
+      onToggle={onToggle}
+      onDelete={onDelete}
+      onOpen={onOpen}
+      onAddTask={onAddTask}
+      desktop={desktop}
+    />
+  );
+
+  return(
+    <div style={desktop?{padding:"24px 48px"}:{}}>
+      {/* Toggle + botón + tarea */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:desktop?'0 0 16px':'10px 20px 8px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:0}}>
+          <button onClick={()=>switchModo('todas')}
+            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,letterSpacing:'.06em',color:modo==='todas'?'#2C2825':'#C8C3BB',padding:'4px 0',borderBottom:`2px solid ${modo==='todas'?'#2C2825':'transparent'}`,transition:'all .2s'}}>
+            Todas
+          </button>
+          <span style={{fontSize:11,color:'#D5CFC8',padding:'0 10px'}}>·</span>
+          <button onClick={()=>switchModo('proyectos')}
+            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,letterSpacing:'.06em',color:modo==='proyectos'?'#2C2825':'#C8C3BB',padding:'4px 0',borderBottom:`2px solid ${modo==='proyectos'?'#2C2825':'transparent'}`,transition:'all .2s'}}>
+            Por proyecto
+          </button>
+        </div>
+        <button onClick={addTareaRapida}
+          style={{background:'#2C2825',color:'white',border:'none',borderRadius:99,padding:'5px 14px',fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,cursor:'pointer',display:'flex',alignItems:'center',gap:5}}>
+          <span style={{fontSize:16,lineHeight:1}}>+</span> tarea
+        </button>
+      </div>
+
+      {/* Vista todas */}
+      {modo==='todas'&&(
+        <div>
+          {todasLasTareas.length===0
+            ?<div style={{textAlign:'center',padding:'40px 20px',color:'#C8C3BB',fontFamily:"'DM Sans'",fontSize:14}}>Sin tareas pendientes.</div>
+            :desktop
+              ?<DTaskList tasks={todasLasTareas} projects={projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
+              :<TaskRows tasks={todasLasTareas} projects={projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...(sw||{})}/>
+          }
+        </div>
+      )}
+
+      {/* Vista por proyecto */}
+      {modo==='proyectos'&&(
+        <GroupedProjectsView
+          projects={projects.filter(p=>!activeProjId||p.id===activeProjId)}
+          tasksForProject={tasksForProject}
+          onToggle={onToggle}
+          onDelete={onDelete}
+          onOpen={onOpen}
+          onAddTask={onAddTask}
+          onComplete={onComplete}
+          reorderTasks={reorderTasks}
+          sw={sw}
+          desktop={desktop}
+        />
+      )}
+
+      {projects.length===0&&(
+        <div style={{textAlign:'center',padding:'40px 20px',color:'#C8C3BB',fontFamily:"'DM Sans'",fontSize:14}}>
+          Sin proyectos aún. Creá uno desde la tab Proyectos.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline,desktop}){
 
   const activeSec = SECTIONS.find(s => s.id === section);
@@ -3682,13 +3772,25 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
       )}
 
       {subView==="tareas"&&(
-        <div style={desktop?{padding:"24px 48px"}:{}}>
-          {focusMode
-            ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} desktop={desktop}/>
-            :<GroupedProjectsView projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} onComplete={completeProject} reorderTasks={reorderTasks} sw={sw} desktop={desktop}/>
-          }
-          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos. Creá uno desde Proyectos.</div>}
-        </div>
+        <TareasView
+          activeArea={activeArea}
+          projects={projectsForArea(activeArea)}
+          allProjects={projects}
+          tasksForProject={tasksForProject}
+          tasks={tasks}
+          onToggle={toggleDone}
+          onDelete={deleteTask}
+          onOpen={setSheet}
+          onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
+          onComplete={completeProject}
+          reorderTasks={reorderTasks}
+          addTask={addTask}
+          addProject={addProject}
+          sw={sw}
+          desktop={desktop}
+          focusMode={focusMode}
+          activeProjId={activeProjId}
+        />
       )}
 
       {subView==="proyectos"&&(
