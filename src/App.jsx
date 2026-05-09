@@ -2697,9 +2697,9 @@ function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop
             Tu camino de vida. Cada nivel alimenta al siguiente — lo que hacés hoy construye el largo plazo.
           </p>}
         </div>
-        <button onClick={onOpenAsistente} className={isDesktop?"d-newp":"m-newp"} style={isDesktop?{marginTop:0,marginLeft:24}:{marginLeft:16}}>
-          {isDesktop?"+ Asistente de Metas":"+ Asistente"}
-        </button>
+        <div onClick={onOpenAsistente} style={{width:44,height:44,background:"#2C2825",color:"#D4AF37",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,cursor:"pointer",flexShrink:0}}>
+          <i className="fa-solid fa-wand-magic-sparkles"></i>
+        </div>
       </div>
 
       {/* Camino horizontal — desktop */}
@@ -3139,9 +3139,9 @@ function AsistenteMetasSheet({onClose,onInject,isDesktop}){
   const cls=isDesktop?"d-modal":"sheet";
 
   const ENERGIAS = [
-    {id:"impacto", label:"Impacto & Dinero", desc:"Carrera, finanzas, negocios", icon:"fa-solid fa-rocket"},
-    {id:"equilibrio", label:"Equilibrio & Salud", desc:"Paz mental, bienestar, arte", icon:"fa-solid fa-leaf"},
-    {id:"vinculos", label:"Vínculos & Familia", desc:"Pareja, comunidad, hijos", icon:"fa-solid fa-house"}
+    {id:"impacto", label:"Impacto", desc:"Carrera, finanzas, negocios", icon:"fa-solid fa-rocket"},
+    {id:"equilibrio", label:"Equilibrio", desc:"Paz mental, bienestar, arte", icon:"fa-solid fa-leaf"},
+    {id:"vinculos", label:"Vínculos", desc:"Pareja, comunidad, hijos", icon:"fa-solid fa-house-user"}
   ];
 
   const PERFILES = {
@@ -3184,18 +3184,17 @@ function AsistenteMetasSheet({onClose,onInject,isDesktop}){
 
   const renderStep1 = () => (
     <div>
-      <span className="sl">¿Dónde querés enfocar tu energía?</span>
-      <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:16,lineHeight:1.5}}>Elegí el área de tu vida que requiere más atención hoy.</p>
+      <p style={{fontFamily:"'DM Sans'",fontSize:14,color:"#6B6258",marginBottom:24,textAlign:"center"}}>¿En qué está enfocada tu energía?</p>
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
         {ENERGIAS.map(e=>(
-          <button key={e.id} onClick={()=>{setEnergia(e.id);setStep(2);}}
-            style={{display:"flex",alignItems:"center",gap:14,padding:"16px",borderRadius:12,border:`1px solid ${energia===e.id?"#C4A882":"#E5E1DB"}`,background:energia===e.id?"#FBF8F2":"white",cursor:"pointer",textAlign:"left",transition:"all .15s"}}>
-            <i className={e.icon} style={{color:"#C4A882",fontSize:18,width:20,textAlign:"center"}}></i>
+          <div key={e.id} onClick={()=>{setEnergia(e.id);setStep(2);}}
+            style={{padding:"20px",borderRadius:16,border:`1px solid ${energia===e.id?"#9B8878":"#E5E1DB"}`,background:energia===e.id?"white":"#FDFBFA",cursor:"pointer",display:"flex",alignItems:"center",gap:15,transition:"all .2s"}}>
+            <i className={e.icon} style={{color:"#D4AF37",fontSize:24,width:30,textAlign:"center"}}></i>
             <div>
-              <div style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,color:"#2C2825"}}>{e.label}</div>
-              <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",marginTop:2}}>{e.desc}</div>
+              <b style={{display:"block",fontFamily:"'DM Sans'",fontSize:15,color:"#2C2825",marginBottom:3,fontWeight:600}}>{e.label}</b>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F"}}>{e.desc}</span>
             </div>
-          </button>
+          </div>
         ))}
       </div>
     </div>
@@ -3203,15 +3202,16 @@ function AsistenteMetasSheet({onClose,onInject,isDesktop}){
 
   const renderStep2 = () => (
     <div>
-      <button onClick={()=>setStep(1)} style={{background:"none",border:"none",color:"#B0AA9F",cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:6,fontFamily:"'DM Sans'",fontSize:12}}><i className="fa-solid fa-arrow-left"></i> Atrás</button>
-      <span className="sl">¿Qué perfil te describe mejor?</span>
+      <p style={{fontFamily:"'DM Sans'",fontSize:14,color:"#6B6258",marginBottom:24,textAlign:"center"}}>¿Qué perfil te describe mejor?</p>
       <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:12}}>
         {PERFILES[energia].map(p=>(
-          <button key={p.id} onClick={()=>{setPerfil(p.id);setStep(3);}}
-            style={{padding:"14px",borderRadius:12,border:`1px solid ${perfil===p.id?"#C4A882":"#E5E1DB"}`,background:perfil===p.id?"#FBF8F2":"white",cursor:"pointer",textAlign:"left",transition:"all .15s"}}>
-            <div style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,color:"#2C2825"}}>{p.label}</div>
-            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",marginTop:2}}>{p.desc}</div>
-          </button>
+          <div key={p.id} onClick={()=>{setPerfil(p.id);setStep(3);}}
+            style={{padding:"20px",borderRadius:16,border:`1px solid ${perfil===p.id?"#9B8878":"#E5E1DB"}`,background:perfil===p.id?"white":"#FDFBFA",cursor:"pointer",display:"flex",alignItems:"center",gap:15,transition:"all .2s"}}>
+            <div>
+              <b style={{display:"block",fontFamily:"'DM Sans'",fontSize:15,color:"#2C2825",marginBottom:3,fontWeight:600}}>{p.label}</b>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F"}}>{p.desc}</span>
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -3219,15 +3219,16 @@ function AsistenteMetasSheet({onClose,onInject,isDesktop}){
 
   const renderStep3 = () => (
     <div>
-      <button onClick={()=>setStep(2)} style={{background:"none",border:"none",color:"#B0AA9F",cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:6,fontFamily:"'DM Sans'",fontSize:12}}><i className="fa-solid fa-arrow-left"></i> Atrás</button>
-      <span className="sl">¿En qué horizonte necesitas metas?</span>
+      <p style={{fontFamily:"'DM Sans'",fontSize:14,color:"#6B6258",marginBottom:24,textAlign:"center"}}>¿En qué horizonte necesitas metas?</p>
       <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:12}}>
         {HORIZONTES.map(h=>(
-          <button key={h.id} onClick={()=>{setHorizonte(h.id);setStep(4);}}
-            style={{padding:"14px",borderRadius:12,border:`1px solid ${horizonte===h.id?"#C4A882":"#E5E1DB"}`,background:horizonte===h.id?"#FBF8F2":"white",cursor:"pointer",textAlign:"left",transition:"all .15s"}}>
-            <div style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,color:"#2C2825"}}>{h.label}</div>
-            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",marginTop:2}}>{h.desc}</div>
-          </button>
+          <div key={h.id} onClick={()=>{setHorizonte(h.id);setStep(4);}}
+            style={{padding:"20px",borderRadius:16,border:`1px solid ${horizonte===h.id?"#9B8878":"#E5E1DB"}`,background:horizonte===h.id?"white":"#FDFBFA",cursor:"pointer",display:"flex",alignItems:"center",gap:15,transition:"all .2s"}}>
+            <div>
+              <b style={{display:"block",fontFamily:"'DM Sans'",fontSize:15,color:"#2C2825",marginBottom:3,fontWeight:600}}>{h.label}</b>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F"}}>{h.desc}</span>
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -3239,9 +3240,7 @@ function AsistenteMetasSheet({onClose,onInject,isDesktop}){
     return(
       <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
         <div style={{flexShrink:0}}>
-          <button onClick={()=>setStep(3)} style={{background:"none",border:"none",color:"#B0AA9F",cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:6,fontFamily:"'DM Sans'",fontSize:12}}><i className="fa-solid fa-arrow-left"></i> Atrás</button>
-          <span className="sl" style={{marginBottom:4}}>Sugerencias curadas</span>
-          <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:16,lineHeight:1.5}}>Seleccioná las que resuenen. Recibirás un bono de 2.000 pts al agregarlas.</p>
+          <p style={{fontFamily:"'DM Sans'",fontSize:14,color:"#6B6258",marginBottom:16,textAlign:"center"}}>Seleccioná las que resuenen.<br/><span style={{fontSize:12}}>Recibirás un bono de 2.000 pts al agregarlas.</span></p>
         </div>
         
         <div style={{overflowY:"auto",flex:1,paddingRight:4,paddingBottom:20}}>
@@ -3253,14 +3252,9 @@ function AsistenteMetasSheet({onClose,onInject,isDesktop}){
                   const isSel=selected.some(g=>g.t===m.t);
                   return(
                     <div key={i} onClick={()=>handleSelect(m)}
-                      style={{padding:"12px 14px",borderRadius:10,border:`1px solid ${isSel?"#C4A882":"#EAE6E0"}`,background:isSel?"#FBF8F2":"white",cursor:"pointer",display:"flex",gap:12,alignItems:"flex-start",transition:"all .15s"}}>
-                      <div style={{width:18,height:18,borderRadius:4,border:`1.5px solid ${isSel?"#C4A882":"#D5CFC8"}`,background:isSel?"#C4A882":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}}>
-                        {isSel&&<i className="fa-solid fa-check" style={{color:"white",fontSize:10}}></i>}
-                      </div>
-                      <div>
-                        <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:600,color:isSel?"#7A6A3A":"#2C2825",lineHeight:1.4}}>{m.t}</div>
-                        <div style={{fontFamily:"'DM Sans'",fontSize:12,color:isSel?"#9B8878":"#B0AA9F",marginTop:4,lineHeight:1.4}}>{m.d}</div>
-                      </div>
+                      style={{padding:"16px",borderRadius:14,border:`1px solid ${isSel?"#9B8878":"#E5E1DB"}`,background:isSel?"#F5F1ED":"#FDFBFA",cursor:"pointer",transition:"all .2s"}}>
+                      <b style={{display:"block",fontFamily:"'DM Sans'",fontSize:14,color:isSel?"#9B8878":"#2C2825",marginBottom:4,fontWeight:600}}>{m.t}</b>
+                      <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258",lineHeight:1.4,margin:0}}>{m.d}</p>
                     </div>
                   );
                 })}
@@ -3270,7 +3264,8 @@ function AsistenteMetasSheet({onClose,onInject,isDesktop}){
         </div>
         
         <div style={{paddingTop:16,borderTop:"1px solid #EAE6E0",flexShrink:0,marginTop:"auto"}}>
-          <button className="sv" onClick={submit} disabled={selected.length===0} style={{opacity:selected.length===0?0.5:1}}>
+          <button onClick={submit} disabled={selected.length===0} 
+            style={{width:"100%",padding:"16px",borderRadius:14,border:"none",background:"#2C2825",color:"white",fontSize:15,fontWeight:500,cursor:"pointer",fontFamily:"'DM Sans'",transition:"background 0.2s",opacity:selected.length===0?0.5:1}}>
             {selected.length>0 ? `Agregar ${selected.length} meta${selected.length>1?'s':''} (+2.000 pts)` : "Seleccioná metas"}
           </button>
         </div>
@@ -3281,12 +3276,18 @@ function AsistenteMetasSheet({onClose,onInject,isDesktop}){
   return(
     <div className={cls} style={{height:step===4?(isDesktop?"80vh":"90vh"):"auto",display:"flex",flexDirection:"column"}}>
       {!isDesktop&&<div className="hd"/>}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexShrink:0}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <i className="fa-solid fa-wand-magic-sparkles" style={{color:"#C4A882",fontSize:18}}></i>
-          <span style={{fontFamily:"'Lora'",fontSize:20,fontWeight:500,color:"#2C2825"}}>Asistente de Metas</span>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20,flexShrink:0,position:"relative"}}>
+        {step>1 && <button onClick={()=>setStep(step-1)} style={{position:"absolute",left:0,background:"none",border:"none",color:"#B0AA9F",fontSize:18,cursor:"pointer"}}><i className="fa-solid fa-chevron-left"></i></button>}
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+          <span style={{fontFamily:"'DM Sans'",fontSize:16,fontWeight:500,color:"#2C2825"}}>Asistente de metas</span>
+          <span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",marginTop:4}}>Paso {step} de 4</span>
         </div>
-        <button onClick={onClose} style={{background:"none",border:"none",color:"#B0AA9F",fontSize:24,cursor:"pointer",lineHeight:1,padding:0}}>&times;</button>
+        <button onClick={onClose} style={{position:"absolute",right:0,background:"none",border:"none",color:"#B0AA9F",fontSize:24,cursor:"pointer",lineHeight:1}}>&times;</button>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:24}}>
+        {[1,2,3,4].map(s=>(
+          <div key={s} style={{width:8,height:8,borderRadius:"50%",background:s<=step?"#9B8878":"#E5E1DB",transition:"0.3s"}}></div>
+        ))}
       </div>
       <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
         {step===1&&renderStep1()}
