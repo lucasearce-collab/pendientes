@@ -507,7 +507,7 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,section,subView,setSection:switchSection,setSubView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline};
+  const props={tasks,projects,goals,section,subView,setSection:switchSection,setSubView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline};
   if(onboarding) return <OnboardingFlow uid={uid} supabase={supabase} onComplete={(gs,ps)=>{
     setGoals(gs.map(goalFromDb));
     setProjects(ps.map(projFromDb));
@@ -2697,8 +2697,8 @@ function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop
             Tu camino de vida. Cada nivel alimenta al siguiente — lo que hacés hoy construye el largo plazo.
           </p>}
         </div>
-        <button onClick={onOpenAsistente} style={{background:"#FBF8F2",border:"1px solid #F0DFA0",borderRadius:8,padding:"8px 12px",color:"#7A6A3A",fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:6,boxShadow:"0 2px 4px rgba(0,0,0,0.02)"}}>
-          <i className="fa-solid fa-wand-magic-sparkles" style={{color:"#C4A882"}}></i> Asistente
+        <button onClick={onOpenAsistente} className={isDesktop?"d-newp":"m-newp"} style={isDesktop?{marginTop:0,marginLeft:24}:{marginLeft:16}}>
+          {isDesktop?"+ Asistente de Metas":"+ Asistente"}
         </button>
       </div>
 
@@ -3944,7 +3944,7 @@ function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onTog
   );
 }
 
-function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,sw,sheets,signOut,isOnline,desktop}){
+function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline,desktop}){
 
   const activeSec = SECTIONS.find(s => s.id === section);
   const showAreaPills = subView==="tareas" || subView==="proyectos";
