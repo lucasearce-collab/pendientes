@@ -3662,10 +3662,10 @@ function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onTog
         </div>
       </div>
 
-      {/* Botón + tarea — mismo estilo que proyectos y metas */}
-      <button onClick={addTareaRapida} className={desktop?"d-newp":"m-newp"} style={desktop?{marginBottom:16}:{}}>
-        <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
-      </button>
+      {/* Epígrafe */}
+      <div style={{padding:desktop?'0 0 16px':'4px 20px 12px'}}>
+        <p style={{fontFamily:"'DM Sans'",fontSize:13,color:'#B0AA9F',lineHeight:1.6}}>Planificá y creá tareas, sueltas o por proyecto.</p>
+      </div>
 
       {/* Vista todas */}
       {modo==='todas'&&(
@@ -3676,6 +3676,10 @@ function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onTog
               ?<DTaskList tasks={todasLasTareas} projects={projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
               :<TaskRows tasks={todasLasTareas} projects={projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...(sw||{})}/>
           }
+          {/* Botón + tarea al final */}
+          <button onClick={addTareaRapida} className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:8}:{}}>
+            <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
+          </button>
         </div>
       )}
 
