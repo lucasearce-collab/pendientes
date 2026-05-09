@@ -295,7 +295,9 @@ export default function App() {
       loadPoints(session.user.id);
       // Load rescheduled count for analytics
       supabase.from('events').select('id',{count:'exact'}).eq('user_id',session.user.id).eq('event_type','task_rescheduled').then(({count})=>setRescheduledCount(count||0));
-      if(userProjects.length===0&&userTasks.length===0&&userGoals.length===0){
+      // Onboarding si nunca aceptó los términos
+      const {data: profile} = await supabase.from('user_profiles').select('terms_accepted').eq('id',session.user.id).single();
+      if(!profile || !profile.terms_accepted){
         setOnboarding(true);
       }
       } catch(e) {
@@ -1469,55 +1471,19 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
 
     const SUGERENCIAS = {
       largo: {
-        dinero: [
-          "Vivir de mis rentas / Ser financieramente libre",
-          "Ser dueño de mi propio negocio o estudio",
-          "Tener mi casa propia pagada",
-        ],
-        salud: [
-          "Tener un cuerpo ágil y sano para toda la vida",
-          "Vivir con paz mental, sin ansiedad ni estrés",
-          "Ser experto en mi hobby — música, deporte, arte",
-        ],
-        amor: [
-          "Formar mi propia familia / Criar a mis hijos",
-          "Ayudar siempre a mis viejos",
-          "Tener amigos que sean como hermanos",
-        ],
+        dinero: ["Vivir de mis rentas / Ser financieramente libre","Ser dueño de mi propio negocio o estudio","Tener mi casa propia pagada"],
+        salud:  ["Tener un cuerpo ágil y sano para toda la vida","Vivir con paz mental, sin ansiedad ni estrés","Ser experto en mi hobby — música, deporte, arte"],
+        amor:   ["Formar mi propia familia / Criar a mis hijos","Ayudar siempre a mis viejos","Tener amigos que sean como hermanos"],
       },
       medio: {
-        dinero: [
-          "Cambiar de trabajo por uno que me guste más",
-          "Aprender una habilidad que me dé más plata",
-          "Saldar todas mis deudas y estar tranquilo",
-        ],
-        salud: [
-          "Hacer un viaje largo a ese lugar que siempre soñé",
-          "Entrenar seguido y comer mejor para verme bien",
-          "Dedicarle al menos 3 horas por semana a lo que me apasiona",
-        ],
-        amor: [
-          "Encontrar una pareja con la que proyectar a futuro",
-          "Pasar más tiempo de calidad con mi familia",
-          "Mudarnos a un lugar que nos haga felices a todos",
-        ],
+        dinero: ["Cambiar de trabajo por uno que me guste más","Aprender una habilidad que me dé más plata","Saldar todas mis deudas y estar tranquilo"],
+        salud:  ["Hacer un viaje largo a ese lugar que siempre soñé","Entrenar seguido y comer mejor para verme bien","Dedicarle al menos 3 horas por semana a lo que me apasiona"],
+        amor:   ["Encontrar una pareja con la que proyectar a futuro","Pasar más tiempo de calidad con mi familia","Mudarnos a un lugar que nos haga felices a todos"],
       },
       anio: {
-        dinero: [
-          "Armar mi fondo de emergencia para estar cubierto",
-          "Hacer un curso o certificación para mejorar mi perfil",
-          "Organizar mis gastos y empezar a ahorrar mes a mes",
-        ],
-        salud: [
-          "Entrenar al menos 3 veces por semana de forma fija",
-          "Hacerme todos los chequeos médicos pendientes",
-          "Dormir 7-8 horas diarias para rendir mejor",
-        ],
-        amor: [
-          "Organizar una salida semanal con gente que quiero",
-          "Llamar o visitar más seguido a mis viejos o abuelos",
-          "Hacer un viaje corto con amigos o pareja",
-        ],
+        dinero: ["Armar mi fondo de emergencia para estar cubierto","Hacer un curso o certificación para mejorar mi perfil","Organizar mis gastos y empezar a ahorrar mes a mes"],
+        salud:  ["Entrenar al menos 3 veces por semana de forma fija","Hacerme todos los chequeos médicos pendientes","Dormir 7-8 horas diarias para rendir mejor"],
+        amor:   ["Organizar una salida semanal con gente que quiero","Llamar o visitar más seguido a mis viejos o abuelos","Hacer un viaje corto con amigos o pareja"],
       },
     };
 
@@ -1541,7 +1507,6 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
     return(
       <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
-
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
           <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
           <span style={{fontSize:11,color:'#C8C3BB'}}>{stepNum} de {totalSteps}</span>
@@ -1549,7 +1514,6 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
         <div style={{margin:'16px 24px 0',height:2,background:'#EAE6E0',borderRadius:99,overflow:'hidden'}}>
           <div style={{height:'100%',width:pct+'%',background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .5s cubic-bezier(.34,1,.64,1)'}}/>
         </div>
-
         <div style={{padding:'24px 24px 0'}}>
           <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:10}}>
             <div style={{width:7,height:7,borderRadius:'50%',background:s.color}}/>
@@ -1559,9 +1523,7 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
           <div style={{fontSize:24,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:6}}>{s.title}</div>
           <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6}}>Elegí lo que resuena. Podés modificarlos después.</div>
         </div>
-
         <div style={{flex:1,overflowY:'auto',padding:'16px 24px 0'}}>
-
           {cats.map(cat=>(
             <div key={cat.key} style={{marginBottom:18}}>
               <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
@@ -1573,14 +1535,7 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
                   const sel = selectedSet.has(text);
                   return(
                     <div key={text} onClick={()=>toggleSugerencia(text)}
-                      style={{
-                        display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,
-                        padding:'10px 14px',borderRadius:12,
-                        border:`1px solid ${sel?cat.selBorder:'#EAE6E0'}`,
-                        background:sel?cat.selBg:'white',
-                        fontSize:13,color:sel?cat.selColor:'#2C2825',
-                        cursor:'pointer',lineHeight:1.4,transition:'all .15s',userSelect:'none',
-                      }}>
+                      style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'10px 14px',borderRadius:12,border:`1px solid ${sel?cat.selBorder:'#EAE6E0'}`,background:sel?cat.selBg:'white',fontSize:13,color:sel?cat.selColor:'#2C2825',cursor:'pointer',lineHeight:1.4,transition:'all .15s',userSelect:'none'}}>
                       <span style={{flex:1}}>{text}</span>
                       {sel&&<span style={{fontSize:13,flexShrink:0}}>✓</span>}
                     </div>
@@ -1589,8 +1544,6 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
               </div>
             </div>
           ))}
-
-          {/* Campo libre */}
           <div style={{marginBottom:10}}>
             <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
               <span style={{fontSize:14}}>✏️</span>
@@ -1605,8 +1558,6 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
                 style={{width:44,borderRadius:12,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
             </div>
           </div>
-
-          {/* Metas propias (no sugerencias) */}
           {items.filter(item=>!allSugTexts.includes(item)).map((item,i)=>(
             <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'white',borderRadius:12,border:'1px solid #EAE6E0',marginBottom:6}}>
               <div style={{width:6,height:6,borderRadius:'50%',background:s.color,flexShrink:0}}/>
@@ -1614,17 +1565,11 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
               <button onClick={()=>removeItem(s.horizon,items.indexOf(item))} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:18,lineHeight:1}}>×</button>
             </div>
           ))}
-
           <div style={{height:100}}/>
         </div>
-
         <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'14px 24px 32px',background:'linear-gradient(to top, #F5F2EE 75%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <button onClick={()=>setStep(step-1)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
-          {items.length>0&&(
-            <span style={{fontSize:11,color:'#9B8878',background:'#F5F1ED',padding:'3px 10px',borderRadius:99}}>
-              {items.length} elegida{items.length!==1?'s':''}
-            </span>
-          )}
+          {items.length>0&&<span style={{fontSize:11,color:'#9B8878',background:'#F5F1ED',padding:'3px 10px',borderRadius:99}}>{items.length} elegida{items.length!==1?'s':''}</span>}
           <button onClick={()=>setStep(step+1)}
             style={{background:items.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'12px 24px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
             {items.length===0?'Saltar →':'Siguiente →'}
