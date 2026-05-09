@@ -3660,11 +3660,12 @@ function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onTog
             por proyecto
           </button>
         </div>
-        <button onClick={addTareaRapida}
-          style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:12,color:'#9B8878',padding:0,display:'flex',alignItems:'center',gap:4}}>
-          <span style={{fontSize:18,lineHeight:1,color:'#9B8878'}}>+</span> tarea
-        </button>
       </div>
+
+      {/* Botón + tarea — mismo estilo que proyectos y metas */}
+      <button onClick={addTareaRapida} className={desktop?"d-newp":"m-newp"} style={desktop?{marginBottom:16}:{}}>
+        <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
+      </button>
 
       {/* Vista todas */}
       {modo==='todas'&&(
