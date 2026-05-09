@@ -2601,19 +2601,19 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[]}){
     <input className="si" value={title} onChange={e=>setTitle(e.target.value)} autoFocus
       placeholder="¿Qué hay que hacer?" onKeyDown={e=>e.key==="Enter"&&go()} style={{marginBottom:16}}/>
     <TypeSelector value={type} onChange={setType}/>
-    {areaProjects.length>1&&<div style={{marginBottom:14,position:"relative"}}>
+    {areaProjects.length>1&&<div style={{marginBottom:14}}>
       <span className="sl">Proyecto</span>
-      {/* Valor seleccionado — toco para desplegar */}
+      {/* Valor seleccionado */}
       <div onClick={()=>setProjOpen(o=>!o)}
-        style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"white",borderRadius:10,border:"1px solid #E5E1DB",cursor:"pointer"}}>
+        style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"white",borderRadius:projOpen?"10px 10px 0 0":"10px",border:"1px solid #E5E1DB",borderBottom:projOpen?"1px solid #F5F2EE":"1px solid #E5E1DB",cursor:"pointer"}}>
         <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#2C2825"}}>{selProj?.name||"General"}</span>
-        <span style={{fontSize:11,color:"#C8C3BB",transition:"transform .2s",display:"inline-block",transform:projOpen?"rotate(180deg)":"rotate(0)"}}>▾</span>
+        <span style={{fontSize:10,color:"#C8C3BB"}}>{projOpen?"▴":"▾"}</span>
       </div>
-      {/* Lista desplegable */}
-      {projOpen&&<div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:20,background:"white",borderRadius:10,border:"1px solid #E5E1DB",boxShadow:"0 4px 16px rgba(0,0,0,.08)",overflow:"hidden",marginTop:4}}>
+      {/* Lista inline — no absolute, empuja hacia abajo pero controlado */}
+      {projOpen&&<div style={{background:"white",borderRadius:"0 0 10px 10px",border:"1px solid #E5E1DB",borderTop:"none",overflow:"hidden",maxHeight:150,overflowY:"auto"}}>
         {areaProjects.map((p,i)=>(
           <div key={p.id} onClick={()=>{setSelProjId(p.id);setProjOpen(false);}}
-            style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 14px",cursor:"pointer",borderBottom:i<areaProjects.length-1?"1px solid #F5F2EE":"none",background:selProjId===p.id?"#F5F1ED":"white",transition:"background .15s"}}>
+            style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",cursor:"pointer",borderTop:"1px solid #F5F2EE",background:selProjId===p.id?"#F5F1ED":"white",transition:"background .15s"}}>
             <span style={{fontFamily:"'DM Sans'",fontSize:13,color:selProjId===p.id?"#9B8878":"#2C2825"}}>{p.name}</span>
             {selProjId===p.id&&<span style={{fontSize:12,color:"#9B8878"}}>✓</span>}
           </div>
