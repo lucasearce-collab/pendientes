@@ -481,7 +481,7 @@ export default function App() {
   const sheets=(
     <>
       {sheet      &&<><div className="sheet-overlay" onClick={()=>setSheet(null)}/><EditSheet task={sheet} projects={projects} onSave={updateTask} onDelete={()=>deleteTask(sheet.id)} isDesktop={isDesktop}/></>}
-      {addSheet   &&<><div className="sheet-overlay" onClick={()=>setAddSheet(null)}/><AddTaskSheet {...addSheet} onAdd={addTask} isDesktop={isDesktop}/></>}
+      {addSheet   &&<><div className="sheet-overlay" onClick={()=>setAddSheet(null)}/><AddTaskSheet {...addSheet} onAdd={addTask} isDesktop={isDesktop} projects={projects}/></>}
       {newProjSheet&&<><div className="sheet-overlay" onClick={()=>setNewProjSheet(null)}/><NewProjectSheet area={newProjSheet.area} onAdd={addProject} isDesktop={isDesktop}/></>}
       {planSheet  &&<><div className="sheet-overlay" onClick={()=>setPlanSheet(null)}/><PlanProjectSheet project={planSheet} onSave={updateProject} isDesktop={isDesktop} goals={goals}/></>}
       {goalSheet  &&<><div className="sheet-overlay" onClick={()=>setGoalSheet(null)}/><GoalSheet goal={goalSheet} goals={goals} projects={projects} onSave={goalSheet.id?updateGoal:addGoal} onDelete={goalSheet.id?()=>deleteGoal(goalSheet.id):null} isDesktop={isDesktop}/></>}
@@ -2574,26 +2574,40 @@ function EditSheet({task,projects,onSave,onDelete,isDesktop}){
         <input type="date" value={form.date||""} onChange={e=>setForm(f=>({...f,date:e.target.value}))}
           style={{border:"1px solid #E5E1DB",borderRadius:99,padding:"4px 11px",fontSize:11,fontFamily:"'DM Sans'",outline:"none",color:"#8C877F",background:"white"}}/>
       </div>
-    </div>}
+    </div>
     <textarea className="si" rows={3} placeholder="Notas..." value={form.notes||""} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{resize:"none",fontFamily:"'DM Sans'",fontSize:14}}/>
     <button className="sv" onClick={()=>onSave(form)}>Guardar</button>
     <button onClick={onDelete} style={{width:"100%",background:"none",border:"none",color:"#C4A89A",fontFamily:"'DM Sans'",fontSize:14,padding:"14px 0 0",cursor:"pointer"}}>Eliminar tarea</button>
   </div>);
 }
 
-function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop}){
+function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[]}){
   const [title,setTitle]=useState("");
   const [type,setType]=useState("normal");
   const [date,setDate]=useState("");
   const [responsable,setResponsable]=useState("");
+  const [selProjId,setSelProjId]=useState(projectId);
   const cls=isDesktop?"d-modal":"sheet";
-  function go(){if(!title.trim())return;onAdd({projectId,title:title.trim(),type,date,responsable});}
+  // Proyectos del área para el selector
+  const areaProjects = projects.filter(p=>p.area===area);
+  function go(){if(!title.trim())return;onAdd({projectId:selProjId,title:title.trim(),type,date,responsable});}
   return(<div className={cls}>
     {!isDesktop&&<div className="hd"/>}
     <span className="sl">{projectName}</span>
     <input className="si" value={title} onChange={e=>setTitle(e.target.value)} autoFocus
       placeholder="¿Qué hay que hacer?" onKeyDown={e=>e.key==="Enter"&&go()} style={{marginBottom:16}}/>
     <TypeSelector value={type} onChange={setType}/>
+    {areaProjects.length>1&&<div style={{marginBottom:14}}>
+      <span className="sl">Proyecto</span>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+        {areaProjects.map(p=>(
+          <button key={p.id} onClick={()=>setSelProjId(p.id)}
+            className={`dc${selProjId===p.id?" on":""}`}>
+            {p.name}
+          </button>
+        ))}
+      </div>
+    </div>}
     <div style={{marginBottom:14}}>
       <span className="sl">Responsable (opcional)</span>
       <input className="si" value={responsable} onChange={e=>setResponsable(e.target.value)} placeholder="Nombre de quien lo ejecuta..."/>
@@ -2608,7 +2622,7 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop}){
         <input type="date" value={date} onChange={e=>setDate(e.target.value)}
           style={{border:"1px solid #E5E1DB",borderRadius:99,padding:"4px 11px",fontSize:11,fontFamily:"'DM Sans'",outline:"none",color:"#8C877F",background:"white"}}/>
       </div>
-    </div>}
+    </div>
     <button className="sv" onClick={go}>Agregar tarea</button>
   </div>);
 }
