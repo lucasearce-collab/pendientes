@@ -1330,134 +1330,166 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
         return(
           <div>
 
-            {/* 1. Actividad por meta de corto plazo */}
+            {/* 1. Balance estratégico */}
             <Card>
-              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Metas de este año</div>
-              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Actividad activa en cada meta de corto plazo</div>
-              {metasAnio.length===0?(
-                <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'16px 0'}}>No tenés metas de este año definidas</div>
-              ):metasAnio.map(g=>{
-                const projs = actividadDirecta(g.id);
-                const ultima = ultimaActividad(g.id);
-                const dias = diasDesde(ultima);
-                const tareasActivas = projs.reduce((acc,p)=>acc+tasks.filter(t=>!t.done&&t.projectId===p.id).length,0);
-                const status = tareasActivas>0?'green':dias!==null&&dias<=14?'yellow':'red';
-                return(
-                  <div key={g.id} style={{padding:'10px 0',borderBottom:'1px solid #F5F2EE'}}>
-                    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:12,color:'#2C2825',marginBottom:2}}>{g.title}</div>
-                        <div style={{fontSize:10,color:'#B0AA9F'}}>
-                          {tareasActivas>0
-                            ?`${tareasActivas} tarea${tareasActivas!==1?'s':''} activa${tareasActivas!==1?'s':''}`
-                            :ultima
-                              ?`Última actividad hace ${dias} día${dias!==1?'s':''}`
-                              :'Sin actividad registrada'
-                          }
+              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Balance estratégico</div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Tipo de tareas completadas esta semana</div>
+              {completedThisWeek.length>0?(
+                <>
+                  {/* Barra visual proporcional */}
+                  <div style={{display:'flex',height:12,borderRadius:99,overflow:'hidden',marginBottom:16,gap:2}}>
+                    {estrategicasPct>0&&<div style={{width:estrategicasPct+'%',background:'#5B6BAF',borderRadius:'99px 0 0 99px'}} title={`Estratégicas ${estrategicasPct}%`}/>}
+                    {prioritariasPct>0&&<div style={{width:prioritariasPct+'%',background:'#C4A882'}} title={`Prioritarias ${prioritariasPct}%`}/>}
+                    {normalesPct>0&&<div style={{width:normalesPct+'%',background:'#EAE6E0',borderRadius:'0 99px 99px 0'}} title={`Operativas ${normalesPct}%`}/>}
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                    {[
+                      {label:'Estratégicas',pct:estrategicasPct,n:estrategicas,color:'#5B6BAF',hint:'Proyectos de alto impacto'},
+                      {label:'Prioritarias',pct:prioritariasPct,n:prioritarias,color:'#C4A882',hint:'Proyectos urgentes'},
+                      {label:'Operativas',pct:normalesPct,n:normales,color:'#C8C3BB',hint:'Proyectos del día a día'},
+                    ].map(row=>(
+                      <div key={row.label}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                          <div style={{width:8,height:8,borderRadius:'50%',background:row.color,flexShrink:0}}/>
+                          <span style={{fontSize:12,color:'#2C2825',flex:1}}>{row.label} <span style={{color:'#C8C3BB',fontWeight:400}}>({row.n})</span></span>
+                          <span style={{fontSize:13,color:row.color,fontWeight:500}}>{row.pct}%</span>
+                        </div>
+                        {/* Mini barra individual */}
+                        <div style={{height:4,background:'#F5F2EE',borderRadius:99,marginLeft:16,overflow:'hidden'}}>
+                          <div style={{height:'100%',width:row.pct+'%',background:row.color,borderRadius:99,opacity:.6}}/>
                         </div>
                       </div>
-                      <div style={{width:8,height:8,borderRadius:'50%',background:status==='green'?'#8FAF8A':status==='yellow'?'#C4A882':'#EAE6E0',flexShrink:0,marginTop:3}}/>
-                    </div>
+                    ))}
                   </div>
-                );
-              })}
+                  <div style={{fontSize:11,color:'#B0AA9F',marginTop:14,lineHeight:1.6}}>
+                    {estrategicasPct>=40?'Buena semana — más de la mitad de tu energía fue a lo estratégico.':estrategicasPct>0?'Esta semana el operativo ganó terreno. Está bien, pero revisá si tenés tareas estratégicas que avanzar.':'Esta semana todo fue operativo. Considerá avanzar algo estratégico la próxima semana.'}
+                  </div>
+                </>
+              ):(
+                <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'20px 0'}}>Sin tareas completadas esta semana</div>
+              )}
             </Card>
 
-            {/* 2. Conexión entre horizontes */}
+            {/* 2. Tareas con propósito */}
             <Card>
-              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Coherencia entre horizontes</div>
-              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>¿Tus metas de distintos plazos están conectadas?</div>
-              {[
-                {
-                  label:'Metas de este año sin conectar al mediano plazo',
-                  items:anioSinConexion,
-                  ok:'Todas tus metas de este año conectan con el mediano plazo',
-                  color:'#C4A882',
-                },
-                {
-                  label:'Metas de mediano plazo sin conectar al largo plazo',
-                  items:medioSinConexion,
-                  ok:'Todas tus metas de mediano plazo conectan con el largo plazo',
-                  color:'#9B8878',
-                },
-              ].map(({label,items,ok,color})=>(
-                <div key={label} style={{marginBottom:12}}>
-                  {items.length===0?(
-                    <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0'}}>
-                      <span style={{fontSize:12,color:'#8FAF8A'}}>✓</span>
-                      <span style={{fontSize:12,color:'#B0AA9F'}}>{ok}</span>
-                    </div>
-                  ):(
-                    <>
-                      <div style={{fontSize:11,color:'#C4A882',marginBottom:6}}>⚠ {label}</div>
-                      {items.map(g=>(
-                        <div key={g.id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid #F5F2EE'}}>
-                          <div style={{width:5,height:5,borderRadius:'50%',background:color,flexShrink:0}}/>
-                          <span style={{fontSize:12,color:'#2C2825'}}>{g.title}</span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              ))}
-            </Card>
-
-            {/* 3. Ruido operativo */}
-            <Card>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+              <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:4}}>
                 <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Tareas con propósito</div>
-                <span style={{fontSize:16,fontWeight:300,color:pctConMeta>=70?'#3B6D11':pctConMeta>=40?'#8B6914':'#C4312A'}}>{pctConMeta===null?'—':`${pctConMeta}%`}</span>
+                <span style={{fontSize:22,fontWeight:300,color:pctConMeta===null?'#C8C3BB':pctConMeta>=70?'#3B6D11':pctConMeta>=40?'#8B6914':'#C4312A'}}>{pctConMeta===null?'—':`${pctConMeta}%`}</span>
               </div>
-              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:12}}>Del total de tareas pendientes, cuántas apuntan a una meta</div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>De tus tareas pendientes, cuántas apuntan a una meta</div>
               {pctConMeta!==null&&(
                 <>
-                  <div style={{height:6,background:'#EAE6E0',borderRadius:99,marginBottom:10,overflow:'hidden'}}>
-                    <div style={{height:'100%',width:pctConMeta+'%',background:pctConMeta>=70?'#8FAF8A':pctConMeta>=40?'#C4A882':'#C4312A',borderRadius:99,transition:'width .5s'}}/>
+                  {/* Barra dividida: con meta vs sin meta */}
+                  <div style={{display:'flex',height:10,borderRadius:99,overflow:'hidden',marginBottom:8}}>
+                    <div style={{width:pctConMeta+'%',background:pctConMeta>=70?'#8FAF8A':pctConMeta>=40?'#C4A882':'#C4312A',transition:'width .5s'}}/>
+                    <div style={{flex:1,background:'#EAE6E0'}}/>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:14}}>
+                    <span style={{fontSize:10,color:'#B0AA9F'}}>{tareasConMeta.length} con propósito</span>
+                    <span style={{fontSize:10,color:'#C8C3BB'}}>{totalPendientes-tareasConMeta.length} sin propósito</span>
                   </div>
                   <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.6}}>
                     {pctConMeta>=70
-                      ?'La mayoría de lo que hacés tiene un propósito claro.'
+                      ?'La mayoría de lo que tenés pendiente construye algo. Buen nivel de foco.'
                       :pctConMeta>=40
-                        ?'Hay un balance, pero una parte de tu energía va a tareas sin norte claro.'
-                        :'Gran parte de tus tareas no conectan con ninguna meta. Revisá si vale la pena asignarlas a proyectos estratégicos.'
+                        ?`${totalPendientes-tareasConMeta.length} tareas no conectan con ninguna meta. Pueden ser ruido operativo o tareas que vale la pena asignar a un proyecto.`
+                        :`La mayor parte de tus tareas (${totalPendientes-tareasConMeta.length} de ${totalPendientes}) no tienen una meta detrás. Revisá si esas tareas valen la pena o si podés vincularlas a proyectos estratégicos.`
                     }
                   </div>
                 </>
               )}
             </Card>
 
-            {/* 4. Balance estratégico */}
+            {/* 3. Coherencia entre horizontes */}
             <Card>
-              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Balance estratégico</div>
-              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Tipo de tareas completadas esta semana</div>
-              {completedThisWeek.length>0?(
-                <>
-                  <div style={{display:'flex',gap:3,height:8,borderRadius:99,overflow:'hidden',marginBottom:12}}>
-                    {estrategicasPct>0&&<div style={{width:estrategicasPct+'%',background:'#5B6BAF'}}/>}
-                    {prioritariasPct>0&&<div style={{width:prioritariasPct+'%',background:'#C4A882'}}/>}
-                    {normalesPct>0&&<div style={{width:normalesPct+'%',background:'#EAE6E0'}}/>}
-                  </div>
-                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Coherencia entre horizontes</div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>¿Tus metas de distintos plazos están conectadas entre sí?</div>
+              {/* Visual: árbol de conexión */}
+              {(()=>{
+                const totalAnio  = metasAnio.length;
+                const totalMedio = metasMedio.length;
+                const totalLargo = metasLargo.length;
+                const anioConectadas  = metasAnio.filter(g=>g.parentId).length;
+                const medioConectadas = metasMedio.filter(g=>g.parentId).length;
+                if(totalAnio===0&&totalMedio===0) return(
+                  <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'16px 0'}}>Definí metas en distintos horizontes para ver la conexión</div>
+                );
+                return(
+                  <>
+                    {/* Barras por horizonte */}
                     {[
-                      {label:'Estratégicas',pct:estrategicasPct,n:estrategicas,color:'#5B6BAF',hint:'Tareas de proyectos marcados como estratégicos'},
-                      {label:'Prioritarias',pct:prioritariasPct,n:prioritarias,color:'#C4A882',hint:'Tareas de proyectos urgentes'},
-                      {label:'Operativas',pct:normalesPct,n:normales,color:'#C8C3BB',hint:'Tareas de proyectos normales'},
-                    ].map(row=>(
-                      <div key={row.label}>
-                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
-                          <div style={{width:8,height:8,borderRadius:'50%',background:row.color,flexShrink:0}}/>
-                          <span style={{fontSize:12,color:'#2C2825',flex:1}}>{row.label}</span>
-                          <span style={{fontSize:13,color:row.color,fontWeight:500}}>{row.pct}%</span>
-                          <span style={{fontSize:11,color:'#C8C3BB'}}>({row.n})</span>
+                      {label:'Este año',total:totalAnio,conectadas:anioConectadas,color:'#9B8878',sinConexion:anioSinConexion},
+                      {label:'2-5 años',total:totalMedio,conectadas:medioConectadas,color:'#C4A882',sinConexion:medioSinConexion},
+                      {label:'5+ años',total:totalLargo,conectadas:totalLargo,color:'#B0AA9F',sinConexion:[]},
+                    ].filter(r=>r.total>0).map(row=>{
+                      const pct = row.total>0?Math.round((row.conectadas/row.total)*100):100;
+                      return(
+                        <div key={row.label} style={{marginBottom:14}}>
+                          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                            <span style={{fontSize:12,color:'#2C2825'}}>{row.label}</span>
+                            <span style={{fontSize:11,color:row.sinConexion.length>0?'#C4A882':'#8FAF8A'}}>
+                              {row.label==='5+ años'?`${row.total} meta${row.total!==1?'s':''}`:`${row.conectadas}/${row.total} conectadas`}
+                            </span>
+                          </div>
+                          {row.label!=='5+ años'&&(
+                            <>
+                              <div style={{display:'flex',height:8,borderRadius:99,overflow:'hidden',marginBottom:6}}>
+                                <div style={{width:pct+'%',background:pct===100?'#8FAF8A':pct>=50?'#C4A882':'#C4312A',transition:'width .5s'}}/>
+                                <div style={{flex:1,background:'#EAE6E0'}}/>
+                              </div>
+                              {row.sinConexion.length>0&&(
+                                <div style={{background:'#FBF8F2',borderRadius:8,padding:'8px 10px'}}>
+                                  <div style={{fontSize:10,color:'#C4A882',marginBottom:4}}>Sin conectar al horizonte siguiente:</div>
+                                  {row.sinConexion.map(g=>(
+                                    <div key={g.id} style={{fontSize:11,color:'#9B8878',padding:'2px 0'}}>· {g.title}</div>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          )}
                         </div>
-                        <div style={{fontSize:10,color:'#D5CFC8',paddingLeft:16}}>{row.hint}</div>
+                      );
+                    })}
+                  </>
+                );
+              })()}
+            </Card>
+
+            {/* 4. Actividad por meta de corto plazo */}
+            <Card>
+              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Momentum por meta</div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Actividad en tus metas de este año — el semáforo muestra si el frente se está enfriando</div>
+              {metasAnio.length===0?(
+                <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'16px 0'}}>No tenés metas de este año definidas</div>
+              ):(()=>{
+                const maxTareas = Math.max(...metasAnio.map(g=>actividadDirecta(g.id).reduce((acc,p)=>acc+tasks.filter(t=>!t.done&&t.projectId===p.id).length,0)),1);
+                return metasAnio.map(g=>{
+                  const projs  = actividadDirecta(g.id);
+                  const ultima = ultimaActividad(g.id);
+                  const dias   = diasDesde(ultima);
+                  const tareasActivas = projs.reduce((acc,p)=>acc+tasks.filter(t=>!t.done&&t.projectId===p.id).length,0);
+                  const barPct = Math.round((tareasActivas/maxTareas)*100);
+                  // Semáforo: verde=activo, amarillo=+7 días sin actividad, rojo=+14 días
+                  const semaforo = tareasActivas>0?'#8FAF8A':dias===null?'#EAE6E0':dias<=7?'#8FAF8A':dias<=14?'#C4A882':'#C4312A';
+                  const semaforoLabel = tareasActivas>0?'activo':dias===null?'sin datos':dias<=7?`hace ${dias}d`:dias<=14?`enfriándose (${dias}d)`:`sin actividad (${dias}d)`;
+                  return(
+                    <div key={g.id} style={{marginBottom:14,paddingBottom:14,borderBottom:'1px solid #F5F2EE'}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6,gap:8}}>
+                        <span style={{fontSize:12,color:'#2C2825',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.title}</span>
+                        <span style={{fontSize:10,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,flexShrink:0,fontWeight:semaforo!=='#EAE6E0'?500:400}}>{semaforoLabel}</span>
+                        <div style={{width:8,height:8,borderRadius:'50%',background:semaforo,flexShrink:0}}/>
                       </div>
-                    ))}
-                  </div>
-                </>
-              ):(
-                <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'20px 0'}}>Sin tareas completadas esta semana</div>
-              )}
+                      {/* Barra de tareas activas relativa al máximo */}
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <div style={{flex:1,height:6,background:'#F5F2EE',borderRadius:99,overflow:'hidden'}}>
+                          <div style={{height:'100%',width:Math.max(barPct,tareasActivas>0?4:0)+'%',background:semaforo==='#EAE6E0'?'#EAE6E0':semaforo,borderRadius:99,transition:'width .5s'}}/>
+                        </div>
+                        <span style={{fontSize:10,color:'#B0AA9F',flexShrink:0,minWidth:20,textAlign:'right'}}>{tareasActivas>0?tareasActivas:''}</span>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </Card>
 
           </div>
