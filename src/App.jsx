@@ -1116,7 +1116,7 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
   const noData = <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#D5CFC8',fontStyle:'italic'}}>Acumulando datos...</span>;
 
   // ── Sub-tab state ──
-  const [tab, setTab] = React.useState('rendimiento');
+  const [tab, setTab] = useState('rendimiento');
 
   const Toggle = () => (
     <div style={{display:'flex',alignItems:'center',gap:0,padding:desktop?'0 0 20px':'0 20px 16px'}}>
@@ -1125,13 +1125,13 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
         {id:'salud',       label:'Salud'},
         {id:'direccion',   label:'Dirección'},
       ].map((t,i,arr)=>(
-        <React.Fragment key={t.id}>
+        <span key={t.id} style={{display:'contents'}}>
           <button onClick={()=>setTab(t.id)}
             style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:tab===t.id?'#2C2825':'#D5CFC8',fontWeight:tab===t.id?500:300,padding:'4px 0',minHeight:44}}>
             {t.label}
           </button>
           {i<arr.length-1&&<span style={{fontSize:13,color:'#EAE6E0',padding:'0 8px'}}>·</span>}
-        </React.Fragment>
+        </span>
       ))}
     </div>
   );
