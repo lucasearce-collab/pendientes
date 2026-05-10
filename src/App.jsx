@@ -849,7 +849,7 @@ function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,
 
   const ProjCard = ({proj}) => desktop
     ?<DProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
-        onToggle={onToggle} onOpen={onOpen} onComplete={onComplete}
+        onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} onComplete={onComplete}
         onAddTask={()=>onAddTask(proj)} reorderTasks={reorderTasks}
         onEdit={onEditProject} onDeleteProject={onDeleteProject}
         sw={{swipedId:null,setSwipedId:()=>{}}}/>
@@ -2903,7 +2903,7 @@ function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew
 
 
 // ─── Draggable Project Grid (desktop) ────────────────────────────────────────
-function DProjBlock({project,area,tasks,onToggle,onOpen,onAddTask,onComplete,reorderTasks,sw,onEdit,onDeleteProject}){
+function DProjBlock({project,area,tasks,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks,sw,onEdit,onDeleteProject}){
   const [open,setOpen]=useState(false);
   const [conf,setConf]=useState(false);
   const imp=IMPORTANCE[project.importance||"normal"];
