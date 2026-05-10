@@ -1336,33 +1336,26 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
               <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Tipo de tareas completadas esta semana</div>
               {completedThisWeek.length>0?(
                 <>
-                  {/* Barra visual proporcional */}
-                  <div style={{display:'flex',height:12,borderRadius:99,overflow:'hidden',marginBottom:16,gap:2}}>
-                    {estrategicasPct>0&&<div style={{width:estrategicasPct+'%',background:'#5B6BAF',borderRadius:'99px 0 0 99px'}} title={`Estratégicas ${estrategicasPct}%`}/>}
-                    {prioritariasPct>0&&<div style={{width:prioritariasPct+'%',background:'#C4A882'}} title={`Prioritarias ${prioritariasPct}%`}/>}
-                    {normalesPct>0&&<div style={{width:normalesPct+'%',background:'#EAE6E0',borderRadius:'0 99px 99px 0'}} title={`Operativas ${normalesPct}%`}/>}
+                  <div style={{display:'flex',height:12,borderRadius:99,overflow:'hidden',marginBottom:16}}>
+                    {estrategicasPct>0&&<div style={{width:estrategicasPct+'%',background:'#5B6BAF'}}/>}
+                    {prioritariasPct>0&&<div style={{width:prioritariasPct+'%',background:'#C4A882'}}/>}
+                    {normalesPct>0&&<div style={{width:normalesPct+'%',background:'#EAE6E0'}}/>}
                   </div>
-                  <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
                     {[
-                      {label:'Estratégicas',pct:estrategicasPct,n:estrategicas,color:'#5B6BAF',hint:'Proyectos de alto impacto'},
-                      {label:'Prioritarias',pct:prioritariasPct,n:prioritarias,color:'#C4A882',hint:'Proyectos urgentes'},
-                      {label:'Operativas',pct:normalesPct,n:normales,color:'#C8C3BB',hint:'Proyectos del día a día'},
+                      {label:'Estratégicas',pct:estrategicasPct,n:estrategicas,color:'#5B6BAF'},
+                      {label:'Prioritarias',pct:prioritariasPct,n:prioritarias,color:'#C4A882'},
+                      {label:'Operativas',pct:normalesPct,n:normales,color:'#C8C3BB'},
                     ].map(row=>(
-                      <div key={row.label}>
-                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
-                          <div style={{width:8,height:8,borderRadius:'50%',background:row.color,flexShrink:0}}/>
-                          <span style={{fontSize:12,color:'#2C2825',flex:1}}>{row.label} <span style={{color:'#C8C3BB',fontWeight:400}}>({row.n})</span></span>
-                          <span style={{fontSize:13,color:row.color,fontWeight:500}}>{row.pct}%</span>
-                        </div>
-                        {/* Mini barra individual */}
-                        <div style={{height:4,background:'#F5F2EE',borderRadius:99,marginLeft:16,overflow:'hidden'}}>
-                          <div style={{height:'100%',width:row.pct+'%',background:row.color,borderRadius:99,opacity:.6}}/>
-                        </div>
+                      <div key={row.label} style={{display:'flex',alignItems:'center',gap:8}}>
+                        <div style={{width:8,height:8,borderRadius:'50%',background:row.color,flexShrink:0}}/>
+                        <span style={{fontSize:12,color:'#2C2825',flex:1}}>{row.label} <span style={{color:'#C8C3BB'}}>({row.n})</span></span>
+                        <span style={{fontSize:13,color:row.color,fontWeight:500}}>{row.pct}%</span>
                       </div>
                     ))}
                   </div>
                   <div style={{fontSize:11,color:'#B0AA9F',marginTop:14,lineHeight:1.6}}>
-                    {estrategicasPct>=40?'Buena semana — más de la mitad de tu energía fue a lo estratégico.':estrategicasPct>0?'Esta semana el operativo ganó terreno. Está bien, pero revisá si tenés tareas estratégicas que avanzar.':'Esta semana todo fue operativo. Considerá avanzar algo estratégico la próxima semana.'}
+                    {estrategicasPct>=40?'Buena semana — la mayor parte de tu energía fue a lo estratégico.':estrategicasPct>0?'Esta semana el operativo ganó terreno. Revisá si tenés tareas estratégicas para avanzar.':'Esta semana todo fue operativo. Considerá avanzar algo estratégico.'}
                   </div>
                 </>
               ):(
@@ -1370,87 +1363,80 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
               )}
             </Card>
 
-            {/* 2. Tareas con propósito */}
+            {/* 2. Pirámide de coherencia: tareas → corto → mediano → largo */}
             <Card>
-              <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:4}}>
-                <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Tareas con propósito</div>
-                <span style={{fontSize:22,fontWeight:300,color:pctConMeta===null?'#C8C3BB':pctConMeta>=70?'#3B6D11':pctConMeta>=40?'#8B6914':'#C4312A'}}>{pctConMeta===null?'—':`${pctConMeta}%`}</span>
-              </div>
-              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>De tus tareas pendientes, cuántas apuntan a una meta</div>
-              {pctConMeta!==null&&(
-                <>
-                  {/* Barra dividida: con meta vs sin meta */}
-                  <div style={{display:'flex',height:10,borderRadius:99,overflow:'hidden',marginBottom:8}}>
-                    <div style={{width:pctConMeta+'%',background:pctConMeta>=70?'#8FAF8A':pctConMeta>=40?'#C4A882':'#C4312A',transition:'width .5s'}}/>
-                    <div style={{flex:1,background:'#EAE6E0'}}/>
-                  </div>
-                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:14}}>
-                    <span style={{fontSize:10,color:'#B0AA9F'}}>{tareasConMeta.length} con propósito</span>
-                    <span style={{fontSize:10,color:'#C8C3BB'}}>{totalPendientes-tareasConMeta.length} sin propósito</span>
-                  </div>
-                  <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.6}}>
-                    {pctConMeta>=70
-                      ?'La mayoría de lo que tenés pendiente construye algo. Buen nivel de foco.'
-                      :pctConMeta>=40
-                        ?`${totalPendientes-tareasConMeta.length} tareas no conectan con ninguna meta. Pueden ser ruido operativo o tareas que vale la pena asignar a un proyecto.`
-                        :`La mayor parte de tus tareas (${totalPendientes-tareasConMeta.length} de ${totalPendientes}) no tienen una meta detrás. Revisá si esas tareas valen la pena o si podés vincularlas a proyectos estratégicos.`
-                    }
-                  </div>
-                </>
-              )}
-            </Card>
-
-            {/* 3. Coherencia entre horizontes */}
-            <Card>
-              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Coherencia entre horizontes</div>
-              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>¿Tus metas de distintos plazos están conectadas entre sí?</div>
-              {/* Visual: árbol de conexión */}
+              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Pirámide de coherencia</div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:18}}>¿Tu esfuerzo diario conecta con tu visión de largo plazo?</div>
               {(()=>{
                 const totalAnio  = metasAnio.length;
                 const totalMedio = metasMedio.length;
                 const totalLargo = metasLargo.length;
                 const anioConectadas  = metasAnio.filter(g=>g.parentId).length;
                 const medioConectadas = metasMedio.filter(g=>g.parentId).length;
-                if(totalAnio===0&&totalMedio===0) return(
-                  <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'16px 0'}}>Definí metas en distintos horizontes para ver la conexión</div>
+                // Tareas pendientes con meta
+                const pctTareas = pctConMeta;
+                const niveles = [
+                  {
+                    label:'Tareas con propósito',
+                    desc:`${tareasConMeta.length} de ${totalPendientes} tareas pendientes apuntan a una meta`,
+                    pct:pctTareas,
+                    show: totalPendientes>0,
+                  },
+                  {
+                    label:'Metas de este año conectadas',
+                    desc: totalAnio>0?`${anioConectadas} de ${totalAnio} conectadas al mediano plazo`:null,
+                    pct: totalAnio>0?Math.round((anioConectadas/totalAnio)*100):null,
+                    show: totalAnio>0,
+                    desconectadas: anioSinConexion,
+                  },
+                  {
+                    label:'Metas de mediano plazo conectadas',
+                    desc: totalMedio>0?`${medioConectadas} de ${totalMedio} conectadas al largo plazo`:null,
+                    pct: totalMedio>0?Math.round((medioConectadas/totalMedio)*100):null,
+                    show: totalMedio>0,
+                    desconectadas: medioSinConexion,
+                  },
+                  {
+                    label:'Visión de largo plazo',
+                    desc: totalLargo>0?`${totalLargo} meta${totalLargo!==1?'s':''} definida${totalLargo!==1?'s':''}`:null,
+                    pct: totalLargo>0?100:null,
+                    show: totalLargo>0,
+                    desconectadas: [],
+                  },
+                ].filter(n=>n.show);
+                if(niveles.length===0) return(
+                  <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'16px 0'}}>Definí metas y asociá tareas para ver la pirámide</div>
                 );
                 return(
-                  <>
-                    {/* Barras por horizonte */}
-                    {[
-                      {label:'Este año',total:totalAnio,conectadas:anioConectadas,color:'#9B8878',sinConexion:anioSinConexion},
-                      {label:'2-5 años',total:totalMedio,conectadas:medioConectadas,color:'#C4A882',sinConexion:medioSinConexion},
-                      {label:'5+ años',total:totalLargo,conectadas:totalLargo,color:'#B0AA9F',sinConexion:[]},
-                    ].filter(r=>r.total>0).map(row=>{
-                      const pct = row.total>0?Math.round((row.conectadas/row.total)*100):100;
+                  <div>
+                    {niveles.map((n,i)=>{
+                      const color = n.pct===null?'#C8C3BB':n.pct>=80?'#8FAF8A':n.pct>=50?'#C4A882':'#C4312A';
                       return(
-                        <div key={row.label} style={{marginBottom:14}}>
-                          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-                            <span style={{fontSize:12,color:'#2C2825'}}>{row.label}</span>
-                            <span style={{fontSize:11,color:row.sinConexion.length>0?'#C4A882':'#8FAF8A'}}>
-                              {row.label==='5+ años'?`${row.total} meta${row.total!==1?'s':''}`:`${row.conectadas}/${row.total} conectadas`}
-                            </span>
+                        <div key={n.label} style={{marginBottom:16}}>
+                          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:5}}>
+                            <span style={{fontSize:12,color:'#2C2825'}}>{n.label}</span>
+                            <span style={{fontSize:12,fontWeight:500,color}}>{n.pct===null?'—':`${n.pct}%`}</span>
                           </div>
-                          {row.label!=='5+ años'&&(
-                            <>
-                              <div style={{display:'flex',height:8,borderRadius:99,overflow:'hidden',marginBottom:6}}>
-                                <div style={{width:pct+'%',background:pct===100?'#8FAF8A':pct>=50?'#C4A882':'#C4312A',transition:'width .5s'}}/>
-                                <div style={{flex:1,background:'#EAE6E0'}}/>
-                              </div>
-                              {row.sinConexion.length>0&&(
-                                <div style={{background:'#FBF8F2',borderRadius:8,padding:'8px 10px'}}>
-                                  <div style={{fontSize:10,color:'#C4A882',marginBottom:4}}>Sin conectar al horizonte siguiente:</div>
-                                  {row.sinConexion.map(g=>(
-                                    <div key={g.id} style={{fontSize:11,color:'#9B8878',padding:'2px 0'}}>· {g.title}</div>
-                                  ))}
-                                </div>
-                              )}
-                            </>
+                          {n.pct!==null&&n.label!=='Visión de largo plazo'&&(
+                            <div style={{display:'flex',height:7,borderRadius:99,overflow:'hidden',marginBottom:4}}>
+                              <div style={{width:n.pct+'%',background:color,transition:'width .5s'}}/>
+                              <div style={{flex:1,background:'#EAE6E0'}}/>
+                            </div>
                           )}
+                          {n.desc&&<div style={{fontSize:10,color:'#B0AA9F',marginBottom:n.desconectadas?.length>0?6:0}}>{n.desc}</div>}
+                          {n.desconectadas?.length>0&&(
+                            <div style={{background:'#FBF8F2',borderRadius:8,padding:'6px 10px',marginTop:4}}>
+                              <div style={{fontSize:10,color:'#C4A882',marginBottom:3}}>Sin conectar:</div>
+                              {n.desconectadas.map(g=>(
+                                <div key={g.id} style={{fontSize:11,color:'#9B8878',padding:'1px 0'}}>· {g.title}</div>
+                              ))}
+                            </div>
+                          )}
+                          {i<niveles.length-1&&<div style={{height:1,background:'#F5F2EE',marginTop:12}}/>}
                         </div>
                       );
                     })}
-                  </>
+                  </div>
                 );
               })()}
             </Card>
