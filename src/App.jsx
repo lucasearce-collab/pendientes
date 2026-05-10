@@ -84,8 +84,7 @@ const SECTIONS = [
     id: "hoy",
     label: "Hoy",
     subTabs: [
-      { id: "hoy",    label: "Hoy"    },
-      { id: "semana", label: "Semana" },
+      { id: "hoy", label: "Hoy" },
     ],
   },
   {
@@ -3452,14 +3451,9 @@ function ErrorToast({message,onDismiss}){
   );
 }
 
-function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop}){
+function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop,onVerSemana}){
   const today = todayStr();
-  const datedTasks = (tasks||[]).filter(t=>{
-    const p=projects.find(x=>x.id===t.projectId);
-    return p&&!t.done&&t.date;
-  }).sort((a,b)=>a.date<b.date?-1:1);
-  const todayTasks = datedTasks.filter(t=>t.date===today);
-  const upcomingTasks = datedTasks.filter(t=>t.date>today);
+  const todayTasks = (tasks||[]).filter(t=>!t.done&&t.date===today).sort(taskSort);
 
   const SectionHeader = ({label,color,count}) => (
     <div style={{display:"flex",alignItems:"center",gap:8,
@@ -3471,7 +3465,6 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       <span style={{fontFamily:"'DM Sans'",fontSize:11,color,letterSpacing:".08em",textTransform:"uppercase"}}>
         {label}{count>0&&` · ${count}`}
       </span>
-      {desktop&&count>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginLeft:"auto"}}>{count}</span>}
     </div>
   );
 
@@ -3479,14 +3472,30 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     ? <DTaskList tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks}/>
     : <TaskRows tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks} {...(sw||{})}/>;
 
-  const isEmpty = todayTasks.length===0&&upcomingTasks.length===0&&overdueWork.length===0;
+  // Botón ver semana — mismo estilo toggle que el resto
+  const BtnSemana = () => (
+    <button onClick={onVerSemana}
+      style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",fontWeight:300,padding:"0",letterSpacing:".01em"}}>
+      ver semana →
+    </button>
+  );
+
+  const isEmpty = todayTasks.length===0&&overdueWork.length===0;
   if(isEmpty) return(
-    <div style={{textAlign:"center",padding:desktop?"60px 0":"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
+    <div>
+      <div style={{display:"flex",justifyContent:"flex-end",padding:desktop?"0 0 16px":"8px 20px"}}>
+        <BtnSemana/>
+      </div>
+      <div style={{textAlign:"center",padding:desktop?"60px 0":"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
+    </div>
   );
 
   if(desktop) return(
     <div>
-      <div style={{display:"flex",gap:48,alignItems:"flex-start",marginBottom:overdueWork.length>0?40:0}}>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
+        <BtnSemana/>
+      </div>
+      <div style={{display:"flex",gap:48,alignItems:"flex-start"}}>
         <div style={{flex:1,minWidth:0}}>
           <SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/>
           {todayTasks.length>0
@@ -3496,25 +3505,22 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         </div>
         <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
         <div style={{flex:1,minWidth:0}}>
-          <SectionHeader label="Próximamente" color="#B0AA9F" count={upcomingTasks.length}/>
-          {upcomingTasks.length>0
-            ?<TaskList tasks={upcomingTasks}/>
-            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas próximas ·</div>
+          <SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/>
+          {overdueWork.length>0
+            ?<TaskList tasks={overdueWork} overdue/>
+            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas vencidas ·</div>
           }
         </div>
       </div>
-      {overdueWork.length>0&&<>
-        <div style={{height:1,background:"#EAE6E0",marginBottom:20}}/>
-        <SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/>
-        <TaskList tasks={overdueWork} overdue/>
-      </>}
     </div>
   );
 
   return(
     <div style={{paddingBottom:16}}>
+      <div style={{display:"flex",justifyContent:"flex-end",padding:"8px 20px 0"}}>
+        <BtnSemana/>
+      </div>
       {todayTasks.length>0&&<><SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/><TaskList tasks={todayTasks}/></>}
-      {upcomingTasks.length>0&&<><SectionHeader label="Próximamente" color="#B0AA9F" count={upcomingTasks.length}/><TaskList tasks={upcomingTasks}/></>}
       {overdueWork.length>0&&<><SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/><TaskList tasks={overdueWork} overdue/></>}
     </div>
   );
@@ -4024,6 +4030,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
 
   const activeSec = SECTIONS.find(s => s.id === section);
   const showAreaPills = subView==="tareas" || subView==="proyectos";
+  const [semanaModal, setSemanaModal] = useState(false);
 
   const NAV_ITEMS = [
     { id:"hoy",      label:"Hoy",      icon:"⊙" },
@@ -4092,8 +4099,18 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
            </div>
       )}
 
-      {subView==="semana"&&(
-        <SemanaView tasks={tasks} projects={projects} onToggle={toggleDone} onOpen={setSheet} onUpdate={updateTask} desktop={desktop}/>
+      {semanaModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(44,40,37,.5)",zIndex:100,display:"flex",alignItems:"stretch",justifyContent:"center"}} onClick={e=>{if(e.target===e.currentTarget)setSemanaModal(false);}}>
+          <div style={{width:"100%",maxWidth:desktop?900:430,background:"#F5F2EE",display:"flex",flexDirection:"column",boxShadow:"0 0 40px rgba(0,0,0,.15)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:desktop?"20px 48px 0":"16px 20px 0",flexShrink:0}}>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#2C2825"}}>Semana</span>
+              <button onClick={()=>setSemanaModal(false)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:20,color:"#C8C3BB",lineHeight:1,padding:0}}>×</button>
+            </div>
+            <div style={{flex:1,overflow:"auto"}}>
+              <SemanaView tasks={tasks} projects={projects} onToggle={toggleDone} onOpen={setSheet} onUpdate={updateTask} desktop={desktop}/>
+            </div>
+          </div>
+        </div>
       )}
 
       {subView==="tareas"&&(
