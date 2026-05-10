@@ -42,22 +42,22 @@ function AdminApp() {
       const today = todayStr();
       const sevenDaysAgo = daysAgo(7);
       const yesterday = daysAgo(1);
-      const [tasksRes, eventsRes, profilesRes, usersRes, goalsRes] = await Promise.all([
+      const [tasksRes, eventsRes, profilesRes, usersRes] = await Promise.all([
         supabase.rpc('get_all_tasks'),
         supabase.rpc('get_all_events'),
-        supabase.rpc('get_user_list').then(async (usersResult) => {
-          // Fetch profiles for each user via admin RPC
-          const profilesResult = await supabase.from('user_profiles').select('id,points,terms_accepted,terms_accepted_at');
-          return { users: usersResult.data || [], profiles: profilesResult.data || [] };
-        }),
+        supabase.from('user_profiles').select('id,points,terms_accepted,terms_accepted_at'),
         supabase.rpc('get_user_list'),
-        supabase.rpc('get_all_goals').catch(() => ({ data: [] })),
       ]);
       const tasks = tasksRes.data || [];
       const events = eventsRes.data || [];
-      const profiles = profilesRes.profiles || [];
+      const profiles = profilesRes.data || [];
       const registeredUsers = usersRes.data || [];
-      const goals = goalsRes.data || [];
+      // Goals — opcional, no rompe si falla
+      let goals = [];
+      try {
+        const goalsRes = await supabase.rpc('get_all_goals');
+        goals = goalsRes.data || [];
+      } catch(e) { goals = []; }
       const allUserIds = registeredUsers.length > 0
         ? registeredUsers.map(u => u.id)
         : [...new Set([
