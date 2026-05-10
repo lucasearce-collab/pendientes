@@ -1462,29 +1462,51 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
               {metasAnio.length===0?(
                 <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'16px 0'}}>No tenés metas de este año definidas</div>
               ):(()=>{
-                const maxTareas = Math.max(...metasAnio.map(g=>actividadDirecta(g.id).reduce((acc,p)=>acc+tasks.filter(t=>!t.done&&t.projectId===p.id).length,0)),1);
-                return metasAnio.map(g=>{
-                  const projs  = actividadDirecta(g.id);
-                  const ultima = ultimaActividad(g.id);
-                  const dias   = diasDesde(ultima);
-                  const tareasActivas = projs.reduce((acc,p)=>acc+tasks.filter(t=>!t.done&&t.projectId===p.id).length,0);
-                  const barPct = Math.round((tareasActivas/maxTareas)*100);
-                  // Semáforo: verde=activo, amarillo=+7 días sin actividad, rojo=+14 días
-                  const semaforo = tareasActivas>0?'#8FAF8A':dias===null?'#EAE6E0':dias<=7?'#8FAF8A':dias<=14?'#C4A882':'#C4312A';
-                  const semaforoLabel = tareasActivas>0?'activo':dias===null?'sin datos':dias<=7?`hace ${dias}d`:dias<=14?`enfriándose (${dias}d)`:`sin actividad (${dias}d)`;
+                // Completadas en los últimos 30 días por meta
+                const completadasPorMeta = metasAnio.map(g=>{
+                  const projs = projects.filter(p=>(p.goal_ids||[]).includes(g.id)||p.goal_id===g.id);
+                  const completadas = tasks.filter(t=>t.done&&t.completed_at&&projs.some(p=>p.id===t.projectId));
+                  // Última completada
+                  const ultima = completadas.length>0
+                    ? completadas.sort((a,b)=>b.completed_at.localeCompare(a.completed_at))[0].completed_at.slice(0,10)
+                    : null;
+                  // Completadas últimos 7 días
+                  const ult7 = completadas.filter(t=>diasDesde(t.completed_at.slice(0,10))<=7).length;
+                  const ult30 = completadas.filter(t=>diasDesde(t.completed_at.slice(0,10))<=30).length;
+                  return {g, ultima, diasUltima: diasDesde(ultima), ult7, ult30, totalCompletadas: completadas.length};
+                });
+                const maxUlt30 = Math.max(...completadasPorMeta.map(m=>m.ult30), 1);
+
+                return completadasPorMeta.map(({g,ultima,diasUltima,ult7,ult30,totalCompletadas})=>{
+                  const barPct = Math.round((ult30/maxUlt30)*100);
+                  // Semáforo basado en RITMO: combina recencia y volumen
+                  // Score: tareas en últimos 7d pesan más que las de 8-30d
+                  const ritmoScore = ult7*3 + (ult30-ult7)*1;
+                  const semaforo = ritmoScore===0
+                    ? (diasUltima===null?'#EAE6E0':'#C4312A')
+                    : ritmoScore>=4?'#8FAF8A'
+                    : ritmoScore>=2?'#C4A882'
+                    : '#C4A882';
+                  const semaforoLabel = ritmoScore===0
+                    ? (diasUltima===null?'sin actividad':`última hace ${diasUltima}d`)
+                    : ult7>0
+                      ? `${ult7} esta semana · ${ult30} en 30d`
+                      : `${ult30} en 30d · última hace ${diasUltima}d`;
                   return(
                     <div key={g.id} style={{marginBottom:14,paddingBottom:14,borderBottom:'1px solid #F5F2EE'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6,gap:8}}>
                         <span style={{fontSize:12,color:'#2C2825',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.title}</span>
-                        <span style={{fontSize:10,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,flexShrink:0,fontWeight:semaforo!=='#EAE6E0'?500:400}}>{semaforoLabel}</span>
+                        <span style={{fontSize:10,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,flexShrink:0,fontWeight:500}}>{semaforoLabel}</span>
                         <div style={{width:8,height:8,borderRadius:'50%',background:semaforo,flexShrink:0}}/>
                       </div>
-                      {/* Barra de tareas activas relativa al máximo */}
+                      {/* Barra: tareas completadas en últimos 30 días, relativa al máximo */}
                       <div style={{display:'flex',alignItems:'center',gap:8}}>
                         <div style={{flex:1,height:6,background:'#F5F2EE',borderRadius:99,overflow:'hidden'}}>
-                          <div style={{height:'100%',width:Math.max(barPct,tareasActivas>0?4:0)+'%',background:semaforo==='#EAE6E0'?'#EAE6E0':semaforo,borderRadius:99,transition:'width .5s'}}/>
+                          <div style={{height:'100%',width:Math.max(barPct,ult30>0?4:0)+'%',background:semaforo==='#EAE6E0'?'#EAE6E0':semaforo,borderRadius:99,transition:'width .5s'}}/>
                         </div>
-                        <span style={{fontSize:10,color:'#B0AA9F',flexShrink:0,minWidth:20,textAlign:'right'}}>{tareasActivas>0?tareasActivas:''}</span>
+                        <span style={{fontSize:10,color:'#B0AA9F',flexShrink:0,minWidth:80,textAlign:'right'}}>
+                          {ult7>0?<span style={{color:semaforo,fontWeight:500}}>{ult7} esta sem</span>:ult30>0?`${ult30} en 30d`:'sin actividad'}
+                        </span>
                       </div>
                     </div>
                   );
