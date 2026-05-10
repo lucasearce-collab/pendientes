@@ -1493,38 +1493,39 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
 
                 return completadasPorMeta.map(({g,ultima,diasUltima,ult7,ult30,totalCompletadas})=>{
                   // ── Momentum score multivariable ──
-                  // Volumen (peso mayor): tareas completadas últimos 30d
-                  const scoreVolumen = ult30 * 1.5;
-                  // Recencia: completó algo en últimas 72h
-                  const tieneRecencia = diasUltima!==null && diasUltima<=3;
-                  const scoreRecencia = tieneRecencia ? 10 : 0;
-                  // Estructura: tiene proyectos vinculados (peso bajo — la estructura ayuda pero no reemplaza ejecución)
                   const proyectosDeMeta = projects.filter(p=>(p.goal_ids||[]).includes(g.id)||p.goal_id===g.id);
-                  const scoreEstructura = Math.min(proyectosDeMeta.length * 2, 6); // máx 6 pts
-                  // Penalidad por inercia: días sin completar nada
+                  const tieneRecencia = diasUltima!==null && diasUltima<=3;
+
+                  // Volumen: tareas últimos 7d valen más (ritmo reciente)
+                  const scoreVolumen = Math.min((ult7 * 8) + ((ult30-ult7) * 2), 70);
+                  // Recencia: completó algo en últimas 72hs
+                  const scoreRecencia = tieneRecencia ? 15 : 0;
+                  // Estructura: proyectos vinculados (peso bajo)
+                  const scoreEstructura = Math.min(proyectosDeMeta.length * 2, 6);
+                  // Penalidad por inercia — solo aplica si no hay actividad reciente
                   const diasInercia = diasUltima===null ? 30 : diasUltima;
-                  const penalidadInercia = diasInercia * 0.75;
+                  const penalidadInercia = tieneRecencia ? 0 : Math.min(diasInercia * 1.5, 40);
                   // Score final 0-100
                   const momentumScore = Math.max(0, Math.min(100, scoreVolumen + scoreRecencia + scoreEstructura - penalidadInercia));
                   const barPct = Math.round(momentumScore);
 
-                  // Color según score
-                  const semaforo = momentumScore>=60?'#8FAF8A':momentumScore>=30?'#C4A882':diasUltima===null?'#EAE6E0':'#C4312A';
+                  // Color: verde>=50, naranja>=25, rojo<25, gris=sin datos
+                  const semaforo = diasUltima===null?'#EAE6E0':momentumScore>=50?'#8FAF8A':momentumScore>=25?'#C4A882':'#C4312A';
 
-                  // Diagnóstico contextual accionable
-                  const diagnostico = ult30<3 && proyectosDeMeta.length>0
-                    ? 'Tenés la estructura lista pero pocas tareas completadas. El orden está, la meta aún no avanza.'
-                    : ult30>8 && !tieneRecencia
-                      ? 'Buen historial del mes, aunque hoy estés en una pausa. Retomá con algo simple.'
-                      : diasInercia>14
-                        ? 'Esta meta se está enfriando. Completar una sola tarea ya reactiva el momentum.'
-                        : momentumScore>=60
-                          ? 'Buen ritmo. Estás transformando esta meta en realidad.'
-                          : ult7>0
-                            ? `${ult7} tarea${ult7!==1?'s':''} esta semana. Seguí así.`
-                            : 'Sin actividad esta semana. ¿Podés avanzar algo hoy?';
+                  // Diagnóstico — coherente con el color
+                  const diagnostico = diasUltima===null
+                    ? 'No hay tareas completadas vinculadas a esta meta aún.'
+                    : momentumScore>=50
+                      ? (ult7>=5?'Excelente ritmo esta semana. Estás avanzando fuerte.':ult7>0?`${ult7} tarea${ult7!==1?'s':''} esta semana. Buen ritmo, seguí así.`:'Buen historial del mes, aunque esta semana estuvo tranquila.')
+                      : momentumScore>=25
+                        ? (diasInercia>7?`Hace ${diasInercia} días sin completar algo. El ritmo se está frenando.`:ult30<5?'Pocas tareas completadas en el mes. Intentá avanzar algo esta semana.':'Ritmo moderado. Podés acelerar.')
+                        : proyectosDeMeta.length>0&&ult30===0
+                          ? 'Tenés proyectos asignados pero ninguna tarea completada. La estructura está, falta ejecución.'
+                          : diasInercia>14
+                            ? `${diasInercia} días sin actividad. Esta meta se está enfriando — ¿podés completar algo hoy?`
+                            : 'Ritmo bajo. Completar aunque sea una tarea esta semana hace la diferencia.';
 
-                  const semaforoLabel = diasUltima===null?'sin actividad':diasUltima===0?'hoy':diasUltima<=3?`hace ${diasUltima}d`:diasUltima<=7?`hace ${diasUltima}d`:diasUltima<=14?`enfriándose`:`fría (${diasUltima}d)`;
+                  const semaforoLabel = diasUltima===null?'sin datos':diasUltima===0?'hoy':diasUltima===1?'ayer':`hace ${diasUltima}d`;
                   return(
                     <div key={g.id} style={{marginBottom:14,paddingBottom:14,borderBottom:'1px solid #F5F2EE'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6,gap:8}}>
