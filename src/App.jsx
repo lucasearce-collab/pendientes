@@ -2619,10 +2619,10 @@ function EditSheet({task,projects,onSave,onDelete,isDesktop}){
   </div>);
 }
 
-function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[],showProjectSelector=false}){
+function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[],showProjectSelector=false,date:initialDate=""}){
   const [title,setTitle]=useState("");
   const [type,setType]=useState("normal");
-  const [date,setDate]=useState("");
+  const [date,setDate]=useState(initialDate||"");
   const [responsable,setResponsable]=useState("");
   const [selProjId,setSelProjId]=useState(projectId||null);
   const [projOpen,setProjOpen]=useState(false);
@@ -3527,7 +3527,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
 }
 
 // ─── Semana View ──────────────────────────────────────────────────────────────
-function SemanaView({tasks, projects, onToggle, onOpen, onUpdate, desktop}){
+function SemanaView({tasks, projects, onToggle, onOpen, onUpdate, desktop, onAddTask}){
   const [weekOffset, setWeekOffset] = useState(0); // 0 = semana actual
   const [viewMode, setViewMode]     = useState("semana"); // "semana" | "dia"
   const [selectedDay, setSelectedDay] = useState(null); // índice 0-6
@@ -3803,10 +3803,15 @@ function SemanaView({tasks, projects, onToggle, onOpen, onUpdate, desktop}){
                   <div style={{fontFamily:"'DM Sans'",fontSize:22,fontWeight:400,color:"#2C2825",lineHeight:1.1,marginTop:1}}>{parseInt(d)}</div>
                 </div>
                 {dayTasks.length===0
-                  ?<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic",textAlign:"center",padding:"20px 0"}}>Sin tareas este día</div>
+                  ?<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic",textAlign:"center",padding:"16px 0 8px"}}>Sin tareas este día</div>
                   :dayTasks.map(t=><DayChip key={t.id} task={t}/>)
                 }
-                <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",textAlign:"center",marginTop:12}}>arrastrá para cambiar de día →</div>
+                {onAddTask&&(
+                  <button onClick={()=>onAddTask(dateStr)}
+                    style={{width:"100%",marginTop:10,background:"none",border:"1px dashed #E5E1DB",borderRadius:10,padding:"9px 0",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                    <span style={{fontSize:16,lineHeight:1}}>+</span> Nueva tarea
+                  </button>
+                )}
               </div>
             );
           })()}
@@ -4096,7 +4101,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
               <button onClick={()=>setSemanaModal(false)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:20,color:"#C8C3BB",lineHeight:1,padding:0}}>×</button>
             </div>
             <div style={{flex:1,overflow:"auto"}}>
-              <SemanaView tasks={tasks} projects={projects} onToggle={toggleDone} onOpen={setSheet} onUpdate={updateTask} desktop={desktop}/>
+              <SemanaView tasks={tasks} projects={projects} onToggle={toggleDone} onOpen={setSheet} onUpdate={updateTask} desktop={desktop} onAddTask={(date,area)=>setAddSheet({projectId:null,area:area||'trabajo',projectName:'',date:date,showProjectSelector:true})}/>
             </div>
           </div>
         </div>
