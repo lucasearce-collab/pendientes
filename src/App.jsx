@@ -1166,61 +1166,97 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       {/* ── RENDIMIENTO ── */}
       {tab==='rendimiento'&&(
         <div>
-          {/* Tareas por día */}
+
+          {/* Barras semanales */}
           <Card>
-            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16}}>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:20}}>
               <div>
                 <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Tareas completadas</div>
                 <div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>Últimos 7 días</div>
               </div>
-              {hasHourData&&<div style={{fontSize:10,color:'#9B8878',background:'#F5F1ED',padding:'3px 8px',borderRadius:99}}>Pico: {peakLabel}</div>}
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:22,fontWeight:300,color:'#2C2825',lineHeight:1}}>{completedByDay.reduce((a,b)=>a+b,0)}</div>
+                <div style={{fontSize:10,color:'#B0AA9F',marginTop:2}}>esta semana</div>
+              </div>
             </div>
-            <div style={{display:'flex',alignItems:'flex-end',gap:8,height:80}}>
+            <div style={{display:'flex',alignItems:'flex-end',gap:6,height:90,marginBottom:8}}>
               {completedByDay.map((count,i)=>{
                 const pct=(count/maxDay)*100;
                 const isToday=weekDays[i]===today;
                 return(
-                  <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+                  <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:5}}>
                     <div style={{flex:1,display:'flex',alignItems:'flex-end',width:'100%'}}>
-                      <div style={{width:'100%',borderRadius:'6px 6px 0 0',height:Math.max(pct,4)+'%',background:isToday?'#2C2825':pct>50?'#C4B5A5':'#EAE6E0',position:'relative'}}>
-                        {count>0&&<span style={{position:'absolute',top:-18,left:'50%',transform:'translateX(-50%)',fontSize:10,color:'#9B8878',fontWeight:500,whiteSpace:'nowrap'}}>{count}</span>}
+                      <div style={{width:'100%',borderRadius:'5px 5px 0 0',height:Math.max(pct,3)+'%',background:isToday?'#2C2825':count>0?'#C4B5A5':'#EAE6E0',position:'relative',transition:'height .4s'}}>
+                        {count>0&&<span style={{position:'absolute',top:-16,left:'50%',transform:'translateX(-50%)',fontSize:10,color:isToday?'#2C2825':'#9B8878',fontWeight:500,whiteSpace:'nowrap'}}>{count}</span>}
                       </div>
                     </div>
-                    <span style={{fontSize:9,color:isToday?'#2C2825':'#C8C3BB',fontWeight:isToday?500:400}}>{DAY_LABELS[i]}</span>
+                    <span style={{fontSize:9,color:isToday?'#2C2825':'#C8C3BB',fontWeight:isToday?500:400,letterSpacing:'.04em'}}>{DAY_LABELS[i]}</span>
                   </div>
                 );
               })}
             </div>
           </Card>
 
-          {/* Métricas de rendimiento */}
+          {/* Mapa de calor de horas */}
+          {hasHourData&&(
+            <Card>
+              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Ventanas de claridad</div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Horas del día donde más completás — tu pico es <strong style={{color:'#9B8878',fontWeight:500}}>{peakLabel}</strong></div>
+              <div style={{display:'flex',gap:2,alignItems:'flex-end',height:48}}>
+                {hourCounts.map((count,h)=>{
+                  const pct = count/maxHour;
+                  const isPeak = h===peakHour;
+                  if(count===0&&(h<6||h>22)) return <div key={h} style={{flex:1}}/>;
+                  return(
+                    <div key={h} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center'}}>
+                      <div style={{
+                        width:'100%',
+                        height:Math.max(pct*44,count>0?3:0)+'px',
+                        borderRadius:'3px 3px 0 0',
+                        background:isPeak?'#2C2825':pct>0.6?'#9B8878':pct>0.3?'#C4B5A5':'#EAE6E0',
+                        transition:'height .4s'
+                      }}/>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',marginTop:6}}>
+                {['12am','6am','12pm','6pm','11pm'].map(l=>(
+                  <span key={l} style={{fontSize:9,color:'#D5CFC8'}}>{l}</span>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Dos métricas clave lado a lado */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+            <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 14px'}}>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:6}}>A tiempo</div>
+              <div style={{fontSize:28,fontWeight:300,color:onTimePct===null?'#C8C3BB':onTimePct>=70?'#3B6D11':onTimePct>=40?'#8B6914':'#C4312A',lineHeight:1,marginBottom:4}}>
+                {onTimePct===null?'—':`${onTimePct}%`}
+              </div>
+              <div style={{fontSize:10,color:'#C8C3BB',lineHeight:1.4}}>Completadas sin reagendar</div>
+            </div>
+            <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 14px'}}>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:6}}>Postergadas</div>
+              <div style={{fontSize:28,fontWeight:300,color:snoozeRate===null?'#C8C3BB':snoozeRate<=20?'#3B6D11':snoozeRate<=40?'#8B6914':'#C4312A',lineHeight:1,marginBottom:4}}>
+                {snoozeRate===null?'—':`${snoozeRate}%`}
+              </div>
+              <div style={{fontSize:10,color:'#C8C3BB',lineHeight:1.4}}>Del total con fecha</div>
+            </div>
+          </div>
+
+          {/* Total histórico */}
           <Card>
-            <MetricRow
-              label="Completadas a tiempo"
-              sub="Tareas sin reagendar y antes del vencimiento"
-              value={onTimePct===null?'—':`${onTimePct}%`}
-              color={onTimePct===null?'#C8C3BB':onTimePct>=70?'#3B6D11':onTimePct>=40?'#8B6914':'#C4312A'}
-            />
-            <MetricRow
-              label="Tasa de postergación"
-              sub="Del total de tareas con fecha asignada"
-              value={snoozeRate===null?'—':`${snoozeRate}%`}
-              color={snoozeRate===null?'#C8C3BB':snoozeRate<=20?'#3B6D11':snoozeRate<=40?'#8B6914':'#C4312A'}
-            />
-            <MetricRow
-              label="Total completadas"
-              sub="Desde que usás la app"
-              value={tasks.filter(t=>t.done).length}
-            />
-            <div style={{paddingTop:10}}>
-              <MetricRow
-                label="Hora de mayor rendimiento"
-                sub="Cuando más tareas completás"
-                value={hasHourData?peakLabel:'—'}
-                color='#9B8878'
-              />
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Total completadas</div>
+                <div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>Desde que usás la app</div>
+              </div>
+              <div style={{fontSize:32,fontWeight:300,color:'#2C2825'}}>{tasks.filter(t=>t.done).length}</div>
             </div>
           </Card>
+
         </div>
       )}
 
@@ -1374,23 +1410,19 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
                 const anioConectadas  = metasAnio.filter(g=>g.parentId).length;
                 const medioConectadas = metasMedio.filter(g=>g.parentId).length;
                 const niveles = [
-                  { icon:'☐', iconBg:'#F5F1ED', iconColor:'#9B8878',
-                    label:'Tareas con propósito',
+                  { label:'Tareas con propósito',
                     pct: pctConMeta,
                     desc:`${tareasConMeta.length} de ${totalPendientes} tareas apuntan a una meta`,
                     show: totalPendientes>0, desconectadas:[] },
-                  { icon:'◎', iconBg:'#F0F1F8', iconColor:'#5B6BAF',
-                    label:'Metas de este año',
+                  { label:'Metas de este año',
                     pct: totalAnio>0?Math.round((anioConectadas/totalAnio)*100):null,
                     desc: totalAnio>0?`${anioConectadas} de ${totalAnio} conectadas al mediano plazo`:null,
                     show: totalAnio>0, desconectadas: anioSinConexion },
-                  { icon:'◈', iconBg:'#FBF8F2', iconColor:'#C4A882',
-                    label:'Mediano plazo',
+                  { label:'Mediano plazo',
                     pct: totalMedio>0?Math.round((medioConectadas/totalMedio)*100):null,
                     desc: totalMedio>0?`${medioConectadas} de ${totalMedio} conectadas al largo plazo`:null,
                     show: totalMedio>0, desconectadas: medioSinConexion },
-                  { icon:'⋈', iconBg:'#F5F2EE', iconColor:'#B0AA9F',
-                    label:'Visión de largo plazo',
+                  { label:'Visión de largo plazo',
                     pct: null,
                     desc: totalLargo>0?`${totalLargo} meta${totalLargo!==1?'s':''} definida${totalLargo!==1?'s':''}`:null,
                     show: totalLargo>0, desconectadas:[] },
@@ -1406,9 +1438,9 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
                         <div key={n.label}>
                           <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
                             {/* Ícono + conector */}
-                            <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
-                              <div style={{width:28,height:28,borderRadius:8,background:n.iconBg,color:n.iconColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12}}>{n.icon}</div>
-                              {i<niveles.length-1&&<div style={{width:1,height:14,background:'#EAE6E0',margin:'3px 0'}}/>}
+                            <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0,width:14}}>
+                              <div style={{width:8,height:8,borderRadius:'50%',background:color==='#B0AA9F'?'#D5CFC8':color,marginTop:4}}/>
+                              {i<niveles.length-1&&<div style={{width:1,flex:1,background:'#EAE6E0',margin:'4px 0'}}/>}
                             </div>
                             {/* Contenido */}
                             <div style={{flex:1,minWidth:0,paddingBottom:i<niveles.length-1?14:0}}>
@@ -1517,15 +1549,10 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
                   const semaforoLabel = diasUltima===null?'sin datos':diasUltima===0?'hoy':diasUltima===1?'ayer':`hace ${diasUltima}d`;
                   return(
                     <div key={g.id} style={{marginBottom:14,paddingBottom:14,borderBottom:'1px solid #F5F2EE'}}>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6,gap:8}}>
-                        <span style={{fontSize:12,color:'#2C2825',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.title}</span>
-                        <span style={{fontSize:10,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,flexShrink:0,fontWeight:500}}>{semaforoLabel}</span>
-                        <div style={{width:8,height:8,borderRadius:'50%',background:semaforo,flexShrink:0}}/>
-                      </div>
-                      {/* Barra: tareas completadas en últimos 30 días, relativa al máximo */}
-                      {/* Header: nombre + score */}
+                      {/* nombre + score momentum + última actividad */}
                       <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:6}}>
                         <span style={{fontSize:12,color:'#2C2825',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.title}</span>
+                        <span style={{fontSize:10,color:'#B0AA9F',flexShrink:0}}>momentum</span>
                         <span style={{fontSize:15,fontWeight:300,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,flexShrink:0}}>{Math.round(momentumScore)}</span>
                         <span style={{fontSize:10,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,flexShrink:0}}>{semaforoLabel}</span>
                       </div>
