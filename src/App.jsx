@@ -1478,20 +1478,39 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
                 const maxUlt30 = Math.max(...completadasPorMeta.map(m=>m.ult30), 1);
 
                 return completadasPorMeta.map(({g,ultima,diasUltima,ult7,ult30,totalCompletadas})=>{
-                  const barPct = Math.round((ult30/maxUlt30)*100);
-                  // Semáforo basado en RITMO: combina recencia y volumen
-                  // Score: tareas en últimos 7d pesan más que las de 8-30d
-                  const ritmoScore = ult7*3 + (ult30-ult7)*1;
-                  const semaforo = ritmoScore===0
-                    ? (diasUltima===null?'#EAE6E0':'#C4312A')
-                    : ritmoScore>=4?'#8FAF8A'
-                    : ritmoScore>=2?'#C4A882'
-                    : '#C4A882';
-                  const semaforoLabel = ritmoScore===0
-                    ? (diasUltima===null?'sin actividad':`última hace ${diasUltima}d`)
-                    : ult7>0
-                      ? `${ult7} esta semana · ${ult30} en 30d`
-                      : `${ult30} en 30d · última hace ${diasUltima}d`;
+                  // ── Momentum score multivariable ──
+                  // Volumen (peso mayor): tareas completadas últimos 30d
+                  const scoreVolumen = ult30 * 1.5;
+                  // Recencia: completó algo en últimas 72h
+                  const tieneRecencia = diasUltima!==null && diasUltima<=3;
+                  const scoreRecencia = tieneRecencia ? 10 : 0;
+                  // Estructura: tiene proyectos vinculados (peso bajo — la estructura ayuda pero no reemplaza ejecución)
+                  const proyectosDeMeta = projects.filter(p=>(p.goal_ids||[]).includes(g.id)||p.goal_id===g.id);
+                  const scoreEstructura = Math.min(proyectosDeMeta.length * 2, 6); // máx 6 pts
+                  // Penalidad por inercia: días sin completar nada
+                  const diasInercia = diasUltima===null ? 30 : diasUltima;
+                  const penalidadInercia = diasInercia * 0.75;
+                  // Score final 0-100
+                  const momentumScore = Math.max(0, Math.min(100, scoreVolumen + scoreRecencia + scoreEstructura - penalidadInercia));
+                  const barPct = Math.round(momentumScore);
+
+                  // Color según score
+                  const semaforo = momentumScore>=60?'#8FAF8A':momentumScore>=30?'#C4A882':diasUltima===null?'#EAE6E0':'#C4312A';
+
+                  // Diagnóstico contextual accionable
+                  const diagnostico = ult30<3 && proyectosDeMeta.length>0
+                    ? 'Tenés la estructura lista pero pocas tareas completadas. El orden está, la meta aún no avanza.'
+                    : ult30>8 && !tieneRecencia
+                      ? 'Buen historial del mes, aunque hoy estés en una pausa. Retomá con algo simple.'
+                      : diasInercia>14
+                        ? 'Esta meta se está enfriando. Completar una sola tarea ya reactiva el momentum.'
+                        : momentumScore>=60
+                          ? 'Buen ritmo. Estás transformando esta meta en realidad.'
+                          : ult7>0
+                            ? `${ult7} tarea${ult7!==1?'s':''} esta semana. Seguí así.`
+                            : 'Sin actividad esta semana. ¿Podés avanzar algo hoy?';
+
+                  const semaforoLabel = diasUltima===null?'sin actividad':diasUltima===0?'hoy':diasUltima<=3?`hace ${diasUltima}d`:diasUltima<=7?`hace ${diasUltima}d`:diasUltima<=14?`enfriándose`:`fría (${diasUltima}d)`;
                   return(
                     <div key={g.id} style={{marginBottom:14,paddingBottom:14,borderBottom:'1px solid #F5F2EE'}}>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6,gap:8}}>
@@ -1500,14 +1519,13 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
                         <div style={{width:8,height:8,borderRadius:'50%',background:semaforo,flexShrink:0}}/>
                       </div>
                       {/* Barra: tareas completadas en últimos 30 días, relativa al máximo */}
-                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
                         <div style={{flex:1,height:6,background:'#F5F2EE',borderRadius:99,overflow:'hidden'}}>
-                          <div style={{height:'100%',width:Math.max(barPct,ult30>0?4:0)+'%',background:semaforo==='#EAE6E0'?'#EAE6E0':semaforo,borderRadius:99,transition:'width .5s'}}/>
+                          <div style={{height:'100%',width:Math.max(barPct,ult30>0?3:0)+'%',background:semaforo==='#EAE6E0'?'#EAE6E0':semaforo,borderRadius:99,transition:'width .5s'}}/>
                         </div>
-                        <span style={{fontSize:10,color:'#B0AA9F',flexShrink:0,minWidth:80,textAlign:'right'}}>
-                          {ult7>0?<span style={{color:semaforo,fontWeight:500}}>{ult7} esta sem</span>:ult30>0?`${ult30} en 30d`:'sin actividad'}
-                        </span>
+                        <span style={{fontSize:11,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,fontWeight:500,flexShrink:0,minWidth:32,textAlign:'right'}}>{Math.round(momentumScore)}</span>
                       </div>
+                      <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.5,paddingLeft:0}}>{diagnostico}</div>
                     </div>
                   );
                 });
