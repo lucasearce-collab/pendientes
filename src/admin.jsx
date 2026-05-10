@@ -42,16 +42,22 @@ function AdminApp() {
       const today = todayStr();
       const sevenDaysAgo = daysAgo(7);
       const yesterday = daysAgo(1);
-      const [tasksRes, eventsRes, profilesRes, usersRes] = await Promise.all([
+      const [tasksRes, eventsRes, profilesRes, usersRes, goalsRes] = await Promise.all([
         supabase.rpc('get_all_tasks'),
         supabase.rpc('get_all_events'),
-        supabase.from('user_profiles').select('id,points,terms_accepted,terms_accepted_at'),
+        supabase.rpc('get_user_list').then(async (usersResult) => {
+          // Fetch profiles for each user via admin RPC
+          const profilesResult = await supabase.from('user_profiles').select('id,points,terms_accepted,terms_accepted_at');
+          return { users: usersResult.data || [], profiles: profilesResult.data || [] };
+        }),
         supabase.rpc('get_user_list'),
+        supabase.rpc('get_all_goals').catch(() => ({ data: [] })),
       ]);
       const tasks = tasksRes.data || [];
       const events = eventsRes.data || [];
-      const profiles = profilesRes.data || [];
+      const profiles = profilesRes.profiles || [];
       const registeredUsers = usersRes.data || [];
+      const goals = goalsRes.data || [];
       const allUserIds = registeredUsers.length > 0
         ? registeredUsers.map(u => u.id)
         : [...new Set([
@@ -115,13 +121,16 @@ function AdminApp() {
           const days = Math.round((new Date() - new Date(regDate)) / 86400000);
           return days === 0 ? 'Hoy' : days === 1 ? 'Ayer' : days < 7 ? `hace ${days} días` : `hace ${Math.round(days / 7)} sem`;
         })();
+        const userGoals = goals.filter(g => g.user_id === uid);
         return {
           uid,
           email: registeredUsers.find(u => u.id === uid)?.email || uid.slice(0, 8) + '...',
           daysActive: activeDays.size,
           dayDots,
           streak,
-          tasksTotal: userTasks.filter(t => t.done).length,
+          tasksCreated: userTasks.length,
+          tasksCompleted: userTasks.filter(t => t.done).length,
+          goalsTotal: userGoals.length,
           lastActiveLabel,
           regLabel,
           points: profile?.points || 0,
@@ -139,7 +148,7 @@ function AdminApp() {
         }
         heatmap.push(week);
       }
-      setData({ totalUsers, activeUsers7d, activeToday, tasksThisWeek, tasksLastWeek, dauWau, userStats, freqDist, heatmap });
+      setData({ totalUsers, activeUsers7d, activeToday, tasksThisWeek, tasksLastWeek, dauWau, userStats, freqDist, heatmap, goals });
       setLastUpdated(new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }));
     } catch (e) {
       console.error('Admin load error:', e);
@@ -239,13 +248,13 @@ function AdminApp() {
       </div>
       <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: '.12em', textTransform: 'uppercase', color: '#B0AA9F', marginBottom: 14 }}>Detalle por usuario</div>
       <div style={{ background: 'white', borderRadius: 14, border: '1px solid #EAE6E0', overflow: 'hidden', marginBottom: 32 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 0.8fr 0.8fr 1fr', padding: '10px 16px', borderBottom: '1px solid #EAE6E0', background: '#FAFAF8' }}>
-          {['Usuario', 'Días activos / sem', 'Racha', 'Tareas', 'Puntos', 'Último acceso'].map(h => (
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.6fr 0.6fr 0.8fr 0.8fr 0.8fr 0.9fr', padding: '10px 16px', borderBottom: '1px solid #EAE6E0', background: '#FAFAF8' }}>
+          {['Usuario', 'Días activos / sem', 'Racha', 'Metas', 'Tareas creadas', 'Completadas', 'Puntos', 'Último acceso'].map(h => (
             <div key={h} style={{ fontSize: 10, fontWeight: 500, letterSpacing: '.1em', textTransform: 'uppercase', color: '#B0AA9F' }}>{h}</div>
           ))}
         </div>
         {userStats.map((u, idx) => (
-          <div key={u.uid} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 0.8fr 0.8fr 1fr', padding: '13px 16px', borderBottom: idx < userStats.length - 1 ? '1px solid #F5F2EE' : 'none', alignItems: 'center' }}>
+          <div key={u.uid} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.6fr 0.6fr 0.8fr 0.8fr 0.8fr 0.9fr', padding: '13px 16px', borderBottom: idx < userStats.length - 1 ? '1px solid #F5F2EE' : 'none', alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 12, color: u.daysActive > 0 ? '#2C2825' : '#B0AA9F', fontWeight: 500 }}>{u.email}</div>
               <div style={{ fontSize: 11, color: '#C8C3BB', marginTop: 2 }}>Registro: {u.regLabel}</div>
@@ -259,7 +268,9 @@ function AdminApp() {
               <span style={{ fontSize: 11, color: u.daysActive >= 5 ? '#8FAF8A' : u.daysActive >= 3 ? '#C4A882' : '#C8C3BB', fontWeight: 500 }}>{u.daysActive}/7</span>
             </div>
             <div style={{ fontSize: 13, color: '#2C2825' }}>{u.streak > 0 ? `🔥 ${u.streak}` : '—'}</div>
-            <div style={{ fontFamily: "'DM Mono'", fontSize: 13, color: '#2C2825' }}>{u.tasksTotal}</div>
+            <div style={{ fontFamily: "'DM Mono'", fontSize: 13, color: '#5B6BAF' }}>{u.goalsTotal}</div>
+            <div style={{ fontFamily: "'DM Mono'", fontSize: 13, color: '#2C2825' }}>{u.tasksCreated}</div>
+            <div style={{ fontFamily: "'DM Mono'", fontSize: 13, color: '#8FAF8A' }}>{u.tasksCompleted}</div>
             <div style={{ fontFamily: "'DM Mono'", fontSize: 13, color: '#9B8878' }}>{u.points.toLocaleString()}</div>
             <div style={{ fontSize: 12, color: '#B0AA9F' }}>{u.lastActiveLabel}</div>
           </div>
