@@ -52,12 +52,6 @@ function AdminApp() {
       const events = eventsRes.data || [];
       const profiles = profilesRes.data || [];
       const registeredUsers = usersRes.data || [];
-      // Goals — opcional, no rompe si falla
-      let goals = [];
-      try {
-        const goalsRes = await supabase.rpc('get_all_goals');
-        goals = goalsRes.data || [];
-      } catch(e) { goals = []; }
       const allUserIds = registeredUsers.length > 0
         ? registeredUsers.map(u => u.id)
         : [...new Set([
@@ -121,18 +115,33 @@ function AdminApp() {
           const days = Math.round((new Date() - new Date(regDate)) / 86400000);
           return days === 0 ? 'Hoy' : days === 1 ? 'Ayer' : days < 7 ? `hace ${days} días` : `hace ${Math.round(days / 7)} sem`;
         })();
-        const userGoals = goals.filter(g => g.user_id === uid);
+        // Retención
+        const regDateStr = regDate ? regDate.slice(0,10) : null;
+        const daysSinceReg = regDateStr ? Math.round((new Date(today) - new Date(regDateStr)) / 86400000) : null;
+        const d1 = daysSinceReg===null ? null : daysSinceReg < 1 ? 'nuevo' : allDates.some(d => {
+          const diff = Math.round((new Date(d) - new Date(regDateStr)) / 86400000);
+          return diff >= 1 && diff <= 2;
+        }) ? true : false;
+        const d7 = daysSinceReg===null||daysSinceReg<7 ? null : allDates.some(d => {
+          const diff = Math.round((new Date(d) - new Date(regDateStr)) / 86400000);
+          return diff >= 2 && diff <= 7;
+        }) ? true : false;
+        const d30 = daysSinceReg===null||daysSinceReg<30 ? null : allDates.some(d => {
+          const diff = Math.round((new Date(d) - new Date(regDateStr)) / 86400000);
+          return diff >= 8 && diff <= 30;
+        }) ? true : false;
+
         return {
           uid,
           email: registeredUsers.find(u => u.id === uid)?.email || uid.slice(0, 8) + '...',
           daysActive: activeDays.size,
           dayDots,
           streak,
-          tasksCreated: userTasks.length,
-          tasksCompleted: userTasks.filter(t => t.done).length,
-          goalsTotal: userGoals.length,
+          tasksTotal: userTasks.filter(t => t.done).length,
           lastActiveLabel,
           regLabel,
+          daysSinceReg,
+          d1, d7, d30,
           points: profile?.points || 0,
         };
       }).sort((a, b) => b.tasksTotal - a.tasksTotal);
@@ -148,7 +157,18 @@ function AdminApp() {
         }
         heatmap.push(week);
       }
-      setData({ totalUsers, activeUsers7d, activeToday, tasksThisWeek, tasksLastWeek, dauWau, userStats, freqDist, heatmap, goals });
+      // Métricas globales de retención
+      const usersWithReg = userStats.filter(u => u.daysSinceReg !== null);
+      const retD1 = usersWithReg.filter(u => u.daysSinceReg >= 1);
+      const retD7 = usersWithReg.filter(u => u.daysSinceReg >= 7);
+      const retD30 = usersWithReg.filter(u => u.daysSinceReg >= 30);
+      const retention = {
+        d1Rate: retD1.length ? Math.round(retD1.filter(u=>u.d1===true).length / retD1.length * 100) : null,
+        d7Rate: retD7.length ? Math.round(retD7.filter(u=>u.d7===true).length / retD7.length * 100) : null,
+        d30Rate: retD30.length ? Math.round(retD30.filter(u=>u.d30===true).length / retD30.length * 100) : null,
+        d1Base: retD1.length, d7Base: retD7.length, d30Base: retD30.length,
+      };
+      setData({ totalUsers, activeUsers7d, activeToday, tasksThisWeek, tasksLastWeek, dauWau, userStats, freqDist, heatmap, retention });
       setLastUpdated(new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }));
     } catch (e) {
       console.error('Admin load error:', e);
@@ -246,15 +266,32 @@ function AdminApp() {
           </div>
         </div>
       </div>
+      {/* Retención */}
+      <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: '.12em', textTransform: 'uppercase', color: '#B0AA9F', marginBottom: 14 }}>Retención</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 32 }}>
+        {[
+          { label: 'Day 1', desc: 'Volvieron al día siguiente', rate: retention?.d1Rate, base: retention?.d1Base },
+          { label: 'Day 7', desc: 'Activos en la primera semana', rate: retention?.d7Rate, base: retention?.d7Base },
+          { label: 'Day 30', desc: 'Activos al primer mes', rate: retention?.d30Rate, base: retention?.d30Base },
+        ].map(m => (
+          <div key={m.label} style={{ background: 'white', borderRadius: 14, border: '1px solid #EAE6E0', padding: '18px 20px' }}>
+            <div style={{ fontSize: 11, color: '#B0AA9F', marginBottom: 6 }}>{m.label} — {m.desc}</div>
+            <div style={{ fontSize: 32, fontWeight: 300, color: '#2C2825', letterSpacing: '-.02em', lineHeight: 1 }}>
+              {m.rate === null ? '—' : `${m.rate}%`}
+            </div>
+            {m.base > 0 && <div style={{ fontSize: 11, color: '#C8C3BB', marginTop: 6 }}>{m.base} usuarios con suficiente antigüedad</div>}
+          </div>
+        ))}
+      </div>
       <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: '.12em', textTransform: 'uppercase', color: '#B0AA9F', marginBottom: 14 }}>Detalle por usuario</div>
       <div style={{ background: 'white', borderRadius: 14, border: '1px solid #EAE6E0', overflow: 'hidden', marginBottom: 32 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.6fr 0.6fr 0.8fr 0.8fr 0.8fr 0.9fr', padding: '10px 16px', borderBottom: '1px solid #EAE6E0', background: '#FAFAF8' }}>
-          {['Usuario', 'Días activos / sem', 'Racha', 'Metas', 'Tareas creadas', 'Completadas', 'Puntos', 'Último acceso'].map(h => (
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 0.8fr 0.8fr 1fr', padding: '10px 16px', borderBottom: '1px solid #EAE6E0', background: '#FAFAF8' }}>
+          {['Usuario', 'Días activos / sem', 'Racha', 'D1', 'D7', 'D30', 'Tareas', 'Puntos', 'Último acceso'].map(h => (
             <div key={h} style={{ fontSize: 10, fontWeight: 500, letterSpacing: '.1em', textTransform: 'uppercase', color: '#B0AA9F' }}>{h}</div>
           ))}
         </div>
         {userStats.map((u, idx) => (
-          <div key={u.uid} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 0.6fr 0.6fr 0.8fr 0.8fr 0.8fr 0.9fr', padding: '13px 16px', borderBottom: idx < userStats.length - 1 ? '1px solid #F5F2EE' : 'none', alignItems: 'center' }}>
+          <div key={u.uid} style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 0.8fr 0.8fr 1fr', padding: '13px 16px', borderBottom: idx < userStats.length - 1 ? '1px solid #F5F2EE' : 'none', alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 12, color: u.daysActive > 0 ? '#2C2825' : '#B0AA9F', fontWeight: 500 }}>{u.email}</div>
               <div style={{ fontSize: 11, color: '#C8C3BB', marginTop: 2 }}>Registro: {u.regLabel}</div>
@@ -268,9 +305,10 @@ function AdminApp() {
               <span style={{ fontSize: 11, color: u.daysActive >= 5 ? '#8FAF8A' : u.daysActive >= 3 ? '#C4A882' : '#C8C3BB', fontWeight: 500 }}>{u.daysActive}/7</span>
             </div>
             <div style={{ fontSize: 13, color: '#2C2825' }}>{u.streak > 0 ? `🔥 ${u.streak}` : '—'}</div>
-            <div style={{ fontFamily: "'DM Mono'", fontSize: 13, color: '#5B6BAF' }}>{u.goalsTotal}</div>
-            <div style={{ fontFamily: "'DM Mono'", fontSize: 13, color: '#2C2825' }}>{u.tasksCreated}</div>
-            <div style={{ fontFamily: "'DM Mono'", fontSize: 13, color: '#8FAF8A' }}>{u.tasksCompleted}</div>
+            <div title="Day 1 retention" style={{ fontSize: 12 }}>{u.d1===null?<span style={{color:'#EAE6E0'}}>·</span>:u.d1==='nuevo'?<span style={{color:'#C8C3BB'}}>new</span>:u.d1?'✓':'✗'}</div>
+            <div title="Day 7 retention" style={{ fontSize: 12 }}>{u.d7===null?<span style={{color:'#EAE6E0'}}>·</span>:u.d7?'✓':'✗'}</div>
+            <div title="Day 30 retention" style={{ fontSize: 12 }}>{u.d30===null?<span style={{color:'#EAE6E0'}}>·</span>:u.d30?'✓':'✗'}</div>
+            <div style={{ fontFamily: "'DM Mono'", fontSize: 13, color: '#2C2825' }}>{u.tasksTotal}</div>
             <div style={{ fontFamily: "'DM Mono'", fontSize: 13, color: '#9B8878' }}>{u.points.toLocaleString()}</div>
             <div style={{ fontSize: 12, color: '#B0AA9F' }}>{u.lastActiveLabel}</div>
           </div>
