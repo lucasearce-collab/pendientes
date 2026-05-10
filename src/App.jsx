@@ -2878,7 +2878,7 @@ function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew
 
 // ─── Draggable Project Grid (desktop) ────────────────────────────────────────
 function DProjBlock({project,area,tasks,onToggle,onOpen,onAddTask,onComplete,reorderTasks,sw,onEdit,onDeleteProject}){
-  const [open,setOpen]=useState(true);
+  const [open,setOpen]=useState(false);
   const [conf,setConf]=useState(false);
   const imp=IMPORTANCE[project.importance||"normal"];
   const pending=tasks.filter(t=>!t.done).length;
@@ -3879,7 +3879,7 @@ function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onTog
             ?<DTaskList tasks={tareasActuales} projects={allProjects||projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
             :<TaskRows tasks={tareasActuales} projects={allProjects||projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...(sw||{})}/>
         }
-        <button onClick={()=>onAddTask({id:null,name:'',area:activeArea})} className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:8}:{}}>
+        <button onClick={()=>onAddTask({id:null,name:'',area:activeArea,showProjectSelector:true})} className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:8}:{}}>
           <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
         </button>
       </div>
@@ -4081,7 +4081,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
           onToggle={toggleDone}
           onDelete={deleteTask}
           onOpen={setSheet}
-          onAddTask={(proj)=>setAddSheet({projectId:proj?.id||null,area:activeArea,projectName:proj?.name||'',showProjectSelector:true})}
+          onAddTask={(proj)=>setAddSheet({projectId:proj?.id||null,area:activeArea,projectName:proj?.name||'',showProjectSelector:proj?.showProjectSelector||true})}
           onComplete={completeProject}
           reorderTasks={reorderTasks}
           addTask={addTask}
