@@ -1463,17 +1463,31 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
                 <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'16px 0'}}>No tenés metas de este año definidas</div>
               ):(()=>{
                 // Completadas en los últimos 30 días por meta
+                const ahora = Date.now();
+                const MS_DIA = 1000*60*60*24;
                 const completadasPorMeta = metasAnio.map(g=>{
                   const projs = projects.filter(p=>(p.goal_ids||[]).includes(g.id)||p.goal_id===g.id);
-                  const completadas = tasks.filter(t=>t.done&&t.completed_at&&projs.some(p=>p.id===t.projectId));
-                  // Última completada
-                  const ultima = completadas.length>0
-                    ? completadas.sort((a,b)=>b.completed_at.localeCompare(a.completed_at))[0].completed_at.slice(0,10)
-                    : null;
-                  // Completadas últimos 7 días
-                  const ult7 = completadas.filter(t=>diasDesde(t.completed_at.slice(0,10))<=7).length;
-                  const ult30 = completadas.filter(t=>diasDesde(t.completed_at.slice(0,10))<=30).length;
-                  return {g, ultima, diasUltima: diasDesde(ultima), ult7, ult30, totalCompletadas: completadas.length};
+                  // Incluir tareas done aunque no tengan completed_at (usar fecha de hoy como fallback)
+                  const completadas = tasks.filter(t=>t.done&&projs.some(p=>p.id===t.projectId));
+                  if(completadas.length===0) return {g, ultima:null, diasUltima:null, ult7:0, ult30:0, totalCompletadas:0};
+                  // Ordenar por fecha de completado más reciente
+                  const sorted = [...completadas].sort((a,b)=>{
+                    const ta = a.completed_at?new Date(a.completed_at).getTime():0;
+                    const tb = b.completed_at?new Date(b.completed_at).getTime():0;
+                    return tb-ta;
+                  });
+                  const ultima = sorted[0].completed_at?new Date(sorted[0].completed_at).getTime():ahora;
+                  const diasUltima = Math.floor((ahora-ultima)/MS_DIA);
+                  // Contar por ms para evitar problemas de zona horaria
+                  const ult7  = completadas.filter(t=>{
+                    if(!t.completed_at) return false;
+                    return (ahora-new Date(t.completed_at).getTime()) <= 7*MS_DIA;
+                  }).length;
+                  const ult30 = completadas.filter(t=>{
+                    if(!t.completed_at) return false;
+                    return (ahora-new Date(t.completed_at).getTime()) <= 30*MS_DIA;
+                  }).length;
+                  return {g, ultima, diasUltima, ult7, ult30, totalCompletadas:completadas.length};
                 });
                 const maxUlt30 = Math.max(...completadasPorMeta.map(m=>m.ult30), 1);
 
