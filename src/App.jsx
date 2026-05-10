@@ -839,7 +839,7 @@ function FocusProjectMode({projects,tasksForProject,onToggle,onDelete,onOpen,onA
 // ─── Focus Strategy Mode (Proyectos) ─────────────────────────────────────────
 
 // ─── Grouped Projects View ────────────────────────────────────────────────────
-function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks,sw,desktop}){
+function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks,sw,desktop,onEditProject,onDeleteProject}){
   const GROUPS = [
     {key:"urgente",     label:"Prioritarios", color:"#C49A7A", bg:"#FBF5F0"},
     {key:"estrategica", label:"Estratégicos",  color:"#5B6BAF", bg:"#F0F1F8"},
@@ -850,7 +850,9 @@ function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,
   const ProjCard = ({proj}) => desktop
     ?<DProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
         onToggle={onToggle} onOpen={onOpen} onComplete={onComplete}
-        onAddTask={()=>onAddTask(proj)} reorderTasks={reorderTasks} sw={{swipedId:null,setSwipedId:()=>{}}}/>
+        onAddTask={()=>onAddTask(proj)} reorderTasks={reorderTasks}
+        onEdit={onEditProject} onDeleteProject={onDeleteProject}
+        sw={{swipedId:null,setSwipedId:()=>{}}}/>
     :<ProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
         onToggle={onToggle} onDelete={onDelete} onOpen={onOpen}
         onAddTask={()=>onAddTask(proj)} reorderTasks={reorderTasks} {...(sw||{})}/>;
@@ -2592,7 +2594,7 @@ function EditSheet({task,projects,onSave,onDelete,isDesktop}){
   </div>);
 }
 
-function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[]}){
+function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[],showProjectSelector=false}){
   const [title,setTitle]=useState("");
   const [type,setType]=useState("normal");
   const [date,setDate]=useState("");
@@ -2604,7 +2606,7 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[]}){
   const areaProjects = projects.filter(p=>p.area===area);
   const selProj = areaProjects.find(p=>p.id===selProjId);
   // Mostrar selector si: viene sin proyecto O hay más de un proyecto disponible
-  const showSelector = !projectId || areaProjects.length > 1;
+  const showSelector = showProjectSelector || false;
   function go(){if(!title.trim())return;onAdd({projectId:selProjId,title:title.trim(),type,date,responsable});}
   return(<div className={cls}>
     {!isDesktop&&<div className="hd"/>}
@@ -2617,7 +2619,7 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[]}){
       {/* Valor seleccionado */}
       <div onClick={()=>setProjOpen(o=>!o)}
         style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"white",borderRadius:projOpen?"10px 10px 0 0":"10px",border:"1px solid #E5E1DB",borderBottom:projOpen?"1px solid #F5F2EE":"1px solid #E5E1DB",cursor:"pointer"}}>
-        <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#2C2825"}}>{selProj?.name||"General"}</span>
+        <span style={{fontFamily:"'DM Sans'",fontSize:13,color:selProj?"#2C2825":"#B0AA9F",fontStyle:selProj?"normal":"italic"}}>{selProj?.name||"Sin proyecto"}</span>
         <span style={{fontSize:10,color:"#C8C3BB"}}>{projOpen?"▴":"▾"}</span>
       </div>
       {/* Lista inline — no absolute, empuja hacia abajo pero controlado */}
@@ -2875,27 +2877,31 @@ function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew
 
 
 // ─── Draggable Project Grid (desktop) ────────────────────────────────────────
-function DProjBlock({project,area,tasks,onToggle,onOpen,onAddTask,onComplete,reorderTasks,sw}){
-  const [open,setOpen]=useState(false);
+function DProjBlock({project,area,tasks,onToggle,onOpen,onAddTask,onComplete,reorderTasks,sw,onEdit,onDeleteProject}){
+  const [open,setOpen]=useState(true);
+  const [conf,setConf]=useState(false);
   const imp=IMPORTANCE[project.importance||"normal"];
   const pending=tasks.filter(t=>!t.done).length;
   const sorted=[...tasks].sort(taskSort);
   return(
     <div style={{marginBottom:10,border:"1px solid #EAE6E0",borderRadius:12,overflow:"hidden",background:"#FDFCFA"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 18px",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:6,height:6,borderRadius:"50%",background:AREAS[area].color,opacity:.7}}/>
+        <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
+          <div style={{width:6,height:6,borderRadius:"50%",background:AREAS[area]?.color||"#9B8878",opacity:.7,flexShrink:0}}/>
           <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,color:"#3A3530"}}>{project.name}</span>
           {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
-          {pending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F"}}>{pending} pendientes</span>}
-          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 8px",borderRadius:99}}>{imp.label}</span>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 8px",borderRadius:99,flexShrink:0}}>{imp.label}</span>
+          {pending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F"}}>{pending} pendiente{pending!==1?"s":""}</span>}
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}} onClick={e=>e.stopPropagation()}>
           <button className="d-ib" onClick={onAddTask}>+ tarea</button>
+          {onEdit&&<button className="d-ib" onClick={()=>onEdit(project)}>Editar</button>}
+          {onDeleteProject&&!conf&&<button className="d-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>Eliminar</button>}
+          {conf&&<><button className="d-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={()=>onDeleteProject(project.id)}>Confirmar</button><button className="d-ib" onClick={()=>setConf(false)}>✕</button></>}
           <span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",transform:open?"rotate(0)":"rotate(-90deg)",display:"inline-block",transition:"transform .2s",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>▾</span>
         </div>
       </div>
-      {open&&(sorted.length>0?<DTaskList tasks={sorted} projects={[]} onToggle={onToggle} onOpen={onOpen} area={area} reorderTasks={reorderTasks}/>:<div style={{padding:"6px 18px 14px",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin tareas · click en + tarea</div>)}
+      {open&&(sorted.length>0?<DTaskList tasks={sorted} projects={[]} onToggle={onToggle} onOpen={onOpen} area={area} reorderTasks={reorderTasks}/>:<div style={{padding:"6px 18px 14px",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin tareas · hacé click en + tarea para agregar</div>)}
     </div>
   );
 }
@@ -4075,7 +4081,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
           onToggle={toggleDone}
           onDelete={deleteTask}
           onOpen={setSheet}
-          onAddTask={(proj)=>setAddSheet({projectId:proj?.id||null,area:activeArea,projectName:proj?.name||''})}
+          onAddTask={(proj)=>setAddSheet({projectId:proj?.id||null,area:activeArea,projectName:proj?.name||'',showProjectSelector:true})}
           onComplete={completeProject}
           reorderTasks={reorderTasks}
           addTask={addTask}
