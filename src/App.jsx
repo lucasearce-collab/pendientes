@@ -1363,46 +1363,37 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
               )}
             </Card>
 
-            {/* 2. Pirámide de coherencia: tareas → corto → mediano → largo */}
+            {/* 2. Pirámide de coherencia */}
             <Card>
               <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Pirámide de coherencia</div>
-              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:18}}>¿Tu esfuerzo diario conecta con tu visión de largo plazo?</div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:16}}>¿Tu esfuerzo diario conecta con tu visión?</div>
               {(()=>{
                 const totalAnio  = metasAnio.length;
                 const totalMedio = metasMedio.length;
                 const totalLargo = metasLargo.length;
                 const anioConectadas  = metasAnio.filter(g=>g.parentId).length;
                 const medioConectadas = metasMedio.filter(g=>g.parentId).length;
-                // Tareas pendientes con meta
-                const pctTareas = pctConMeta;
                 const niveles = [
-                  {
+                  { icon:'☐', iconBg:'#F5F1ED', iconColor:'#9B8878',
                     label:'Tareas con propósito',
-                    desc:`${tareasConMeta.length} de ${totalPendientes} tareas pendientes apuntan a una meta`,
-                    pct:pctTareas,
-                    show: totalPendientes>0,
-                  },
-                  {
-                    label:'Metas de este año conectadas',
-                    desc: totalAnio>0?`${anioConectadas} de ${totalAnio} conectadas al mediano plazo`:null,
+                    pct: pctConMeta,
+                    desc:`${tareasConMeta.length} de ${totalPendientes} tareas apuntan a una meta`,
+                    show: totalPendientes>0, desconectadas:[] },
+                  { icon:'◎', iconBg:'#F0F1F8', iconColor:'#5B6BAF',
+                    label:'Metas de este año',
                     pct: totalAnio>0?Math.round((anioConectadas/totalAnio)*100):null,
-                    show: totalAnio>0,
-                    desconectadas: anioSinConexion,
-                  },
-                  {
-                    label:'Metas de mediano plazo conectadas',
-                    desc: totalMedio>0?`${medioConectadas} de ${totalMedio} conectadas al largo plazo`:null,
+                    desc: totalAnio>0?`${anioConectadas} de ${totalAnio} conectadas al mediano plazo`:null,
+                    show: totalAnio>0, desconectadas: anioSinConexion },
+                  { icon:'◈', iconBg:'#FBF8F2', iconColor:'#C4A882',
+                    label:'Mediano plazo',
                     pct: totalMedio>0?Math.round((medioConectadas/totalMedio)*100):null,
-                    show: totalMedio>0,
-                    desconectadas: medioSinConexion,
-                  },
-                  {
+                    desc: totalMedio>0?`${medioConectadas} de ${totalMedio} conectadas al largo plazo`:null,
+                    show: totalMedio>0, desconectadas: medioSinConexion },
+                  { icon:'⋈', iconBg:'#F5F2EE', iconColor:'#B0AA9F',
                     label:'Visión de largo plazo',
+                    pct: null,
                     desc: totalLargo>0?`${totalLargo} meta${totalLargo!==1?'s':''} definida${totalLargo!==1?'s':''}`:null,
-                    pct: totalLargo>0?100:null,
-                    show: totalLargo>0,
-                    desconectadas: [],
-                  },
+                    show: totalLargo>0, desconectadas:[] },
                 ].filter(n=>n.show);
                 if(niveles.length===0) return(
                   <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'16px 0'}}>Definí metas y asociá tareas para ver la pirámide</div>
@@ -1410,29 +1401,41 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
                 return(
                   <div>
                     {niveles.map((n,i)=>{
-                      const color = n.pct===null?'#C8C3BB':n.pct>=80?'#8FAF8A':n.pct>=50?'#C4A882':'#C4312A';
+                      const color = n.pct===null?'#B0AA9F':n.pct>=80?'#8FAF8A':n.pct>=50?'#C4A882':'#C4312A';
                       return(
-                        <div key={n.label} style={{marginBottom:16}}>
-                          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:5}}>
-                            <span style={{fontSize:12,color:'#2C2825'}}>{n.label}</span>
-                            <span style={{fontSize:12,fontWeight:500,color}}>{n.pct===null?'—':`${n.pct}%`}</span>
+                        <div key={n.label}>
+                          <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+                            {/* Ícono + conector */}
+                            <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0}}>
+                              <div style={{width:28,height:28,borderRadius:8,background:n.iconBg,color:n.iconColor,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12}}>{n.icon}</div>
+                              {i<niveles.length-1&&<div style={{width:1,height:14,background:'#EAE6E0',margin:'3px 0'}}/>}
+                            </div>
+                            {/* Contenido */}
+                            <div style={{flex:1,minWidth:0,paddingBottom:i<niveles.length-1?14:0}}>
+                              <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:n.pct!==null?5:2}}>
+                                <span style={{fontSize:12,color:'#2C2825'}}>{n.label}</span>
+                                {n.pct!==null
+                                  ?<span style={{fontSize:12,fontWeight:500,color,flexShrink:0,marginLeft:8}}>{n.pct}%</span>
+                                  :<span style={{fontSize:10,color:'#C8C3BB',flexShrink:0,marginLeft:8}}>{n.desc}</span>
+                                }
+                              </div>
+                              {n.pct!==null&&(
+                                <div style={{display:'flex',height:5,borderRadius:99,overflow:'hidden',marginBottom:4}}>
+                                  <div style={{width:n.pct+'%',background:color,transition:'width .5s'}}/>
+                                  <div style={{flex:1,background:'#EAE6E0'}}/>
+                                </div>
+                              )}
+                              {n.pct!==null&&n.desc&&<div style={{fontSize:10,color:'#B0AA9F',marginBottom:n.desconectadas?.length>0?6:0}}>{n.desc}</div>}
+                              {n.desconectadas?.length>0&&(
+                                <div style={{background:'#FBF8F2',borderRadius:8,padding:'6px 10px',marginTop:4}}>
+                                  <div style={{fontSize:10,color:'#C4A882',marginBottom:3}}>Sin conectar:</div>
+                                  {n.desconectadas.map(g=>(
+                                    <div key={g.id} style={{fontSize:11,color:'#9B8878',padding:'1px 0'}}>· {g.title}</div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          {n.pct!==null&&n.label!=='Visión de largo plazo'&&(
-                            <div style={{display:'flex',height:7,borderRadius:99,overflow:'hidden',marginBottom:4}}>
-                              <div style={{width:n.pct+'%',background:color,transition:'width .5s'}}/>
-                              <div style={{flex:1,background:'#EAE6E0'}}/>
-                            </div>
-                          )}
-                          {n.desc&&<div style={{fontSize:10,color:'#B0AA9F',marginBottom:n.desconectadas?.length>0?6:0}}>{n.desc}</div>}
-                          {n.desconectadas?.length>0&&(
-                            <div style={{background:'#FBF8F2',borderRadius:8,padding:'6px 10px',marginTop:4}}>
-                              <div style={{fontSize:10,color:'#C4A882',marginBottom:3}}>Sin conectar:</div>
-                              {n.desconectadas.map(g=>(
-                                <div key={g.id} style={{fontSize:11,color:'#9B8878',padding:'1px 0'}}>· {g.title}</div>
-                              ))}
-                            </div>
-                          )}
-                          {i<niveles.length-1&&<div style={{height:1,background:'#F5F2EE',marginTop:12}}/>}
                         </div>
                       );
                     })}
@@ -1520,13 +1523,18 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
                         <div style={{width:8,height:8,borderRadius:'50%',background:semaforo,flexShrink:0}}/>
                       </div>
                       {/* Barra: tareas completadas en últimos 30 días, relativa al máximo */}
-                      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
-                        <div style={{flex:1,height:6,background:'#F5F2EE',borderRadius:99,overflow:'hidden'}}>
-                          <div style={{height:'100%',width:Math.max(barPct,ult30>0?3:0)+'%',background:semaforo==='#EAE6E0'?'#EAE6E0':semaforo,borderRadius:99,transition:'width .5s'}}/>
-                        </div>
-                        <span style={{fontSize:11,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,fontWeight:500,flexShrink:0,minWidth:32,textAlign:'right'}}>{Math.round(momentumScore)}</span>
+                      {/* Header: nombre + score */}
+                      <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:6}}>
+                        <span style={{fontSize:12,color:'#2C2825',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.title}</span>
+                        <span style={{fontSize:15,fontWeight:300,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,flexShrink:0}}>{Math.round(momentumScore)}</span>
+                        <span style={{fontSize:10,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,flexShrink:0}}>{semaforoLabel}</span>
                       </div>
-                      <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.5,paddingLeft:0}}>{diagnostico}</div>
+                      {/* Barra con gradiente */}
+                      <div style={{height:7,background:'#F5F2EE',borderRadius:99,overflow:'hidden',marginBottom:6}}>
+                        <div style={{height:'100%',width:Math.max(barPct,ult30>0?3:0)+'%',background:semaforo==='#EAE6E0'?'#EAE6E0':`linear-gradient(to right,${semaforo},${semaforo}CC)`,borderRadius:99,transition:'width .6s cubic-bezier(.34,1,.64,1)'}}/>
+                      </div>
+                      {/* Diagnóstico */}
+                      <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.5}}>{diagnostico}</div>
                     </div>
                   );
                 });
