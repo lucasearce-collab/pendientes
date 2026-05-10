@@ -1347,13 +1347,17 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
           {/* Metas sin actividad */}
           {(()=>{
             if(goals.length===0) return null;
-            const metasSinActividad = goals.filter(g=>{
-              const proyectosDeEstasMeta = projects.filter(p=>(p.goal_ids||[]).includes(g.id)||p.goal_id===g.id);
-              const tieneActividad = proyectosDeEstasMeta.some(p=>
-                tasks.some(t=>!t.done&&t.projectId===p.id)
-              );
-              return !tieneActividad;
-            });
+            // Función recursiva: una meta tiene actividad si ella misma,
+            // o cualquiera de sus descendientes, tiene proyectos con tareas activas
+            function metaTieneActividad(goalId){
+              // Actividad directa: proyectos vinculados a esta meta con tareas
+              const proyectosDirect = projects.filter(p=>(p.goal_ids||[]).includes(goalId)||p.goal_id===goalId);
+              if(proyectosDirect.some(p=>tasks.some(t=>!t.done&&t.projectId===p.id))) return true;
+              // Actividad indirecta: a través de metas hijas
+              const hijas = goals.filter(g=>g.parentId===goalId);
+              return hijas.some(h=>metaTieneActividad(h.id));
+            }
+            const metasSinActividad = goals.filter(g=>!metaTieneActividad(g.id));
             if(metasSinActividad.length===0) return(
               <Card>
                 <div style={{fontSize:13,color:'#3B6D11',textAlign:'center',padding:'8px 0'}}>✓ Todas tus metas tienen actividad activa</div>
