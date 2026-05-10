@@ -1290,97 +1290,179 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       )}
 
       {/* ── DIRECCIÓN ── */}
-      {tab==='direccion'&&(
-        <div>
-          {/* Alineación estratégica */}
-          <Card>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-              <div>
-                <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Alineación a metas</div>
-                <div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>¿Tus tareas van hacia donde querés ir?</div>
-              </div>
-              {alignment&&<StatusBadge status={alignment.status} label={alignment.label}/>}
-            </div>
-            {alignment?(
-              <>
-                <div style={{height:8,background:'#EAE6E0',borderRadius:99,marginBottom:12,overflow:'hidden'}}>
-                  <div style={{height:'100%',width:alignment.score+'%',background:alignment.status==='green'?'#8FAF8A':alignment.status==='yellow'?'#C4A882':'#C4312A',borderRadius:99,transition:'width .5s'}}/>
-                </div>
-                <div style={{fontSize:12,color:'#B0AA9F',lineHeight:1.6}}>{alignment.advice}</div>
-              </>
-            ):(
-              <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'20px 0'}}>Creá proyectos vinculados a metas para ver tu alineación</div>
-            )}
-          </Card>
+      {tab==='direccion'&&(()=>{
+        // ── Helpers ──
+        const metasAnio  = goals.filter(g=>g.horizon==='anio');
+        const metasMedio = goals.filter(g=>g.horizon==='medio');
+        const metasLargo = goals.filter(g=>g.horizon==='largo');
 
-          {/* Balance estratégico (antes CEO) */}
-          <Card>
-            <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Balance estratégico</div>
-            <div style={{fontSize:11,color:'#B0AA9F',marginBottom:16}}>Tipo de tareas completadas esta semana</div>
-            {completedThisWeek.length>0?(
-              <>
-                <div style={{display:'flex',gap:3,height:8,borderRadius:99,overflow:'hidden',marginBottom:12}}>
-                  {estrategicasPct>0&&<div style={{width:estrategicasPct+'%',background:'#5B6BAF'}}/>}
-                  {prioritariasPct>0&&<div style={{width:prioritariasPct+'%',background:'#C4A882'}}/>}
-                  {normalesPct>0&&<div style={{width:normalesPct+'%',background:'#EAE6E0'}}/>}
-                </div>
-                <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                  {[
-                    {label:'Estratégicas',pct:estrategicasPct,n:estrategicas,color:'#5B6BAF'},
-                    {label:'Prioritarias',pct:prioritariasPct,n:prioritarias,color:'#C4A882'},
-                    {label:'Operativas',pct:normalesPct,n:normales,color:'#C8C3BB'},
-                  ].map(row=>(
-                    <div key={row.label} style={{display:'flex',alignItems:'center',gap:8}}>
-                      <div style={{width:8,height:8,borderRadius:'50%',background:row.color,flexShrink:0}}/>
-                      <span style={{fontSize:12,color:'#2C2825',flex:1}}>{row.label}</span>
-                      <span style={{fontSize:12,color:row.color,fontWeight:500}}>{row.pct}%</span>
-                      <span style={{fontSize:11,color:'#C8C3BB'}}>({row.n})</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ):(
-              <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'20px 0'}}>Sin tareas completadas esta semana</div>
-            )}
-          </Card>
+        // Actividad directa de una meta (proyectos con tareas pendientes)
+        const actividadDirecta = (goalId) => {
+          const projs = projects.filter(p=>(p.goal_ids||[]).includes(goalId)||p.goal_id===goalId);
+          return projs.filter(p=>tasks.some(t=>!t.done&&t.projectId===p.id));
+        };
 
-          {/* Metas sin actividad */}
-          {(()=>{
-            if(goals.length===0) return null;
-            // Función recursiva: una meta tiene actividad si ella misma,
-            // o cualquiera de sus descendientes, tiene proyectos con tareas activas
-            function metaTieneActividad(goalId){
-              // Actividad directa: proyectos vinculados a esta meta con tareas
-              const proyectosDirect = projects.filter(p=>(p.goal_ids||[]).includes(goalId)||p.goal_id===goalId);
-              if(proyectosDirect.some(p=>tasks.some(t=>!t.done&&t.projectId===p.id))) return true;
-              // Actividad indirecta: a través de metas hijas
-              const hijas = goals.filter(g=>g.parentId===goalId);
-              return hijas.some(h=>metaTieneActividad(h.id));
-            }
-            const metasSinActividad = goals.filter(g=>!metaTieneActividad(g.id));
-            if(metasSinActividad.length===0) return(
-              <Card>
-                <div style={{fontSize:13,color:'#3B6D11',textAlign:'center',padding:'8px 0'}}>✓ Todas tus metas tienen actividad activa</div>
-              </Card>
-            );
-            return(
-              <Card>
-                <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Metas sin actividad</div>
-                <div style={{fontSize:11,color:'#B0AA9F',marginBottom:12}}>No tenés tareas activas apuntando a estas metas</div>
-                {metasSinActividad.map(g=>(
-                  <div key={g.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'1px solid #F5F2EE'}}>
-                    <div style={{width:5,height:5,borderRadius:'50%',background:'#C4A882',flexShrink:0}}/>
-                    <div>
-                      <div style={{fontSize:12,color:'#2C2825'}}>{g.title}</div>
-                      <div style={{fontSize:10,color:'#B0AA9F',marginTop:1}}>{g.horizon==='largo'?'5+ años':g.horizon==='medio'?'2-5 años':'Este año'}</div>
+        // Última tarea completada vinculada a una meta
+        const ultimaActividad = (goalId) => {
+          const projs = projects.filter(p=>(p.goal_ids||[]).includes(goalId)||p.goal_id===goalId);
+          const completadas = tasks.filter(t=>t.done&&projs.some(p=>p.id===t.projectId)&&t.completed_at);
+          if(!completadas.length) return null;
+          return completadas.sort((a,b)=>b.completed_at.localeCompare(a.completed_at))[0].completed_at.slice(0,10);
+        };
+
+        const diasDesde = (dateStr) => {
+          if(!dateStr) return null;
+          return Math.round((new Date(todayStr())-new Date(dateStr))/(1000*60*60*24));
+        };
+
+        // Conexión entre horizontes
+        const anioSinConexion  = metasAnio.filter(g=>!g.parentId);
+        const medioSinConexion = metasMedio.filter(g=>!g.parentId);
+
+        // Ruido operativo: tareas sin proyecto vinculado a meta
+        const tareasConMeta = tasks.filter(t=>!t.done&&(()=>{
+          const p=projects.find(x=>x.id===t.projectId);
+          return p&&((p.goal_ids&&p.goal_ids.length>0)||p.goal_id);
+        })());
+        const totalPendientes = tasks.filter(t=>!t.done).length;
+        const pctConMeta = totalPendientes>0?Math.round((tareasConMeta.length/totalPendientes)*100):null;
+
+        return(
+          <div>
+
+            {/* 1. Actividad por meta de corto plazo */}
+            <Card>
+              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Metas de este año</div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Actividad activa en cada meta de corto plazo</div>
+              {metasAnio.length===0?(
+                <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'16px 0'}}>No tenés metas de este año definidas</div>
+              ):metasAnio.map(g=>{
+                const projs = actividadDirecta(g.id);
+                const ultima = ultimaActividad(g.id);
+                const dias = diasDesde(ultima);
+                const tareasActivas = projs.reduce((acc,p)=>acc+tasks.filter(t=>!t.done&&t.projectId===p.id).length,0);
+                const status = tareasActivas>0?'green':dias!==null&&dias<=14?'yellow':'red';
+                return(
+                  <div key={g.id} style={{padding:'10px 0',borderBottom:'1px solid #F5F2EE'}}>
+                    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12,color:'#2C2825',marginBottom:2}}>{g.title}</div>
+                        <div style={{fontSize:10,color:'#B0AA9F'}}>
+                          {tareasActivas>0
+                            ?`${tareasActivas} tarea${tareasActivas!==1?'s':''} activa${tareasActivas!==1?'s':''}`
+                            :ultima
+                              ?`Última actividad hace ${dias} día${dias!==1?'s':''}`
+                              :'Sin actividad registrada'
+                          }
+                        </div>
+                      </div>
+                      <div style={{width:8,height:8,borderRadius:'50%',background:status==='green'?'#8FAF8A':status==='yellow'?'#C4A882':'#EAE6E0',flexShrink:0,marginTop:3}}/>
                     </div>
                   </div>
-                ))}
-              </Card>
-            );
-          })()}
-        </div>
-      )}
+                );
+              })}
+            </Card>
+
+            {/* 2. Conexión entre horizontes */}
+            <Card>
+              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Coherencia entre horizontes</div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>¿Tus metas de distintos plazos están conectadas?</div>
+              {[
+                {
+                  label:'Metas de este año sin conectar al mediano plazo',
+                  items:anioSinConexion,
+                  ok:'Todas tus metas de este año conectan con el mediano plazo',
+                  color:'#C4A882',
+                },
+                {
+                  label:'Metas de mediano plazo sin conectar al largo plazo',
+                  items:medioSinConexion,
+                  ok:'Todas tus metas de mediano plazo conectan con el largo plazo',
+                  color:'#9B8878',
+                },
+              ].map(({label,items,ok,color})=>(
+                <div key={label} style={{marginBottom:12}}>
+                  {items.length===0?(
+                    <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0'}}>
+                      <span style={{fontSize:12,color:'#8FAF8A'}}>✓</span>
+                      <span style={{fontSize:12,color:'#B0AA9F'}}>{ok}</span>
+                    </div>
+                  ):(
+                    <>
+                      <div style={{fontSize:11,color:'#C4A882',marginBottom:6}}>⚠ {label}</div>
+                      {items.map(g=>(
+                        <div key={g.id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid #F5F2EE'}}>
+                          <div style={{width:5,height:5,borderRadius:'50%',background:color,flexShrink:0}}/>
+                          <span style={{fontSize:12,color:'#2C2825'}}>{g.title}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              ))}
+            </Card>
+
+            {/* 3. Ruido operativo */}
+            <Card>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+                <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Tareas con propósito</div>
+                <span style={{fontSize:16,fontWeight:300,color:pctConMeta>=70?'#3B6D11':pctConMeta>=40?'#8B6914':'#C4312A'}}>{pctConMeta===null?'—':`${pctConMeta}%`}</span>
+              </div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:12}}>Del total de tareas pendientes, cuántas apuntan a una meta</div>
+              {pctConMeta!==null&&(
+                <>
+                  <div style={{height:6,background:'#EAE6E0',borderRadius:99,marginBottom:10,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:pctConMeta+'%',background:pctConMeta>=70?'#8FAF8A':pctConMeta>=40?'#C4A882':'#C4312A',borderRadius:99,transition:'width .5s'}}/>
+                  </div>
+                  <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.6}}>
+                    {pctConMeta>=70
+                      ?'La mayoría de lo que hacés tiene un propósito claro.'
+                      :pctConMeta>=40
+                        ?'Hay un balance, pero una parte de tu energía va a tareas sin norte claro.'
+                        :'Gran parte de tus tareas no conectan con ninguna meta. Revisá si vale la pena asignarlas a proyectos estratégicos.'
+                    }
+                  </div>
+                </>
+              )}
+            </Card>
+
+            {/* 4. Balance estratégico */}
+            <Card>
+              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Balance estratégico</div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Tipo de tareas completadas esta semana</div>
+              {completedThisWeek.length>0?(
+                <>
+                  <div style={{display:'flex',gap:3,height:8,borderRadius:99,overflow:'hidden',marginBottom:12}}>
+                    {estrategicasPct>0&&<div style={{width:estrategicasPct+'%',background:'#5B6BAF'}}/>}
+                    {prioritariasPct>0&&<div style={{width:prioritariasPct+'%',background:'#C4A882'}}/>}
+                    {normalesPct>0&&<div style={{width:normalesPct+'%',background:'#EAE6E0'}}/>}
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                    {[
+                      {label:'Estratégicas',pct:estrategicasPct,n:estrategicas,color:'#5B6BAF',hint:'Tareas de proyectos marcados como estratégicos'},
+                      {label:'Prioritarias',pct:prioritariasPct,n:prioritarias,color:'#C4A882',hint:'Tareas de proyectos urgentes'},
+                      {label:'Operativas',pct:normalesPct,n:normales,color:'#C8C3BB',hint:'Tareas de proyectos normales'},
+                    ].map(row=>(
+                      <div key={row.label}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:2}}>
+                          <div style={{width:8,height:8,borderRadius:'50%',background:row.color,flexShrink:0}}/>
+                          <span style={{fontSize:12,color:'#2C2825',flex:1}}>{row.label}</span>
+                          <span style={{fontSize:13,color:row.color,fontWeight:500}}>{row.pct}%</span>
+                          <span style={{fontSize:11,color:'#C8C3BB'}}>({row.n})</span>
+                        </div>
+                        <div style={{fontSize:10,color:'#D5CFC8',paddingLeft:16}}>{row.hint}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ):(
+                <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'20px 0'}}>Sin tareas completadas esta semana</div>
+              )}
+            </Card>
+
+          </div>
+        );
+      })()}
 
     </div>
   );
