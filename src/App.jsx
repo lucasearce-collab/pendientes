@@ -2597,20 +2597,22 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[]}){
   const [type,setType]=useState("normal");
   const [date,setDate]=useState("");
   const [responsable,setResponsable]=useState("");
-  const [selProjId,setSelProjId]=useState(projectId);
+  const [selProjId,setSelProjId]=useState(projectId||null);
   const [projOpen,setProjOpen]=useState(false);
   const cls=isDesktop?"d-modal":"sheet";
   // Proyectos del área para el selector
   const areaProjects = projects.filter(p=>p.area===area);
   const selProj = areaProjects.find(p=>p.id===selProjId);
+  // Mostrar selector si: viene sin proyecto O hay más de un proyecto disponible
+  const showSelector = !projectId || areaProjects.length > 1;
   function go(){if(!title.trim())return;onAdd({projectId:selProjId,title:title.trim(),type,date,responsable});}
   return(<div className={cls}>
     {!isDesktop&&<div className="hd"/>}
-    <span className="sl">{projectName}</span>
+    <span className="sl">{selProj?selProj.name:projectName||"Nueva tarea"}</span>
     <input className="si" value={title} onChange={e=>setTitle(e.target.value)} autoFocus
       placeholder="¿Qué hay que hacer?" onKeyDown={e=>e.key==="Enter"&&go()} style={{marginBottom:16}}/>
     <TypeSelector value={type} onChange={setType}/>
-    {areaProjects.length>1&&<div style={{marginBottom:14}}>
+    {showSelector&&<div style={{marginBottom:14}}>
       <span className="sl">Proyecto</span>
       {/* Valor seleccionado */}
       <div onClick={()=>setProjOpen(o=>!o)}
@@ -3788,8 +3790,9 @@ function SemanaView({tasks, projects, onToggle, onOpen, onUpdate, desktop}){
 // ─── Tareas View (con toggle todas / por proyecto) ───────────────────────────
 function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks,addTask,addProject,sw,desktop,focusMode,activeProjId}){
   const STORAGE_KEY = 'clarity_tareas_modo';
+  // Default: 'sin_proyecto' — propósito principal del tab
   const [modo, setModo] = useState(()=>{
-    try{ return localStorage.getItem(STORAGE_KEY)||'todas'; }catch{ return 'todas'; }
+    try{ return localStorage.getItem(STORAGE_KEY)||'sin_proyecto'; }catch{ return 'sin_proyecto'; }
   });
 
   function switchModo(m){
@@ -3797,26 +3800,31 @@ function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onTog
     try{ localStorage.setItem(STORAGE_KEY, m); }catch{}
   }
 
-  // Todas las tareas del área activa, sin agrupar
+  // Tareas del área que NO tienen proyecto asignado (projectId es null/undefined o no existe en projects)
+  const projIds = new Set(projects.map(p=>p.id));
+  const tareasSinProyecto = tasks
+    .filter(t=>{
+      const proj = allProjects?.find(p=>p.id===t.projectId);
+      return !t.done && (!t.projectId || !proj || proj.area!==activeArea);
+    })
+    .sort(taskSort);
+
+  // Todas las tareas del área, sin agrupar
   const todasLasTareas = projects.flatMap(p=>
     tasksForProject(p.id).filter(t=>!t.done).map(t=>({...t,_proj:p}))
-  ).sort(taskSort);
+  ).concat(tareasSinProyecto.filter(t=>!projects.flatMap(p=>tasksForProject(p.id)).find(tt=>tt.id===t.id)))
+  .sort(taskSort);
 
-  // Encontrar o crear el proyecto General para tareas rápidas
-  async function addTareaRapida(){
-    let general = (allProjects||[]).find(p=>p.name==='General'&&p.area===activeArea);
-    if(!general){
-      // Crear proyecto General on the fly
-      const newProj = {id:'p'+Date.now(), area:activeArea, name:'General', monto:'', importance:'normal', description:'', mainGoal:'', secondaryGoals:[], goal_id:null, sortOrder:0};
-      await addProject(activeArea, 'General');
-      // Buscar el recién creado (addProject actualiza el estado)
-      // Pequeño delay para que el estado se actualice
-      setTimeout(()=>{
-        const created = (allProjects||[]).find(p=>p.name==='General'&&p.area===activeArea);
-        if(created) onAddTask(created);
-      }, 100);
+  // Crear tarea suelta — sin proyecto
+  function addTareaSuelta(){
+    // Busca un proyecto "placeholder" invisible o abre el sheet sin proyecto
+    // Por ahora abrimos el sheet con el primer proyecto disponible o null
+    const firstProj = projects[0];
+    if(firstProj){
+      onAddTask(firstProj);
     } else {
-      onAddTask(general);
+      // Sin proyectos — crear tarea igual, el selector lo permite
+      onAddTask({id:null, name:'', area:activeArea});
     }
   }
 
@@ -3832,65 +3840,43 @@ function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onTog
     />
   );
 
+  const tareasActuales = modo==='sin_proyecto' ? tareasSinProyecto : todasLasTareas;
+
   return(
     <div style={desktop?{padding:"24px 48px"}:{}}>
-      {/* Toggle todas/por proyecto + botón + tarea — mismo estilo que semana/día */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:desktop?'0 0 14px':'8px 20px 6px'}}>
+
+      {/* Toggle + epígrafe */}
+      <div style={{padding:desktop?'0 0 8px':'8px 20px 4px'}}>
+        <p style={{fontFamily:"'DM Sans'",fontSize:13,color:'#B0AA9F',lineHeight:1.6,marginBottom:10}}>
+          Creá tareas sueltas o asignalas a un proyecto.
+        </p>
         <div style={{display:'flex',alignItems:'center',gap:0}}>
+          <button onClick={()=>switchModo('sin_proyecto')}
+            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:modo==='sin_proyecto'?'#2C2825':'#D5CFC8',fontWeight:modo==='sin_proyecto'?500:300,padding:'10px 4px',minHeight:44}}>
+            sin proyecto
+          </button>
+          <span style={{fontSize:13,color:'#EAE6E0',padding:'0 4px'}}>·</span>
           <button onClick={()=>switchModo('todas')}
             style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:modo==='todas'?'#2C2825':'#D5CFC8',fontWeight:modo==='todas'?500:300,padding:'10px 4px',minHeight:44}}>
             todas
           </button>
-          <span style={{fontSize:13,color:'#EAE6E0',padding:'0 4px'}}>·</span>
-          <button onClick={()=>switchModo('proyectos')}
-            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:modo==='proyectos'?'#2C2825':'#D5CFC8',fontWeight:modo==='proyectos'?500:300,padding:'10px 4px',minHeight:44}}>
-            por proyecto
-          </button>
         </div>
       </div>
 
-      {/* Epígrafe */}
-      <div style={{padding:desktop?'0 0 16px':'4px 20px 12px'}}>
-        <p style={{fontFamily:"'DM Sans'",fontSize:13,color:'#B0AA9F',lineHeight:1.6}}>Planificá y creá tareas, sueltas o por proyecto.</p>
+      {/* Lista de tareas */}
+      <div>
+        {tareasActuales.length===0
+          ?<div style={{textAlign:'center',padding:'40px 20px',color:'#C8C3BB',fontFamily:"'DM Sans'",fontSize:14}}>
+            {modo==='sin_proyecto'?'Sin tareas sueltas. Todo está asignado a un proyecto.':'Sin tareas pendientes.'}
+           </div>
+          :desktop
+            ?<DTaskList tasks={tareasActuales} projects={allProjects||projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
+            :<TaskRows tasks={tareasActuales} projects={allProjects||projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...(sw||{})}/>
+        }
+        <button onClick={()=>onAddTask(projects[0]||{id:null,name:'',area:activeArea})} className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:8}:{}}>
+          <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
+        </button>
       </div>
-
-      {/* Vista todas */}
-      {modo==='todas'&&(
-        <div>
-          {todasLasTareas.length===0
-            ?<div style={{textAlign:'center',padding:'40px 20px',color:'#C8C3BB',fontFamily:"'DM Sans'",fontSize:14}}>Sin tareas pendientes.</div>
-            :desktop
-              ?<DTaskList tasks={todasLasTareas} projects={projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
-              :<TaskRows tasks={todasLasTareas} projects={projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...(sw||{})}/>
-          }
-          {/* Botón + tarea al final */}
-          <button onClick={addTareaRapida} className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:8}:{}}>
-            <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
-          </button>
-        </div>
-      )}
-
-      {/* Vista por proyecto */}
-      {modo==='proyectos'&&(
-        <GroupedProjectsView
-          projects={projects.filter(p=>!activeProjId||p.id===activeProjId)}
-          tasksForProject={tasksForProject}
-          onToggle={onToggle}
-          onDelete={onDelete}
-          onOpen={onOpen}
-          onAddTask={onAddTask}
-          onComplete={onComplete}
-          reorderTasks={reorderTasks}
-          sw={sw}
-          desktop={desktop}
-        />
-      )}
-
-      {projects.length===0&&(
-        <div style={{textAlign:'center',padding:'40px 20px',color:'#C8C3BB',fontFamily:"'DM Sans'",fontSize:14}}>
-          Sin proyectos aún. Creá uno desde la tab Proyectos.
-        </div>
-      )}
     </div>
   );
 }
