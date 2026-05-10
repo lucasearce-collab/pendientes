@@ -3541,7 +3541,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         <div style={{width:36,height:3,background:"#D5CFC8",borderRadius:99,margin:"0 auto 20px"}}/>
         <div style={{fontFamily:"'DM Sans'",fontSize:22,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:6}}>Día difícil.</div>
         <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.65,marginBottom:20}}>
-          ¿Qué podés hacer hoy? Tocá las tareas que te quedás — el resto va a mañana. Sin culpa.
+          Elegí lo que vas a hacer hoy. El resto lo dejamos para mañana. Descansá un poco.
         </div>
 
         {/* Lista con checkboxes */}
@@ -3556,8 +3556,8 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
                   {sel&&<svg width="9" height="9" viewBox="0 0 9 9"><polyline points="1.5,4.5 3.5,7 7.5,2" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                 </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontFamily:"'DM Sans'",fontSize:13,color:sel?"#2C2825":"#C8C3BB",textDecoration:sel?"none":"line-through",transition:"all .2s"}}>{t.title}</div>
-                  {proj&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginTop:1}}>{proj.name}</div>}
+                  <div style={{fontFamily:"'DM Sans'",fontSize:13,color:sel?"#2C2825":"#C8C3BB",transition:"all .2s"}}>{t.title}</div>
+                  {proj&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",marginTop:1}}>{proj.name}</div>}
                 </div>
                 {!sel&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",flexShrink:0}}>→ mañana</span>}
                 {sel&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8FAF8A",flexShrink:0}}>hoy ✓</span>}
@@ -3579,7 +3579,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
             ?"Mover todo a mañana"
             :seleccionadas.size===todayTasks.length
               ?"En realidad puedo con todo"
-              :`Listo — mover el resto (${todayTasks.length-seleccionadas.size})`}
+              :"Listo, mover el resto"}
         </button>
         <button onClick={()=>setDiaDificil(false)}
           style={{width:"100%",background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:"4px 0"}}>
