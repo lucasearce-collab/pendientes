@@ -2565,7 +2565,8 @@ function TypeSelector({value,onChange}){
 
 function EditSheet({task,projects,onSave,onDelete,isDesktop}){
   const [form,setForm]=useState({...task,type:task.type||"normal"});
-  const proj=projects.find(p=>p.id===task.projectId);
+  const [projOpen,setProjOpen]=useState(false);
+  const selProj=projects.find(p=>p.id===form.projectId);
   const cls=isDesktop?"d-modal":"sheet";
   return(<div className={cls}>
     {!isDesktop&&<div className="hd"/>}
@@ -2573,6 +2574,31 @@ function EditSheet({task,projects,onSave,onDelete,isDesktop}){
     <input className="si" value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} autoFocus
       style={{fontSize:16,fontWeight:500,marginBottom:16,border:"none",background:"transparent",padding:"4px 0",borderBottom:"1px solid #E5E1DB",borderRadius:0}}/>
     <TypeSelector value={form.type} onChange={v=>setForm(f=>({...f,type:v}))}/>
+    {/* Selector de proyecto */}
+    <div style={{marginBottom:14}}>
+      <span className="sl">Proyecto</span>
+      <div style={{position:"relative"}}>
+        <div onClick={()=>setProjOpen(o=>!o)}
+          style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"white",borderRadius:projOpen?"10px 10px 0 0":"10px",border:"1px solid #E5E1DB",cursor:"pointer"}}>
+          <span style={{fontFamily:"'DM Sans'",fontSize:13,color:selProj?"#2C2825":"#B0AA9F",fontStyle:selProj?"normal":"italic"}}>{selProj?.name||"Sin proyecto"}</span>
+          <span style={{fontSize:10,color:"#C8C3BB"}}>{projOpen?"▴":"▾"}</span>
+        </div>
+        {projOpen&&<div style={{background:"white",borderRadius:"0 0 10px 10px",border:"1px solid #E5E1DB",borderTop:"none",overflow:"hidden",maxHeight:180,overflowY:"auto"}}>
+          <div onClick={()=>{setForm(f=>({...f,projectId:null}));setProjOpen(false);}}
+            style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",cursor:"pointer",borderTop:"1px solid #F5F2EE",background:!form.projectId?"#F5F1ED":"white"}}>
+            <span style={{fontFamily:"'DM Sans'",fontSize:13,color:!form.projectId?"#9B8878":"#B0AA9F",fontStyle:!form.projectId?"normal":"italic"}}>Sin proyecto</span>
+            {!form.projectId&&<span style={{fontSize:12,color:"#9B8878"}}>✓</span>}
+          </div>
+          {projects.map((p,i)=>(
+            <div key={p.id} onClick={()=>{setForm(f=>({...f,projectId:p.id}));setProjOpen(false);}}
+              style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",cursor:"pointer",borderTop:"1px solid #F5F2EE",background:form.projectId===p.id?"#F5F1ED":"white"}}>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,color:form.projectId===p.id?"#9B8878":"#2C2825"}}>{p.name}</span>
+              {form.projectId===p.id&&<span style={{fontSize:12,color:"#9B8878"}}>✓</span>}
+            </div>
+          ))}
+        </div>}
+      </div>
+    </div>
     <div style={{marginBottom:14}}>
       <span className="sl">Responsable (opcional)</span>
       <input className="si" value={form.responsable||""} onChange={e=>setForm(f=>({...f,responsable:e.target.value}))} placeholder="Nombre de quien lo ejecuta..."/>
@@ -2602,11 +2628,8 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[],sh
   const [selProjId,setSelProjId]=useState(projectId||null);
   const [projOpen,setProjOpen]=useState(false);
   const cls=isDesktop?"d-modal":"sheet";
-  // Proyectos del área para el selector
   const areaProjects = projects.filter(p=>p.area===area);
   const selProj = areaProjects.find(p=>p.id===selProjId);
-  // Mostrar selector si: viene sin proyecto O hay más de un proyecto disponible
-  const showSelector = showProjectSelector || false;
   function go(){if(!title.trim())return;onAdd({projectId:selProjId,title:title.trim(),type,date,responsable});}
   return(<div className={cls}>
     {!isDesktop&&<div className="hd"/>}
@@ -2614,17 +2637,20 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[],sh
     <input className="si" value={title} onChange={e=>setTitle(e.target.value)} autoFocus
       placeholder="¿Qué hay que hacer?" onKeyDown={e=>e.key==="Enter"&&go()} style={{marginBottom:16}}/>
     <TypeSelector value={type} onChange={setType}/>
-    {showSelector&&<div style={{marginBottom:14}}>
+    <div style={{marginBottom:14}}>
       <span className="sl">Proyecto</span>
-      {/* Valor seleccionado */}
       <div onClick={()=>setProjOpen(o=>!o)}
         style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"white",borderRadius:projOpen?"10px 10px 0 0":"10px",border:"1px solid #E5E1DB",borderBottom:projOpen?"1px solid #F5F2EE":"1px solid #E5E1DB",cursor:"pointer"}}>
         <span style={{fontFamily:"'DM Sans'",fontSize:13,color:selProj?"#2C2825":"#B0AA9F",fontStyle:selProj?"normal":"italic"}}>{selProj?.name||"Sin proyecto"}</span>
         <span style={{fontSize:10,color:"#C8C3BB"}}>{projOpen?"▴":"▾"}</span>
       </div>
-      {/* Lista inline — no absolute, empuja hacia abajo pero controlado */}
       {projOpen&&<div style={{background:"white",borderRadius:"0 0 10px 10px",border:"1px solid #E5E1DB",borderTop:"none",overflow:"hidden",maxHeight:150,overflowY:"auto"}}>
-        {areaProjects.map((p,i)=>(
+        <div onClick={()=>{setSelProjId(null);setProjOpen(false);}}
+          style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",cursor:"pointer",borderTop:"1px solid #F5F2EE",background:!selProjId?"#F5F1ED":"white"}}>
+          <span style={{fontFamily:"'DM Sans'",fontSize:13,color:!selProjId?"#9B8878":"#B0AA9F",fontStyle:"italic"}}>Sin proyecto</span>
+          {!selProjId&&<span style={{fontSize:12,color:"#9B8878"}}>✓</span>}
+        </div>
+        {areaProjects.map((p)=>(
           <div key={p.id} onClick={()=>{setSelProjId(p.id);setProjOpen(false);}}
             style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",cursor:"pointer",borderTop:"1px solid #F5F2EE",background:selProjId===p.id?"#F5F1ED":"white",transition:"background .15s"}}>
             <span style={{fontFamily:"'DM Sans'",fontSize:13,color:selProjId===p.id?"#9B8878":"#2C2825"}}>{p.name}</span>
@@ -2632,7 +2658,7 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[],sh
           </div>
         ))}
       </div>}
-    </div>}
+    </div>
     <div style={{marginBottom:14}}>
       <span className="sl">Responsable (opcional)</span>
       <input className="si" value={responsable} onChange={e=>setResponsable(e.target.value)} placeholder="Nombre de quien lo ejecuta..."/>
