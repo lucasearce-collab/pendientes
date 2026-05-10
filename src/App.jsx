@@ -3451,9 +3451,54 @@ function ErrorToast({message,onDismiss}){
   );
 }
 
-function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop,onVerSemana}){
+function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop,onVerSemana,onUpdateTask}){
   const today = todayStr();
   const todayTasks = (tasks||[]).filter(t=>!t.done&&t.date===today).sort(taskSort);
+
+  const [diaDificil, setDiaDificil] = useState(false);
+  const [seleccionadas, setSeleccionadas] = useState(new Set());
+  const [reagendado, setReagendado] = useState(false);
+  const [reagendadasCount, setReagendasCount] = useState(0);
+
+  // Mensajes de alivio — aleatorios
+  const MENSAJES = [
+    "Descansá hoy. Mañana será otro día.",
+    "No toda batalla se gana el mismo día. Mañana seguís.",
+    "Hoy fue difícil. Eso ya es suficiente.",
+    "Lo que no pudiste hoy, lo retomás mañana con más fuerza.",
+    "A veces el mejor movimiento es parar. Mañana es tuyo.",
+  ];
+  const mensaje = useMemo(()=>MENSAJES[Math.floor(Math.random()*MENSAJES.length)],[]);
+
+  function abrirDiaDificil(){
+    // Pre-seleccionar todas
+    setSeleccionadas(new Set(todayTasks.map(t=>t.id)));
+    setDiaDificil(true);
+  }
+
+  function toggleSeleccion(id){
+    setSeleccionadas(s=>{
+      const n = new Set(s);
+      n.has(id)?n.delete(id):n.add(id);
+      return n;
+    });
+  }
+
+  function moverTodo(){
+    setSeleccionadas(new Set());
+  }
+
+  async function confirmar(){
+    const mañana = tomorrow();
+    const aReagendar = todayTasks.filter(t=>!seleccionadas.has(t.id));
+    for(const t of aReagendar){
+      await onUpdateTask({...t, date:mañana, snoozed_count:(t.snoozed_count||0)+1});
+    }
+    setReagendasCount(aReagendar.length);
+    setDiaDificil(false);
+    setReagendado(true);
+    setTimeout(()=>setReagendado(false), 5000);
+  }
 
   const SectionHeader = ({label,color,count}) => (
     <div style={{display:"flex",alignItems:"center",gap:8,
@@ -3472,7 +3517,6 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     ? <DTaskList tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks}/>
     : <TaskRows tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks} {...(sw||{})}/>;
 
-  // Botón ver semana — mismo estilo toggle que el resto
   const BtnSemana = () => (
     <button onClick={onVerSemana}
       style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",fontWeight:300,padding:"0",letterSpacing:".01em"}}>
@@ -3480,21 +3524,90 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     </button>
   );
 
+  // Toast de reagendado
+  const ToastReagendado = () => reagendado ? (
+    <div style={{margin:desktop?"0 0 20px":"0 20px 0",background:"#2C2825",borderRadius:12,padding:"12px 16px"}}>
+      <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#F5F2EE",lineHeight:1.5}}>{mensaje}</div>
+      {reagendasCount>0&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B8878",marginTop:4}}>{reagendasCount} {reagendasCount===1?"tarea":"tareas"} movida{reagendasCount===1?"":"s"} a mañana ·</div>}
+    </div>
+  ) : null;
+
+  // Modal día difícil
+  const ModalDiaDificil = () => !diaDificil ? null : (
+    <div style={{position:"fixed",inset:0,background:"rgba(44,40,37,.5)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:desktop?"center":"stretch"}}
+      onClick={e=>{if(e.target===e.currentTarget)setDiaDificil(false);}}>
+      <div style={{width:"100%",maxWidth:desktop?480:430,background:"#F5F2EE",borderRadius:desktop?"20px 20px 0 0":"20px 20px 0 0",padding:"20px 24px 40px"}}>
+        {/* Handle */}
+        <div style={{width:36,height:3,background:"#D5CFC8",borderRadius:99,margin:"0 auto 20px"}}/>
+        <div style={{fontFamily:"'DM Sans'",fontSize:22,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:6}}>Día difícil.</div>
+        <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.65,marginBottom:20}}>
+          Elegí lo que podés hacer hoy — reagendamos el resto para mañana. Sin culpa.
+        </div>
+
+        {/* Lista con checkboxes */}
+        <div style={{marginBottom:16}}>
+          {todayTasks.map((t,i)=>{
+            const sel = seleccionadas.has(t.id);
+            const proj = projects.find(p=>p.id===t.projectId);
+            return(
+              <div key={t.id} onClick={()=>toggleSeleccion(t.id)}
+                style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:i<todayTasks.length-1?"1px solid #EDE9E4":"none",cursor:"pointer"}}>
+                <div style={{width:16,height:16,borderRadius:5,border:`1.5px solid ${sel?"#2C2825":"#C8C3BB"}`,background:sel?"#2C2825":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}}>
+                  {sel&&<svg width="9" height="9" viewBox="0 0 9 9"><polyline points="1.5,4.5 3.5,7 7.5,2" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:13,color:sel?"#2C2825":"#B0AA9F",textDecoration:sel?"none":"line-through",transition:"all .2s"}}>{t.title}</div>
+                  {proj&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginTop:1}}>{proj.name}</div>}
+                </div>
+                {!sel&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",flexShrink:0}}>→ mañana</span>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Botón mover todo */}
+        <button onClick={moverTodo}
+          style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:"0 0 16px",display:"block",width:"100%",textAlign:"center"}}>
+          mover todo a mañana →
+        </button>
+
+        {/* Botón confirmar */}
+        <button onClick={confirmar}
+          style={{width:"100%",background:"#2C2825",color:"white",border:"none",borderRadius:12,padding:"14px 0",fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:"pointer",marginBottom:8}}>
+          {seleccionadas.size===0?"Mover todo a mañana":`Listo — reagendar ${todayTasks.length-seleccionadas.size} tarea${todayTasks.length-seleccionadas.size!==1?"s":""}`}
+        </button>
+        <button onClick={()=>setDiaDificil(false)}
+          style={{width:"100%",background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:"4px 0"}}>
+          Mejor puedo con todo →
+        </button>
+      </div>
+    </div>
+  );
+
   const isEmpty = todayTasks.length===0&&overdueWork.length===0;
+
   if(isEmpty) return(
     <div>
       <div style={{display:"flex",justifyContent:"flex-end",padding:desktop?"0 0 16px":"8px 20px"}}>
         <BtnSemana/>
       </div>
       <div style={{textAlign:"center",padding:desktop?"60px 0":"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
+      <ModalDiaDificil/>
     </div>
   );
 
   if(desktop) return(
     <div>
-      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <BtnSemana/>
+        {todayTasks.length>=2&&(
+          <button onClick={abrirDiaDificil}
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:0,letterSpacing:".01em"}}>
+            día difícil →
+          </button>
+        )}
       </div>
+      <ToastReagendado/>
       <div style={{display:"flex",gap:48,alignItems:"flex-start"}}>
         <div style={{flex:1,minWidth:0}}>
           <SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/>
@@ -3512,16 +3625,25 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
           }
         </div>
       </div>
+      <ModalDiaDificil/>
     </div>
   );
 
   return(
     <div style={{paddingBottom:16}}>
-      <div style={{display:"flex",justifyContent:"flex-end",padding:"8px 20px 0"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 20px 0"}}>
         <BtnSemana/>
+        {todayTasks.length>=2&&(
+          <button onClick={abrirDiaDificil}
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:0,letterSpacing:".01em"}}>
+            día difícil →
+          </button>
+        )}
       </div>
+      <ToastReagendado/>
       {todayTasks.length>0&&<><SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/><TaskList tasks={todayTasks}/></>}
       {overdueWork.length>0&&<><SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/><TaskList tasks={overdueWork} overdue/></>}
+      <ModalDiaDificil/>
     </div>
   );
 }
@@ -4089,7 +4211,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
              <FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop={desktop}/>
            </div>
           :<div style={desktop?{padding:"24px 48px"}:{}}>
-             <HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop} onVerSemana={()=>setSemanaModal(true)}/>
+             <HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop} onVerSemana={()=>setSemanaModal(true)} onUpdateTask={updateTask}/>
            </div>
       )}
 
