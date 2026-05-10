@@ -203,7 +203,7 @@ function AdminApp() {
     </div>
   );
   if (!data) return null;
-  const { totalUsers, activeUsers7d, activeToday, tasksThisWeek, tasksLastWeek, dauWau, userStats, freqDist, heatmap } = data;
+  const { totalUsers, activeUsers7d, activeToday, tasksThisWeek, tasksLastWeek, dauWau, userStats, freqDist, heatmap, retention } = data;
   const maxHeat = Math.max(...heatmap.flat().map(d => d.count), 1);
   const maxFreq = Math.max(...freqDist, 1);
   return (
