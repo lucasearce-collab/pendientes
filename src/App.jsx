@@ -2911,23 +2911,22 @@ function DProjBlock({project,area,tasks,onToggle,onOpen,onAddTask,onComplete,reo
   const sorted=[...tasks].sort(taskSort);
   return(
     <div style={{marginBottom:10,border:"1px solid #EAE6E0",borderRadius:12,overflow:"hidden",background:"#FDFCFA"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 18px",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
-        <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
-          <div style={{width:6,height:6,borderRadius:"50%",background:AREAS[area]?.color||"#9B8878",opacity:.7,flexShrink:0}}/>
-          <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,color:"#3A3530"}}>{project.name}</span>
-          {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
-          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 8px",borderRadius:99,flexShrink:0}}>{imp.label}</span>
-          {pending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F"}}>{pending} pendiente{pending!==1?"s":""}</span>}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
+          <div style={{width:5,height:5,borderRadius:"50%",background:AREAS[area]?.color||"#9B8878",opacity:.7,flexShrink:0}}/>
+          <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#2C2825",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{project.name}</span>
+          {(project.importance||"normal")!=="normal"&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:imp.color,background:imp.bg,padding:"1px 6px",borderRadius:99,flexShrink:0}}>{imp.label}</span>}
+          {pending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",flexShrink:0}}>{pending}</span>}
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",gap:5,alignItems:"center",flexShrink:0}} onClick={e=>e.stopPropagation()}>
           <button className="d-ib" onClick={onAddTask}>+ tarea</button>
-          {onEdit&&<button className="d-ib" onClick={()=>onEdit(project)}>Editar</button>}
-          {onDeleteProject&&!conf&&<button className="d-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>Eliminar</button>}
-          {conf&&<><button className="d-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={()=>onDeleteProject(project.id)}>Confirmar</button><button className="d-ib" onClick={()=>setConf(false)}>✕</button></>}
-          <span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",transform:open?"rotate(0)":"rotate(-90deg)",display:"inline-block",transition:"transform .2s",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>▾</span>
+          {onEdit&&<button className="d-ib" onClick={()=>onEdit(project)}>✎</button>}
+          {onDeleteProject&&!conf&&<button className="d-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>✕</button>}
+          {conf&&<><button className="d-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={()=>onDeleteProject(project.id)}>Eliminar</button><button className="d-ib" onClick={()=>setConf(false)}>✕</button></>}
+          <span style={{fontSize:11,color:"#C8C3BB",transform:open?"rotate(0)":"rotate(-90deg)",display:"inline-block",transition:"transform .2s",marginLeft:2}} onClick={()=>setOpen(o=>!o)}>▾</span>
         </div>
       </div>
-      {open&&(sorted.length>0?<DTaskList tasks={sorted} projects={[]} onToggle={onToggle} onOpen={onOpen} area={area} reorderTasks={reorderTasks}/>:<div style={{padding:"6px 18px 14px",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin tareas · hacé click en + tarea para agregar</div>)}
+      {open&&(sorted.length>0?<DTaskList tasks={sorted} projects={[]} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} area={area} reorderTasks={reorderTasks}/>:<div style={{padding:"6px 18px 14px",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin tareas · hacé click en + tarea para agregar</div>)}
     </div>
   );
 }
@@ -3427,6 +3426,9 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
               </div>
             </div>
             <TypeDot type={task.type} done={task.done}/>
+            {onDelete&&<button onClick={e=>{e.stopPropagation();onDelete(task.id);}}
+              style={{background:"none",border:"none",cursor:"pointer",color:"#D5CFC8",fontSize:16,lineHeight:1,padding:"0 2px",flexShrink:0}}
+              title="Eliminar">×</button>}
           </div>
         );
       })}
@@ -3833,18 +3835,15 @@ function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onTog
   }
 
   // Tareas del área que NO tienen proyecto asignado (projectId es null/undefined o no existe en projects)
-  const projIds = new Set(projects.map(p=>p.id));
+  // Tareas sin proyecto: simplemente las que tienen projectId null/undefined
   const tareasSinProyecto = tasks
-    .filter(t=>{
-      const proj = allProjects?.find(p=>p.id===t.projectId);
-      return !t.done && (!t.projectId || !proj || proj.area!==activeArea);
-    })
+    .filter(t=>!t.done && !t.projectId)
     .sort(taskSort);
 
-  // Todas las tareas del área, sin agrupar
+  // Todas las tareas del área activa, sin agrupar
   const todasLasTareas = projects.flatMap(p=>
     tasksForProject(p.id).filter(t=>!t.done).map(t=>({...t,_proj:p}))
-  ).concat(tareasSinProyecto.filter(t=>!projects.flatMap(p=>tasksForProject(p.id)).find(tt=>tt.id===t.id)))
+  ).concat(tareasSinProyecto)
   .sort(taskSort);
 
   // Crear tarea suelta — sin proyecto
