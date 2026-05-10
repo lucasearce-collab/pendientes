@@ -3873,7 +3873,7 @@ function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onTog
             ?<DTaskList tasks={tareasActuales} projects={allProjects||projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
             :<TaskRows tasks={tareasActuales} projects={allProjects||projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...(sw||{})}/>
         }
-        <button onClick={()=>onAddTask(projects[0]||{id:null,name:'',area:activeArea})} className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:8}:{}}>
+        <button onClick={()=>onAddTask({id:null,name:'',area:activeArea})} className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:8}:{}}>
           <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
         </button>
       </div>
@@ -4075,7 +4075,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
           onToggle={toggleDone}
           onDelete={deleteTask}
           onOpen={setSheet}
-          onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
+          onAddTask={(proj)=>setAddSheet({projectId:proj?.id||null,area:activeArea,projectName:proj?.name||''})}
           onComplete={completeProject}
           reorderTasks={reorderTasks}
           addTask={addTask}
@@ -4090,15 +4090,22 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
       {subView==="proyectos"&&(
         <div style={desktop?{padding:"24px 48px"}:{paddingBottom:0}}>
           <div style={{padding:desktop?"0 0 20px":"14px 20px 4px"}}>
-            <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Definí propósito y objetivos de cada proyecto.</p>
+            <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Creá proyectos y agregá tareas dentro de cada uno.</p>
           </div>
-          {focusMode
-            ?<ProjectFocusView projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} desktop={desktop}/>
-            :(desktop
-              ?<DraggableProjectGrid projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} onReorder={reorderProjects}/>
-              :<DraggableProjectList projects={projectsForArea(activeArea)} onEdit={setPlanSheet} onDelete={deleteProject} onComplete={completeProject} onReorder={reorderProjects}/>
-            )
-          }
+          <GroupedProjectsView
+            projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)}
+            tasksForProject={tasksForProject}
+            onToggle={toggleDone}
+            onDelete={deleteTask}
+            onOpen={setSheet}
+            onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
+            onComplete={completeProject}
+            reorderTasks={reorderTasks}
+            sw={sw}
+            desktop={desktop}
+            onEditProject={setPlanSheet}
+            onDeleteProject={deleteProject}
+          />
           {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
           <button className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:16}:{}}
             onClick={()=>setNewProjSheet({area:activeArea})}>
