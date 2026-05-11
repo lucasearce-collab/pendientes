@@ -89,7 +89,7 @@ const SECTIONS = [
   },
   {
     id: "tareas",
-    label: "Tareas",
+    label: "Acción",
     subTabs: [
       { id: "tareas",    label: "Tareas"    },
       { id: "proyectos", label: "Proyectos" },
@@ -4223,7 +4223,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
 
   const NAV_ITEMS = [
     { id:"hoy",      label:"Hoy",      icon:"⊙" },
-    { id:"tareas",   label:"Tareas",   icon:"☐" },
+    { id:"tareas",   label:"Acción",   icon:"☐" },
     { id:"metas",    label:"Metas",    icon:"⋈" },
     { id:"progreso", label:"Progreso", icon:"❀" },
   ];
