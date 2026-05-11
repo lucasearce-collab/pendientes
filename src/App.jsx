@@ -1631,8 +1631,8 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
 
             {/* 4. Actividad por meta de corto plazo */}
             <Card>
-              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Momentum por meta</div>
-              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Actividad en tus metas de este año — el semáforo muestra si el frente se está enfriando</div>
+              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Pulso</div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Avance sobre tus metas de este año</div>
               {metasAnio.length===0?(
                 <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'16px 0'}}>No tenés metas de este año definidas</div>
               ):(()=>{
@@ -1705,9 +1705,9 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
                       {/* nombre + score momentum + última actividad */}
                       <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:6}}>
                         <span style={{fontSize:12,color:'#2C2825',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.title}</span>
-                        <span style={{fontSize:10,color:'#B0AA9F',flexShrink:0}}>momentum</span>
+                        <span style={{fontSize:10,color:'#B0AA9F',flexShrink:0}}>{semaforoLabel}</span>
                         <span style={{fontSize:15,fontWeight:300,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,flexShrink:0}}>{Math.round(momentumScore)}</span>
-                        <span style={{fontSize:10,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,flexShrink:0}}>{semaforoLabel}</span>
+                        <span style={{fontSize:10,color:'#C8C3BB',flexShrink:0}}>/100</span>
                       </div>
                       {/* Barra con gradiente */}
                       <div style={{height:7,background:'#F5F2EE',borderRadius:99,overflow:'hidden',marginBottom:6}}>
@@ -3484,6 +3484,7 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
                 {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:overdue?"#C4896A":"#9B948C"}}>{fmtDate(task.date)}</span>}
                 {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A",fontWeight:500}}>→ {task.responsable}</span>}
                 {task.notes&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8"}}>· nota</span>}
+                <RecurrenceBadge type={task.recurrence_type}/>
               </div>
             </div>
             <TypeDot type={task.type} done={task.done}/>
