@@ -2724,6 +2724,17 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[],sh
           style={{border:"1px solid #E5E1DB",borderRadius:99,padding:"4px 11px",fontSize:11,fontFamily:"'DM Sans'",outline:"none",color:"#8C877F",background:"white"}}/>
       </div>
     </div>
+    {/* Toggle repetición */}
+    <div style={{marginBottom:14}}>
+      <span className="sl">Repetir</span>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[{l:"No",v:null},{l:"Cada día",v:"daily"},{l:"Cada semana",v:"weekly"},{l:"Cada mes",v:"monthly"}].map(op=>(
+          <button key={String(op.v)} onClick={()=>setRecurrence(op.v)}
+            className={`dc${recurrence===op.v?" on":""}`}>{op.l}</button>
+        ))}
+      </div>
+      {recurrence&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",marginTop:6}}>Al completar, la siguiente aparecerá automáticamente.</div>}
+    </div>
     <button className="sv" onClick={go}>Agregar tarea</button>
   </div>);
 }
