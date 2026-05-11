@@ -1079,15 +1079,38 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
     const score = Math.min(100, Math.round(scoreEjecucion + scoreLatencia));
     if(score===0 && pendientes.length===0 && projects.length===0) return null;
 
-    // ── Diagnóstico: identifica la fuente dominante ──
-    const dominante =
-      vencidas>=5       ? 'deuda'
-      : latenciaLaboral>=2 ? 'latencia_laboral'
-      : promedioSnooze>=3  ? 'friccion'
-      : proyectosActivos>=5? 'dispersion'
-      : latenciaPersonal>=3? 'latencia_personal'
-      : score>=60          ? 'alta_general'
-      : 'ok';
+    // ── Diagnóstico: la fuente que MÁS contribuye al score ──
+    // Calculamos la contribución real de cada componente
+    const contrib = {
+      deuda:            vencidas * 10,
+      friccion:         promedioSnooze * 5,
+      dispersion:       proyectosActivos * 7,
+      demanda:          paraHoy * 3,
+      latencia_laboral: latenciaLaboral * 8,
+      latencia_personal:latenciaPersonal * 4,
+    };
+
+    // Solo diagnosticamos latencia si realmente domina el score
+    // (contribuye más que la ejecución entera)
+    const contribEjecucion = contrib.deuda + contrib.friccion + contrib.dispersion + contrib.demanda;
+    const contribLatencia  = contrib.latencia_laboral + contrib.latencia_personal;
+
+    let dominante;
+    if(score < 30){
+      dominante = 'ok';
+    } else if(contribEjecucion >= contribLatencia) {
+      // La presión viene de lo que hacés (o no hacés)
+      const maxEjecucion = Math.max(contrib.deuda, contrib.friccion, contrib.dispersion);
+      if(maxEjecucion === contrib.deuda && vencidas >= 3)      dominante = 'deuda';
+      else if(maxEjecucion === contrib.dispersion && proyectosActivos >= 4) dominante = 'dispersion';
+      else if(maxEjecucion === contrib.friccion && promedioSnooze >= 2)     dominante = 'friccion';
+      else                                                                    dominante = 'alta_general';
+    } else {
+      // La presión viene de lo que no atendés
+      if(latenciaLaboral > 0 && latenciaPersonal > 0)  dominante = 'latencia_mixta';
+      else if(latenciaLaboral > 0)                       dominante = 'latencia_laboral';
+      else                                               dominante = 'latencia_personal';
+    }
 
     const diagnosticos = {
       deuda: {
@@ -1109,6 +1132,10 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       latencia_personal: {
         titulo: 'Tus proyectos personales están en pausa.',
         consejo: 'Postergar lo tuyo también drena energía. Date permiso para avanzar algo personal hoy, aunque sean 15 minutos.',
+      },
+      latencia_mixta: {
+        titulo: 'Demasiadas promesas abiertas sin actividad.',
+        consejo: 'Tu cabeza está pesada por todo lo que no estás haciendo. Cerrá los proyectos que no vas a atender — menos carpetas vacías es igual a más paz.',
       },
       alta_general: {
         titulo: 'La presión está alta, pero distribuida.',
