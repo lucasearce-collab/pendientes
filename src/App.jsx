@@ -1418,25 +1418,32 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
             const muyReagendadas = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>=3);
             if(muyReagendadas.length===0) return null;
             return(
-              <Card>
-                <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Tareas que resistís</div>
-                <div style={{fontSize:11,color:'#B0AA9F',marginBottom:12}}>Reagendadas 3 o más veces — la resistencia genera cansancio invisible</div>
-                {muyReagendadas.slice(0,5).map(t=>{
+              <div style={{background:'#FBF8F2',borderRadius:14,border:'1px solid #EDE9E3',padding:'16px 18px',marginBottom:12}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+                  <div style={{width:6,height:6,borderRadius:'50%',background:'#C4A882',flexShrink:0}}/>
+                  <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Tareas que resistís</div>
+                  <span style={{fontSize:10,color:'#C4A882',background:'#F5EFE6',padding:'2px 7px',borderRadius:99,marginLeft:'auto'}}>{muyReagendadas.length}</span>
+                </div>
+                {muyReagendadas.slice(0,5).map((t,i)=>{
                   const proj=projects.find(p=>p.id===t.projectId);
                   return(
-                    <div key={t.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #F5F2EE'}}>
+                    <div key={t.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:i<Math.min(muyReagendadas.length,5)-1?'1px solid #EDE9E3':'none'}}>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:12,color:'#2C2825'}}>{t.title}</div>
-                        {proj&&<div style={{fontSize:10,color:'#B0AA9F',marginTop:1}}>{proj.name}</div>}
+                        {proj&&<div style={{fontSize:10,color:'#C4A882',marginTop:1}}>{proj.name}</div>}
                       </div>
-                      <span style={{fontSize:10,color:'#C4A882',background:'#FBF8F2',padding:'2px 7px',borderRadius:99,flexShrink:0,marginLeft:8}}>{t.snoozed_count}× postergada</span>
+                      <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                        {Array.from({length:Math.min(t.snoozed_count,5)}).map((_,i)=>(
+                          <div key={i} style={{width:5,height:5,borderRadius:'50%',background:i<3?'#C4A882':'#C4312A'}}/>
+                        ))}
+                      </div>
                     </div>
                   );
                 })}
-                <div style={{fontSize:11,color:'#B0AA9F',marginTop:12,lineHeight:1.6}}>
-                  Elegí una y terminala ahora, o eliminala. Dejar de patear la piedra libera energía.
+                <div style={{fontSize:11,color:'#9B8878',marginTop:12,paddingTop:10,borderTop:'1px solid #EDE9E3'}}>
+                  Elegí una y terminala, o eliminala.
                 </div>
-              </Card>
+              </div>
             );
           })()}
 
@@ -1452,32 +1459,38 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
             const personales = sinActividad.filter(p=>p.area==='personal');
             if(sinActividad.length===0) return null;
             return(
-              <Card>
-                <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Lo que no estás atendiendo</div>
-                <div style={{fontSize:11,color:'#B0AA9F',marginBottom:16}}>Proyectos sin ninguna tarea activa — también generan presión aunque no los estés pensando</div>
+              <div style={{borderRadius:14,border:'1px solid #EAE6E0',overflow:'hidden',marginBottom:12}}>
+                {/* Header */}
+                <div style={{background:'#F5F2EE',padding:'12px 18px',borderBottom:'1px solid #EAE6E0',display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{width:6,height:6,borderRadius:'50%',background:'#9B8878',flexShrink:0}}/>
+                  <div style={{fontSize:13,fontWeight:500,color:'#2C2825',flex:1}}>Sin actividad reciente</div>
+                  <span style={{fontSize:10,color:'#9B8878',background:'#EDE9E3',padding:'2px 7px',borderRadius:99}}>{sinActividad.length} proyecto{sinActividad.length!==1?'s':''}</span>
+                </div>
+                {/* Trabajo */}
                 {laborales.length>0&&(
-                  <div style={{marginBottom:14}}>
-                    <div style={{fontSize:11,color:'#9B8878',fontWeight:500,marginBottom:8}}>Trabajo</div>
+                  <div style={{background:'white',padding:'12px 18px',borderBottom:personales.length>0?'1px solid #EAE6E0':'none'}}>
+                    <div style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',marginBottom:8}}>Trabajo</div>
                     {laborales.map((p,i)=>(
-                      <div key={p.id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:i<laborales.length-1?'1px solid #F5F2EE':'none'}}>
-                        <div style={{width:4,height:4,borderRadius:'50%',background:'#C4A882',flexShrink:0}}/>
+                      <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:i<laborales.length-1?'1px solid #F5F2EE':'none'}}>
+                        <div style={{width:3,height:20,borderRadius:99,background:'#C4A882',flexShrink:0}}/>
                         <span style={{fontSize:12,color:'#2C2825'}}>{p.name}</span>
                       </div>
                     ))}
                   </div>
                 )}
+                {/* Personal */}
                 {personales.length>0&&(
-                  <div>
-                    <div style={{fontSize:11,color:'#9B8878',fontWeight:500,marginBottom:8}}>Personal</div>
+                  <div style={{background:'white',padding:'12px 18px'}}>
+                    <div style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#8A9E8A',marginBottom:8}}>Personal</div>
                     {personales.map((p,i)=>(
-                      <div key={p.id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:i<personales.length-1?'1px solid #F5F2EE':'none'}}>
-                        <div style={{width:4,height:4,borderRadius:'50%',background:'#C4A882',flexShrink:0}}/>
+                      <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:i<personales.length-1?'1px solid #F5F2EE':'none'}}>
+                        <div style={{width:3,height:20,borderRadius:99,background:'#8A9E8A',flexShrink:0}}/>
                         <span style={{fontSize:12,color:'#2C2825'}}>{p.name}</span>
                       </div>
                     ))}
                   </div>
                 )}
-              </Card>
+              </div>
             );
           })()}
         </div>
