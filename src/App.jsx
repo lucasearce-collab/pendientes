@@ -4244,6 +4244,22 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
   const showAreaPills = subView==="tareas" || subView==="proyectos";
   const [semanaModal, setSemanaModal] = useState(false);
 
+  // Orden de sub-tabs por sección — persiste en localStorage
+  const [subTabOrders, setSubTabOrders] = useState(()=>{
+    try{ return JSON.parse(localStorage.getItem('clarity_subtab_orders')||'{}'); }catch{ return {}; }
+  });
+  function getOrderedSubTabs(sec){
+    const order = subTabOrders[sec.id];
+    if(!order) return sec.subTabs;
+    return [...sec.subTabs].sort((a,b)=>{
+      const ia = order.indexOf(a.id);
+      const ib = order.indexOf(b.id);
+      return (ia===-1?99:ia)-(ib===-1?99:ib);
+    });
+  }
+  // Drag & drop state para sub-tabs
+  const [dragSubTab, setDragSubTab] = useState(null);
+
   const NAV_ITEMS = [
     { id:"hoy",      label:"Hoy",      icon:"⊙" },
     { id:"tareas",   label:"Acción",   icon:"☐" },
@@ -4252,19 +4268,66 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
   ];
 
   // ── Sub-nav + contenido (compartido mobile/desktop) ──
-  const SubNav = () => activeSec && activeSec.subTabs.length > 1 ? (
-    <div style={{display:"flex",alignItems:"center",borderBottom:"1px solid #EAE6E0",padding:desktop?"0 48px":"0 20px",flexShrink:0}}>
-      <div style={{display:"flex",gap:desktop?24:20,flex:1}}>
-        {activeSec.subTabs.map(tab=>(
-          <button key={tab.id} onClick={()=>setSubView(tab.id)}
-            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:subView===tab.id?"#2C2825":"#B0AA9F",paddingBottom:10,borderBottom:`2px solid ${subView===tab.id?"#2C2825":"transparent"}`,transition:"all .2s",whiteSpace:"nowrap"}}>
-            {tab.label}
-          </button>
-        ))}
+  const SubNav = () => {
+    if(!activeSec || activeSec.subTabs.length <= 1) return null;
+    const orderedTabs = getOrderedSubTabs(activeSec);
+
+    function handleDragStart(e, tabId){
+      setDragSubTab(tabId);
+      e.dataTransfer.effectAllowed = 'move';
+    }
+    function handleDragOver(e, tabId){
+      e.preventDefault();
+      if(dragSubTab===tabId) return;
+    }
+    function handleDrop(e, targetId){
+      e.preventDefault();
+      if(!dragSubTab || dragSubTab===targetId) return;
+      const current = orderedTabs.map(t=>t.id);
+      const fromIdx = current.indexOf(dragSubTab);
+      const toIdx   = current.indexOf(targetId);
+      const next = [...current];
+      next.splice(fromIdx,1);
+      next.splice(toIdx,0,dragSubTab);
+      const newOrders = {...subTabOrders, [activeSec.id]: next};
+      setSubTabOrders(newOrders);
+      try{ localStorage.setItem('clarity_subtab_orders', JSON.stringify(newOrders)); }catch{}
+      // Si el tab arrastrado quedó primero, navegar a él
+      if(toIdx===0) setSubView(dragSubTab);
+      setDragSubTab(null);
+    }
+    function handleDragEnd(){ setDragSubTab(null); }
+
+    return(
+      <div style={{display:"flex",alignItems:"center",borderBottom:"1px solid #EAE6E0",padding:desktop?"0 48px":"0 20px",flexShrink:0}}>
+        <div style={{display:"flex",gap:desktop?24:20,flex:1}}>
+          {orderedTabs.map(tab=>(
+            <button key={tab.id}
+              onClick={()=>setSubView(tab.id)}
+              draggable
+              onDragStart={e=>handleDragStart(e,tab.id)}
+              onDragOver={e=>handleDragOver(e,tab.id)}
+              onDrop={e=>handleDrop(e,tab.id)}
+              onDragEnd={handleDragEnd}
+              style={{
+                background:"none",border:"none",
+                cursor:dragSubTab?'grabbing':'pointer',
+                fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,
+                letterSpacing:".08em",textTransform:"uppercase",
+                color:subView===tab.id?"#2C2825":"#B0AA9F",
+                paddingBottom:10,
+                borderBottom:`2px solid ${subView===tab.id?"#2C2825":dragSubTab===tab.id?"#C4A882":"transparent"}`,
+                transition:"all .2s",whiteSpace:"nowrap",
+                opacity:dragSubTab===tab.id?.5:1,
+              }}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {showAreaPills&&desktop&&<div style={{paddingBottom:10}}><AreaToggle/></div>}
       </div>
-      {showAreaPills&&desktop&&<div style={{paddingBottom:10}}><AreaToggle/></div>}
-    </div>
-  ) : null;
+    );
+  };
 
   // Toggle área — mismo estilo que semana/día, va dentro del SubNav
   const AreaToggle = () => showAreaPills ? (
