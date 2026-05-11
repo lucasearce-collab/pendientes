@@ -1114,36 +1114,36 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
 
     const diagnosticos = {
       deuda: {
-        titulo: 'Tu presión viene de tareas vencidas.',
-        consejo: 'La deuda acumulada es el estrés más ácido. Usá el modo Día Difícil para reagendar y empezar de cero mañana.',
-      },
-      latencia_laboral: {
-        titulo: `${latenciaLaboral} proyecto${latenciaLaboral!==1?'s':''} de trabajo sin actividad.`,
-        consejo: 'Son bombas de tiempo. No hace falta terminarlos hoy — solo cargá una tarea pequeña en cada uno para romper la inercia.',
+        titulo: 'La deuda del pasado te está pesando.',
+        consejo: 'Las tareas vencidas generan más culpa que trabajo real. No podés hacer todo a la vez — elegí una sola para hoy y reagendá el resto con el modo Día Difícil. Empezar de cero mañana no es rendirse, es inteligente.',
       },
       friccion: {
-        titulo: 'Estás arrastrando tareas que no querés hacer.',
-        consejo: `El promedio de postergaciones es alto. Elegí una de esas tareas y terminala ahora, o eliminala. Dejar de patear la piedra libera energía.`,
+        titulo: 'Hay tareas que estás evitando sin poder evitarlas.',
+        consejo: 'Postergar algo muchas veces no lo hace desaparecer — lo hace pesar más. Intentá atacar la más pequeña de esas tareas primero. A veces el obstáculo es empezar, no terminar. Y si genuinamente no podés hacerla, delegarla o eliminarla también es una decisión válida.',
       },
       dispersion: {
-        titulo: 'Demasiados frentes abiertos a la vez.',
-        consejo: `${proyectosActivos} proyectos activos simultáneamente. Tu cerebro está saltando de contexto en contexto. Intentá cerrar uno esta semana.`,
+        titulo: 'Tu energía está repartida en demasiados frentes.',
+        consejo: `Tenés ${proyectosActivos} proyectos activos simultáneamente y eso agota, aunque cada uno esté bajo control. No podés reducir el trabajo, pero sí podés organizarlo: definí un bloque de tiempo para cada proyecto y trabajá uno por vez. El cerebro rinde mejor cuando no tiene que saltar de contexto constantemente.`,
+      },
+      latencia_laboral: {
+        titulo: 'Hay frentes de trabajo que no están avanzando.',
+        consejo: `Tenés ${latenciaLaboral} proyecto${latenciaLaboral!==1?'s laborales':' laboral'} sin ninguna tarea activa. No hace falta resolverlos hoy, pero sí definir cuándo los vas a atender. Agendá un momento específico para cada uno — aunque sea una hora a la semana. Lo que tiene lugar en el calendario existe; lo que no, se acumula en la cabeza.`,
       },
       latencia_personal: {
-        titulo: 'Tus proyectos personales están en pausa.',
-        consejo: 'Postergar lo tuyo también drena energía. Date permiso para avanzar algo personal hoy, aunque sean 15 minutos.',
+        titulo: 'Tus proyectos personales están esperando.',
+        consejo: 'Antes de exigirte más, preguntate si es el momento para todos ellos. Los que son exigencias podés evaluarlos después. Los que son ocio o descanso — haceles lugar, aunque sea poco. Descansar no es perder tiempo: es lo que te permite rendir mejor en lo que importa.',
       },
       latencia_mixta: {
-        titulo: 'Demasiadas promesas abiertas sin actividad.',
-        consejo: 'Tu cabeza está pesada por todo lo que no estás haciendo. Cerrá los proyectos que no vas a atender — menos carpetas vacías es igual a más paz.',
+        titulo: 'Tenés muchas carpetas abiertas sin actividad.',
+        consejo: 'Proyectos sin tareas generan una presión silenciosa — tu cabeza los registra aunque no los estés trabajando. Para los laborales, definí cuándo los vas a atender. Para los personales, evaluá si es el momento o si podés darte un rato de descanso genuino. Menos frentes mentales abiertos es más paz real.',
       },
       alta_general: {
-        titulo: 'La presión está alta, pero distribuida.',
-        consejo: 'No hay un solo culpable, es la acumulación. Completá una o dos tareas pequeñas — reducir el número ayuda más que reorganizar.',
+        titulo: 'La presión es alta y viene de varios lados.',
+        consejo: 'No hay un solo culpable — es la acumulación. No podés resolver todo a la vez, pero sí podés elegir una sola cosa para hacer bien hoy. La sensación de avanzar aunque sea en algo pequeño cambia el estado mental. Intentá también definir bloques de tiempo: uno para lo urgente, uno para lo estratégico, y uno para vos.',
       },
       ok: {
-        titulo: 'Tu carga mental está en niveles saludables.',
-        consejo: 'Estás exigido pero bajo control. Mantené tus espacios de descanso.',
+        titulo: 'Tu carga mental está en un nivel manejable.',
+        consejo: 'Estás exigido pero bajo control — y eso no es poco. Aprovechá este momento para avanzar en algo estratégico, o simplemente para descansar bien. El equilibrio no es la ausencia de trabajo, es saber cuándo parar.',
       },
     };
 
