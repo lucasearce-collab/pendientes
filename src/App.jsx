@@ -938,7 +938,7 @@ function AlignmentHeader({status, label}){
   </>);
 }
 
-function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
+function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onDiaDificil, onFoco}){
   const today = todayStr();
 
   // ── Week data ──
@@ -1114,36 +1114,60 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
 
     const diagnosticos = {
       deuda: {
-        titulo: 'La deuda del pasado te está pesando.',
-        consejo: 'Las tareas vencidas generan más culpa que trabajo real. No podés hacer todo a la vez — elegí una sola para hoy y reagendá el resto con el modo Día Difícil. Empezar de cero mañana no es rendirse, es inteligente.',
+        validacion: 'Es normal sentirse así con esta carga. No estás fallando — estás operando con deuda acumulada.',
+        titulo: 'Lo que pasó te está pesando más que lo que viene.',
+        consejo: 'Las tareas vencidas generan culpa, y la culpa agota más que el trabajo mismo. No tenés que resolverlo todo hoy — solo elegí una para hacer ahora y usá el modo Día Difícil para reagendar el resto. Empezar de cero mañana no es rendirse, es inteligente.',
+        accion: 'dia_dificil',
+        accionLabel: 'Abrir modo Día Difícil',
       },
       friccion: {
-        titulo: 'Hay tareas que estás evitando sin poder evitarlas.',
-        consejo: 'Postergar algo muchas veces no lo hace desaparecer — lo hace pesar más. Intentá atacar la más pequeña de esas tareas primero. A veces el obstáculo es empezar, no terminar. Y si genuinamente no podés hacerla, delegarla o eliminarla también es una decisión válida.',
+        validacion: 'Es normal evitar lo que nos pesa. No sos vago — esas tareas simplemente tienen una fricción alta.',
+        titulo: 'Hay algo que venís pateando y que no desaparece.',
+        consejo: 'Cada vez que lo postergás, pesa un poco más. La mejor forma de salir es atacar lo más pequeño primero — a veces el obstáculo es empezar, no terminar. Si genuinamente no podés hacerla ahora, delegarla o eliminarla también es una decisión válida.',
+        accion: null,
+        accionLabel: null,
       },
       dispersion: {
-        titulo: 'Tu energía está repartida en demasiados frentes.',
-        consejo: `Tenés ${proyectosActivos} proyectos activos simultáneamente y eso agota, aunque cada uno esté bajo control. No podés reducir el trabajo, pero sí podés organizarlo: definí un bloque de tiempo para cada proyecto y trabajá uno por vez. El cerebro rinde mejor cuando no tiene que saltar de contexto constantemente.`,
+        validacion: 'Es normal sentirse así. Saltar de contexto en contexto agota el cerebro aunque cada proyecto esté bajo control.',
+        titulo: `Tenés ${proyectosActivos} frentes abiertos y tu cerebro está pagando el costo de mantenerlos todos.`,
+        consejo: 'No podés reducir el trabajo, pero sí podés organizarlo. Asigná un bloque de 90 minutos para un solo proyecto y bloqueá mentalmente el resto. El foco no es un lujo — es tu única ventaja competitiva cuando la carga es alta.',
+        accion: 'foco',
+        accionLabel: 'Activar modo foco',
       },
       latencia_laboral: {
-        titulo: 'Hay frentes de trabajo que no están avanzando.',
-        consejo: `Tenés ${latenciaLaboral} proyecto${latenciaLaboral!==1?'s laborales':' laboral'} sin ninguna tarea activa. No hace falta resolverlos hoy, pero sí definir cuándo los vas a atender. Agendá un momento específico para cada uno — aunque sea una hora a la semana. Lo que tiene lugar en el calendario existe; lo que no, se acumula en la cabeza.`,
+        validacion: 'Tu cerebro sabe que esos frentes van a explotar y esa incertidumbre pesa más que la tarea misma.',
+        titulo: `Hay ${latenciaLaboral} proyecto${latenciaLaboral!==1?'s':''}  de trabajo que no estás tocando.`,
+        consejo: 'No tenés que resolverlos hoy. Pero ponerles una fecha en el calendario los saca de tu cabeza y los convierte en un plan. Lo que tiene horario asignado deja de ser una amenaza — pasa a ser algo que vas a hacer.',
+        accion: null,
+        accionLabel: null,
       },
       latencia_personal: {
-        titulo: 'Tus proyectos personales están esperando.',
-        consejo: 'Antes de exigirte más, preguntate si es el momento para todos ellos. Los que son exigencias podés evaluarlos después. Los que son ocio o descanso — haceles lugar, aunque sea poco. Descansar no es perder tiempo: es lo que te permite rendir mejor en lo que importa.',
+        validacion: 'Postergar lo tuyo hace que sientas que solo vivís para los demás. Es un agotamiento real.',
+        titulo: 'Tus proyectos personales están en espera hace tiempo.',
+        consejo: 'Antes de exigirte más, preguntate si es el momento para cada uno de ellos. Los que son exigencias podés evaluarlos con calma. Los que son ocio o descanso — haceles lugar aunque sea poco. El descanso no es tiempo perdido: es el combustible que te permite rendir mejor mañana.',
+        accion: null,
+        accionLabel: null,
       },
       latencia_mixta: {
-        titulo: 'Tenés muchas carpetas abiertas sin actividad.',
-        consejo: 'Proyectos sin tareas generan una presión silenciosa — tu cabeza los registra aunque no los estés trabajando. Para los laborales, definí cuándo los vas a atender. Para los personales, evaluá si es el momento o si podés darte un rato de descanso genuino. Menos frentes mentales abiertos es más paz real.',
+        validacion: 'Tu cabeza está registrando todo lo que no estás haciendo, aunque no lo estés pensando conscientemente.',
+        titulo: 'Tenés muchos frentes abiertos sin actividad.',
+        consejo: 'Para los laborales: ponerles fecha los convierte en plan y los saca de la zona de amenaza. Para los personales: evaluá si es el momento, y si hay alguno de descanso u ocio, hacele lugar — eso no es perder tiempo, es recuperar energía.',
+        accion: null,
+        accionLabel: null,
       },
       alta_general: {
-        titulo: 'La presión es alta y viene de varios lados.',
-        consejo: 'No hay un solo culpable — es la acumulación. No podés resolver todo a la vez, pero sí podés elegir una sola cosa para hacer bien hoy. La sensación de avanzar aunque sea en algo pequeño cambia el estado mental. Intentá también definir bloques de tiempo: uno para lo urgente, uno para lo estratégico, y uno para vos.',
+        validacion: 'Es normal sentirse así. No hay un solo culpable — es la acumulación de muchas cosas a la vez.',
+        titulo: 'La presión viene de varios frentes simultáneamente.',
+        consejo: 'No podés resolver todo, pero sí podés elegir una sola cosa para hacer bien hoy. Definí bloques: uno para lo urgente, uno para lo estratégico, uno para vos. La sensación de avanzar en algo — aunque sea pequeño — cambia el estado mental.',
+        accion: null,
+        accionLabel: null,
       },
       ok: {
+        validacion: null,
         titulo: 'Tu carga mental está en un nivel manejable.',
         consejo: 'Estás exigido pero bajo control — y eso no es poco. Aprovechá este momento para avanzar en algo estratégico, o simplemente para descansar bien. El equilibrio no es la ausencia de trabajo, es saber cuándo parar.',
+        accion: null,
+        accionLabel: null,
       },
     };
 
@@ -1154,8 +1178,11 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       dominante,
       breakdown: {vencidas, paraHoy, promedioSnooze:Math.round(promedioSnooze*10)/10, proyectosActivos, latenciaPersonal, latenciaLaboral},
       status: score>=70?'red':score>=40?'yellow':'green',
+      validacion: diag.validacion,
       titulo: diag.titulo,
       consejo: diag.consejo,
+      accion: diag.accion,
+      accionLabel: diag.accionLabel,
     };
   }
   const cogLoad = calcCogLoad();
@@ -1339,11 +1366,30 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
                 <div style={{height:8,background:'#EAE6E0',borderRadius:99,marginBottom:20,overflow:'hidden'}}>
                   <div style={{height:'100%',width:cogLoad.score+'%',background:cogLoad.status==='green'?'#8FAF8A':cogLoad.status==='yellow'?'#C4A882':'#C4312A',borderRadius:99,transition:'width .6s cubic-bezier(.34,1,.64,1)'}}/>
                 </div>
-                <div style={{fontSize:14,fontWeight:400,color:'#2C2825',lineHeight:1.5,marginBottom:12}}>{cogLoad.titulo}</div>
-                <div style={{background:'#FAFAF8',borderRadius:10,padding:'12px 14px',border:'1px solid #EAE6E0'}}>
+                {/* Validación emocional */}
+                {cogLoad.validacion&&(
+                  <div style={{fontSize:12,color:'#9B8878',lineHeight:1.6,marginBottom:12,fontStyle:'italic'}}>{cogLoad.validacion}</div>
+                )}
+                {/* Diagnóstico */}
+                <div style={{fontSize:14,fontWeight:500,color:'#2C2825',lineHeight:1.4,marginBottom:12}}>{cogLoad.titulo}</div>
+                {/* Consejo */}
+                <div style={{background:'#FAFAF8',borderRadius:10,padding:'12px 14px',border:'1px solid #EAE6E0',marginBottom:cogLoad.accion?12:0}}>
                   <div style={{fontSize:11,fontWeight:500,letterSpacing:'.06em',textTransform:'uppercase',color:'#C4A882',marginBottom:6}}>Qué hacer</div>
                   <div style={{fontSize:13,color:'#2C2825',lineHeight:1.65}}>{cogLoad.consejo}</div>
                 </div>
+                {/* Botón de acción directa */}
+                {cogLoad.accion==='dia_dificil'&&(
+                  <button onClick={()=>onDiaDificil&&onDiaDificil()}
+                    style={{width:'100%',background:'#2C2825',color:'white',border:'none',borderRadius:10,padding:'11px 0',fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,cursor:'pointer'}}>
+                    {cogLoad.accionLabel}
+                  </button>
+                )}
+                {cogLoad.accion==='foco'&&(
+                  <button onClick={()=>onFoco&&onFoco()}
+                    style={{width:'100%',background:'none',border:'1px solid #2C2825',color:'#2C2825',borderRadius:10,padding:'11px 0',fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,cursor:'pointer'}}>
+                    {cogLoad.accionLabel}
+                  </button>
+                )}
               </>
             ):(
               <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'20px 0'}}>Sin datos suficientes para analizar</div>
@@ -4269,7 +4315,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
 
       {subView==="analitica"&&(
         <div style={desktop?{padding:"24px 48px",maxWidth:900}:{}}>
-          <AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount} desktop={desktop}/>
+          <AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount} desktop={desktop} onDiaDificil={()=>{switchSection('hoy');}} onFoco={()=>setFocusMode(true)}/>
         </div>
       )}
 
