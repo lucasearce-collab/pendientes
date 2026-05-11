@@ -1052,48 +1052,83 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
   }
   const alignment = calcAlignment();
 
-  // ── Carga cognitiva avanzada ──
+  // ── Algoritmo de Presión Total (tres dimensiones) ──
   function calcCogLoad(){
-    let totalScore = 0;
-    const breakdown = {vencidas:0, hoy:0, proximas:0, lejanas:0};
-    tasks.filter(t=>!t.done&&t.date).forEach(t=>{
-      const p = projects.find(x=>x.id===t.projectId);
-      // Base score por importancia del proyecto
-      let base = p?.importance==='estrategica'?50:p?.importance==='urgente'?30:10;
-      // Multiplicador del proyecto
-      const projMult = p?.importance==='estrategica'?1.5:p?.importance==='urgente'?1.3:1.0;
-      base *= projMult;
-      // Factor dinero
-      if(p?.monto){
-        const num = parseFloat(p.monto.replace(/[^0-9.]/g,''))||0;
-        base += num * 0.5;
-      }
-      // Factor delegación
-      const isOwn = !t.responsable || t.responsable.toLowerCase().includes('lucas') || t.responsable==='-';
-      if(!isOwn) base *= 0.4;
-      // Curva temporal
-      const days = Math.round((new Date(t.date+'T12:00:00')-new Date(today+'T12:00:00'))/(1000*60*60*24));
-      const wasSnoozed = (t.snoozed_count||0) > 0;
-      if(days<0){ base *= wasSnoozed ? 4.0 : 3.0; breakdown.vencidas++; }
-      else if(days===0){ base*=2.0; breakdown.hoy++; }
-      else if(days<=2){ base*=1.2; breakdown.proximas++; }
-      else{ base*=0.8; breakdown.lejanas++; }
-      totalScore += Math.min(base, 200); // cap por tarea
-    });
-    // Normalize to 0-100
-    const maxExpected = tasks.filter(t=>!t.done&&t.date).length * 100;
-    if(maxExpected===0) return null;
-    const score = Math.min(Math.round((totalScore/maxExpected)*100), 100);
+    const pendientes = tasks.filter(t=>!t.done);
+    const ahora = Date.now();
+
+    // ── 1. PRESIÓN DE EJECUCIÓN ──
+    const vencidas   = pendientes.filter(t=>t.date && new Date(t.date+'T23:59:59').getTime()<ahora).length;
+    const paraHoy    = pendientes.filter(t=>t.date===today).length;
+    const promedioSnooze = pendientes.length>0
+      ? pendientes.reduce((acc,t)=>acc+(t.snoozed_count||0),0)/pendientes.length
+      : 0;
+    const proyectosActivos = new Set(pendientes.filter(t=>t.projectId).map(t=>t.projectId)).size;
+
+    const scoreEjecucion = (vencidas*10) + (paraHoy*3) + (promedioSnooze*5) + (proyectosActivos*7);
+
+    // ── 2. PRESIÓN DE LATENCIA (proyectos sin tareas pendientes) ──
+    const proyectosSinTareas = projects.filter(p=>
+      !pendientes.some(t=>t.projectId===p.id)
+    );
+    const latenciaPersonal = proyectosSinTareas.filter(p=>p.area==='personal').length;
+    const latenciaLaboral  = proyectosSinTareas.filter(p=>p.area==='trabajo').length;
+    const scoreLatencia = (latenciaPersonal*4) + (latenciaLaboral*8);
+
+    // ── Score total normalizado 0-100 ──
+    const score = Math.min(100, Math.round(scoreEjecucion + scoreLatencia));
+    if(score===0 && pendientes.length===0 && projects.length===0) return null;
+
+    // ── Diagnóstico: identifica la fuente dominante ──
+    const dominante =
+      vencidas>=5       ? 'deuda'
+      : latenciaLaboral>=2 ? 'latencia_laboral'
+      : promedioSnooze>=3  ? 'friccion'
+      : proyectosActivos>=5? 'dispersion'
+      : latenciaPersonal>=3? 'latencia_personal'
+      : score>=60          ? 'alta_general'
+      : 'ok';
+
+    const diagnosticos = {
+      deuda: {
+        titulo: 'Tu presión viene de tareas vencidas.',
+        consejo: 'La deuda acumulada es el estrés más ácido. Usá el modo Día Difícil para reagendar y empezar de cero mañana.',
+      },
+      latencia_laboral: {
+        titulo: `${latenciaLaboral} proyecto${latenciaLaboral!==1?'s':''} de trabajo sin actividad.`,
+        consejo: 'Son bombas de tiempo. No hace falta terminarlos hoy — solo cargá una tarea pequeña en cada uno para romper la inercia.',
+      },
+      friccion: {
+        titulo: 'Estás arrastrando tareas que no querés hacer.',
+        consejo: `El promedio de postergaciones es alto. Elegí una de esas tareas y terminala ahora, o eliminala. Dejar de patear la piedra libera energía.`,
+      },
+      dispersion: {
+        titulo: 'Demasiados frentes abiertos a la vez.',
+        consejo: `${proyectosActivos} proyectos activos simultáneamente. Tu cerebro está saltando de contexto en contexto. Intentá cerrar uno esta semana.`,
+      },
+      latencia_personal: {
+        titulo: 'Tus proyectos personales están en pausa.',
+        consejo: 'Postergar lo tuyo también drena energía. Date permiso para avanzar algo personal hoy, aunque sean 15 minutos.',
+      },
+      alta_general: {
+        titulo: 'La presión está alta, pero distribuida.',
+        consejo: 'No hay un solo culpable, es la acumulación. Completá una o dos tareas pequeñas — reducir el número ayuda más que reorganizar.',
+      },
+      ok: {
+        titulo: 'Tu carga mental está en niveles saludables.',
+        consejo: 'Estás exigido pero bajo control. Mantené tus espacios de descanso.',
+      },
+    };
+
+    const diag = diagnosticos[dominante];
+
     return {
       score,
-      breakdown,
+      dominante,
+      breakdown: {vencidas, paraHoy, promedioSnooze:Math.round(promedioSnooze*10)/10, proyectosActivos, latenciaPersonal, latenciaLaboral},
       status: score>=70?'red':score>=40?'yellow':'green',
-      label: score>=70?'Carga cognitiva crítica':score>=40?'Carga cognitiva elevada':'Carga cognitiva saludable',
-      advice: score>=70
-        ?'Demasiados frentes activos con presión temporal. Completá o reagendá las tareas vencidas primero.'
-        :score>=40
-        ?'La presión está subiendo. Priorizá lo que vence pronto y delegá lo que puedas.'
-        :'Buen nivel de claridad. Tenés espacio para avanzar en lo estratégico.',
+      titulo: diag.titulo,
+      consejo: diag.consejo,
     };
   }
   const cogLoad = calcCogLoad();
@@ -1263,62 +1298,104 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
       {/* ── SALUD ── */}
       {tab==='salud'&&(
         <div>
-          {/* Indicador de presión */}
+          {/* Indicador de presión total */}
           <Card>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16}}>
               <div>
                 <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Presión actual</div>
-                <div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>Basado en tu carga de tareas y contexto</div>
+                <div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>Ejecución · Fricción · Latencia</div>
               </div>
-              {cogLoad&&<StatusBadge status={cogLoad.status} label={cogLoad.status==='green'?'Saludable':cogLoad.status==='yellow'?'Elevada':'Crítica'}/>}
+              <div style={{display:'flex',alignItems:'baseline',gap:4}}>
+                <span style={{fontSize:28,fontWeight:300,color:!cogLoad?'#C8C3BB':cogLoad.status==='green'?'#3B6D11':cogLoad.status==='yellow'?'#8B6914':'#C4312A',lineHeight:1}}>{cogLoad?cogLoad.score:'—'}</span>
+                {cogLoad&&<span style={{fontSize:11,color:'#C8C3BB'}}>/100</span>}
+              </div>
             </div>
             {cogLoad?(
               <>
-                {/* Barra de presión */}
-                <div style={{height:8,background:'#EAE6E0',borderRadius:99,marginBottom:12,overflow:'hidden'}}>
-                  <div style={{height:'100%',width:cogLoad.score+'%',background:cogLoad.status==='green'?'#8FAF8A':cogLoad.status==='yellow'?'#C4A882':'#C4312A',borderRadius:99,transition:'width .5s'}}/>
+                <div style={{height:8,background:'#EAE6E0',borderRadius:99,marginBottom:14,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:cogLoad.score+'%',background:cogLoad.status==='green'?'#8FAF8A':cogLoad.status==='yellow'?'#C4A882':'#C4312A',borderRadius:99,transition:'width .6s cubic-bezier(.34,1,.64,1)'}}/>
                 </div>
-                <div style={{fontSize:12,color:'#B0AA9F',lineHeight:1.6,marginBottom:16}}>{cogLoad.advice}</div>
-                {/* Desglose */}
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                {/* Diagnóstico */}
+                <div style={{background:'#FAFAF8',borderRadius:10,padding:'12px 14px',marginBottom:16,border:'1px solid #EAE6E0'}}>
+                  <div style={{fontSize:13,color:'#2C2825',fontWeight:500,marginBottom:4}}>{cogLoad.titulo}</div>
+                  <div style={{fontSize:12,color:'#B0AA9F',lineHeight:1.65}}>{cogLoad.consejo}</div>
+                </div>
+                {/* Desglose de fuentes */}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
                   {[
-                    {label:'Vencidas',val:cogLoad.breakdown.vencidas,color:'#C4312A'},
-                    {label:'Para hoy',val:cogLoad.breakdown.hoy,color:'#C4A882'},
-                    {label:'Esta semana',val:cogLoad.breakdown.proximas,color:'#9B8878'},
-                    {label:'Proyectos activos',val:projects.filter(p=>tasks.some(t=>!t.done&&t.projectId===p.id)).length,color:'#5B6BAF'},
+                    {label:'Vencidas',val:cogLoad.breakdown.vencidas,color:'#C4312A',hint:'Deuda'},
+                    {label:'Para hoy',val:cogLoad.breakdown.paraHoy,color:'#C4A882',hint:'Demanda'},
+                    {label:'Frentes activos',val:cogLoad.breakdown.proyectosActivos,color:'#5B6BAF',hint:'Dispersión'},
+                    {label:'Postergación',val:cogLoad.breakdown.promedioSnooze+'×',color:'#9B8878',hint:'Fricción'},
+                    {label:'Sin actividad trabajo',val:cogLoad.breakdown.latenciaLaboral,color:'#C4312A',hint:'Riesgo'},
+                    {label:'Sin actividad personal',val:cogLoad.breakdown.latenciaPersonal,color:'#C4A882',hint:'Frustración'},
                   ].map(item=>(
-                    <div key={item.label} style={{background:'#FAFAF8',borderRadius:10,padding:'10px 12px',border:'1px solid #EAE6E0'}}>
-                      <div style={{fontSize:18,fontWeight:300,color:item.val>0?item.color:'#C8C3BB'}}>{item.val}</div>
-                      <div style={{fontSize:10,color:'#B0AA9F',marginTop:2}}>{item.label}</div>
+                    <div key={item.label} style={{background:'#FAFAF8',borderRadius:10,padding:'10px 10px',border:'1px solid #EAE6E0'}}>
+                      <div style={{fontSize:16,fontWeight:300,color:item.val>0||item.val!=='0×'?item.color:'#C8C3BB',lineHeight:1}}>{item.val}</div>
+                      <div style={{fontSize:9,color:'#C8C3BB',marginTop:3,lineHeight:1.3}}>{item.label}</div>
+                      <div style={{fontSize:8,color:'#D5CFC8',marginTop:1,letterSpacing:'.04em',textTransform:'uppercase'}}>{item.hint}</div>
                     </div>
                   ))}
                 </div>
               </>
             ):(
-              <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'20px 0'}}>Sin tareas con fecha para analizar</div>
+              <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'20px 0'}}>Sin datos suficientes para analizar</div>
             )}
           </Card>
 
-          {/* Tareas muy reagendadas */}
+          {/* Tareas que resistís */}
           {(()=>{
             const muyReagendadas = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>=3);
             if(muyReagendadas.length===0) return null;
             return(
               <Card>
                 <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Tareas que resistís</div>
-                <div style={{fontSize:11,color:'#B0AA9F',marginBottom:12}}>Reagendadas 3 o más veces — pueden estar indicando algo</div>
+                <div style={{fontSize:11,color:'#B0AA9F',marginBottom:12}}>Reagendadas 3 o más veces — la resistencia genera cansancio invisible</div>
                 {muyReagendadas.slice(0,5).map(t=>{
                   const proj=projects.find(p=>p.id===t.projectId);
                   return(
                     <div key={t.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #F5F2EE'}}>
-                      <div>
+                      <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:12,color:'#2C2825'}}>{t.title}</div>
                         {proj&&<div style={{fontSize:10,color:'#B0AA9F',marginTop:1}}>{proj.name}</div>}
                       </div>
-                      <span style={{fontSize:10,color:'#C4A882',background:'#FBF8F2',padding:'2px 7px',borderRadius:99,flexShrink:0,marginLeft:8}}>{t.snoozed_count}×</span>
+                      <span style={{fontSize:10,color:'#C4A882',background:'#FBF8F2',padding:'2px 7px',borderRadius:99,flexShrink:0,marginLeft:8}}>{t.snoozed_count}× postergada</span>
                     </div>
                   );
                 })}
+                <div style={{fontSize:11,color:'#B0AA9F',marginTop:12,lineHeight:1.6}}>
+                  Elegí una y terminala ahora, o eliminala. Dejar de patear la piedra libera energía.
+                </div>
+              </Card>
+            );
+          })()}
+
+          {/* Proyectos sin actividad */}
+          {(()=>{
+            const sinActividad = projects.filter(p=>!tasks.some(t=>!t.done&&t.projectId===p.id));
+            const laborales  = sinActividad.filter(p=>p.area==='trabajo');
+            const personales = sinActividad.filter(p=>p.area==='personal');
+            if(sinActividad.length===0) return null;
+            return(
+              <Card>
+                <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Proyectos sin actividad</div>
+                <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Lo que no estás atendiendo también pesa</div>
+                {laborales.length>0&&(
+                  <div style={{marginBottom:12}}>
+                    <div style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#C4312A',marginBottom:6}}>Trabajo — riesgo</div>
+                    {laborales.map(p=>(
+                      <div key={p.id} style={{fontSize:12,color:'#2C2825',padding:'4px 0',borderBottom:'1px solid #F5F2EE'}}>{p.name}</div>
+                    ))}
+                  </div>
+                )}
+                {personales.length>0&&(
+                  <div>
+                    <div style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#C4A882',marginBottom:6}}>Personal — frustración</div>
+                    {personales.map(p=>(
+                      <div key={p.id} style={{fontSize:12,color:'#2C2825',padding:'4px 0',borderBottom:'1px solid #F5F2EE'}}>{p.name}</div>
+                    ))}
+                  </div>
+                )}
               </Card>
             );
           })()}
