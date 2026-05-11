@@ -1118,37 +1118,37 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
       deuda: {
         green:  { validacion: null, titulo: 'Tenés algunas tareas vencidas, pero está bajo control.', consejo: 'Antes de que se acumulen más, dedicá unos minutos a resolver las más simples o reagendar las que no podés hacer esta semana. La deuda chica es fácil de limpiar hoy — difícil de manejar después.', accion: null, accionLabel: null },
         yellow: { validacion: null, titulo: 'La deuda de tareas vencidas está creciendo.', consejo: 'Todavía estás a tiempo de ordenarlo. Elegí las dos más importantes para esta semana y reagendá el resto. Actuar ahora evita que se convierta en una carga real.', accion: 'dia_dificil', accionLabel: 'Abrir modo Día Difícil' },
-        red:    { validacion: 'Es normal sentirse así. La deuda acumulada genera culpa, y la culpa agota más que el trabajo mismo.', titulo: 'Lo que pasó te está pesando más que lo que viene.', consejo: 'No tenés que resolverlo todo hoy — elegí una tarea para hacer ahora y usá el modo Día Difícil para reagendar el resto. Empezar de cero mañana no es rendirse, es inteligente.', accion: 'dia_dificil', accionLabel: 'Abrir modo Día Difícil' },
+        red:    { validacion: null, titulo: 'La deuda acumulada te está pesando — y es normal. La culpa de lo vencido agota más que el trabajo mismo.', consejo: 'No tenés que resolverlo todo hoy — elegí una tarea para hacer ahora y usá el modo Día Difícil para reagendar el resto. Empezar de cero mañana no es rendirse, es inteligente.', accion: 'dia_dificil', accionLabel: 'Abrir modo Día Difícil' },
       },
       friccion: {
         green:  { validacion: null, titulo: 'Algunas tareas las estás pateando, pero no es grave.', consejo: 'Fijate si hay una que podrías resolver rápido. A veces la resistencia desaparece apenas empezás. Si hay alguna que genuinamente no vas a hacer, eliminarla también te da alivio.', accion: null, accionLabel: null },
         yellow: { validacion: null, titulo: 'Hay tareas que estás evitando y están sumando presión.', consejo: 'Cada vez que las postergás, pesan un poco más. Antes de que se conviertan en carga mayor, intentá atacar la más pequeña esta semana. El obstáculo suele ser empezar, no terminar.', accion: null, accionLabel: null },
-        red:    { validacion: 'No estás fallando — esas tareas tienen una fricción alta y eso es agotador.', titulo: 'Hay cosas que venís pateando y que no desaparecen.', consejo: 'La resistencia muchas veces no tiene que ver con flojera, sino con que algo en esa tarea no cierra. Intentá la más pequeña primero. Si genuinamente no podés, delegar o eliminar también es válido.', accion: null, accionLabel: null },
+        red:    { validacion: null, titulo: 'Hay cosas que venís pateando y que no desaparecen — y no es flojera, es que esas tareas tienen una resistencia real.', consejo: 'La fricción muchas veces no tiene que ver con ganas sino con que algo en esa tarea no cierra. Intentá la más pequeña primero. Si genuinamente no podés, delegar o eliminar también es válido.', accion: null, accionLabel: null },
       },
       dispersion: {
         green:  { validacion: null, titulo: `Tenés ${proyectosActivos} proyectos activos — manejable, pero vale ordenar.`, consejo: 'El context switching tiene un costo aunque no lo sientas. Si podés, definí un orden de prioridad para esta semana y trabajá de a uno. Te va a rendir más.', accion: 'foco', accionLabel: 'Activar modo foco' },
         yellow: { validacion: null, titulo: `Con ${proyectosActivos} frentes abiertos, el riesgo de dispersión es real.`, consejo: 'Todavía podés ordenarlo. Asigná bloques de tiempo por proyecto — aunque sea mentalmente. Tu cerebro rinde mejor cuando cada cosa tiene su momento.', accion: 'foco', accionLabel: 'Activar modo foco' },
-        red:    { validacion: 'Es normal sentirse agotado. Saltar de contexto en contexto drena energía aunque todo esté bajo control.', titulo: `Tenés ${proyectosActivos} frentes abiertos y tu cerebro está pagando el costo.`, consejo: 'No podés reducir el trabajo, pero sí organizarlo. Asigná un bloque de 90 minutos para un solo proyecto y bloqueá el resto. El foco es tu única ventaja competitiva cuando la carga es alta.', accion: 'foco', accionLabel: 'Activar modo foco' },
+        red:    { validacion: null, titulo: `Tenés ${proyectosActivos} frentes abiertos. Es normal sentirse agotado — saltar de contexto en contexto drena energía aunque todo esté bajo control.`, consejo: 'No podés reducir el trabajo, pero sí organizarlo. Asigná un bloque de 90 minutos para un solo proyecto y bloqueá el resto. El foco es tu única ventaja competitiva cuando la carga es alta.', accion: 'foco', accionLabel: 'Activar modo foco' },
       },
       latencia_laboral: {
         green:  { validacion: null, titulo: `Tenés ${latenciaLaboral} proyecto${latenciaLaboral!==1?'s':''} de trabajo sin actividad.`, consejo: 'No es urgente, pero vale ponerles una fecha antes de que se olviden. Lo que tiene lugar en el calendario existe — lo que no, se acumula como ruido de fondo.', accion: null, accionLabel: null },
         yellow: { validacion: null, titulo: 'Hay frentes de trabajo sin atención que pueden escalar.', consejo: 'No tenés que resolverlos esta semana, pero sí definir cuándo los vas a tocar. Agendá un bloque para cada uno — aunque sea pequeño. Convertirlos en plan los saca de la zona de amenaza.', accion: null, accionLabel: null },
-        red:    { validacion: 'Tu cerebro sabe que esos frentes van a explotar y esa incertidumbre pesa más que la tarea misma.', titulo: `Tenés ${latenciaLaboral} proyecto${latenciaLaboral!==1?'s':''} de trabajo que no estás tocando.`, consejo: 'No tenés que resolverlos hoy, pero sí asignarles una fecha. Lo que tiene horario asignado deja de ser una amenaza y pasa a ser un plan.', accion: null, accionLabel: null },
+        red:    { validacion: null, titulo: `Tenés ${latenciaLaboral} proyecto${latenciaLaboral!==1?'s':''} de trabajo sin actividad. Tu cerebro sabe que van a explotar — esa incertidumbre pesa más que la tarea misma.`, consejo: 'No tenés que resolverlos hoy, pero sí asignarles una fecha. Lo que tiene horario asignado deja de ser una amenaza y pasa a ser un plan.', accion: null, accionLabel: null },
       },
       latencia_personal: {
         green:  { validacion: null, titulo: 'Tus proyectos personales están en pausa, pero manejable.', consejo: 'Si hay algo de ocio o descanso entre ellos, intentá hacerle un pequeño lugar esta semana. 15 minutos de algo tuyo recarga más de lo que parece.', accion: null, accionLabel: null },
         yellow: { validacion: null, titulo: 'Lo personal lleva tiempo sin atención y eso acumula frustración.', consejo: 'Evaluá cuáles son exigencias y cuáles son descanso. Los de ocio — haceles lugar aunque sea poco. El descanso no es tiempo perdido: es lo que te permite rendir mejor en lo que importa.', accion: null, accionLabel: null },
-        red:    { validacion: 'Postergar lo tuyo hace que sientas que solo vivís para los demás. Es un agotamiento real y válido.', titulo: 'Tus proyectos personales llevan demasiado tiempo esperando.', consejo: 'Preguntate cuáles son exigencias (podés evaluarlas después) y cuáles son ocio o descanso. Haceles lugar hoy, aunque sea 15 minutos. El descanso no es lujo — es combustible.', accion: null, accionLabel: null },
+        red:    { validacion: null, titulo: 'Tus proyectos personales llevan demasiado tiempo esperando. Postergar lo tuyo hace que sientas que solo vivís para los demás.', consejo: 'Preguntate cuáles son exigencias (podés evaluarlas después) y cuáles son ocio o descanso. Haceles lugar hoy, aunque sea 15 minutos. El descanso no es lujo — es combustible.', accion: null, accionLabel: null },
       },
       latencia_mixta: {
         green:  { validacion: null, titulo: 'Tenés varios proyectos sin actividad — vale la pena revisarlos.', consejo: 'Para los laborales, poneles una fecha. Para los personales, evaluá si son el momento o si podés darte un rato de descanso genuino. Menos frentes mentales abiertos es más claridad.', accion: null, accionLabel: null },
         yellow: { validacion: null, titulo: 'Muchos proyectos sin actividad generan presión silenciosa.', consejo: 'Tu cabeza los registra aunque no los estés pensando. Para los laborales: agendá cuándo los vas a atender. Para los personales: si hay ocio entre ellos, hacele un espacio.', accion: null, accionLabel: null },
-        red:    { validacion: 'Tu cabeza está registrando todo lo que no estás haciendo. Esa presión invisible es real.', titulo: 'Tenés demasiadas promesas abiertas sin actividad.', consejo: 'Para los laborales: ponerles fecha los convierte en plan. Para los personales: los de ocio necesitan espacio — te reponen. Los que son puras exigencias, evaluá si son para ahora.', accion: null, accionLabel: null },
+        red:    { validacion: null, titulo: 'Tenés demasiadas promesas abiertas sin actividad. Tu cabeza las registra aunque no las estés pensando conscientemente — esa presión invisible es real.', consejo: 'Para los laborales: ponerles fecha los convierte en plan. Para los personales: los de ocio necesitan espacio — te reponen. Los que son puras exigencias, evaluá si son para ahora.', accion: null, accionLabel: null },
       },
       alta_general: {
         green:  { validacion: null, titulo: 'La carga está distribuida y manejable.', consejo: 'Estás manejando bien varios frentes. Para sostenerlo, definí prioridades claras para esta semana — asegurate de avanzar en lo más importante primero.', accion: null, accionLabel: null },
         yellow: { validacion: null, titulo: 'La presión viene de varios lados y puede escalar.', consejo: 'Todavía estás a tiempo de ordenarlo. Definí bloques: uno para lo urgente, uno para lo estratégico, uno para vos. La clave no es trabajar más — es distribuir mejor la energía.', accion: null, accionLabel: null },
-        red:    { validacion: 'Es normal sentirse así. No hay un solo culpable — es la acumulación de muchas cosas a la vez.', titulo: 'La presión viene de varios frentes simultáneamente.', consejo: 'No podés resolver todo, pero sí elegir una sola cosa para hacer bien hoy. Definí bloques: urgente, estratégico, y uno para vos. Avanzar aunque sea en algo pequeño cambia el estado mental.', accion: null, accionLabel: null },
+        red:    { validacion: null, titulo: 'La presión viene de varios frentes a la vez — es normal sentirse así. No hay un solo culpable, es la acumulación.', consejo: 'No podés resolver todo, pero sí elegir una sola cosa para hacer bien hoy. Definí bloques: urgente, estratégico, y uno para vos. Avanzar aunque sea en algo pequeño cambia el estado mental.', accion: null, accionLabel: null },
       },
       ok: {
         green:  { validacion: null, titulo: 'Tu carga mental está en buen nivel.', consejo: 'Estás exigido pero bajo control — y eso no es poco. Aprovechá para avanzar en algo estratégico o para descansar bien. El equilibrio no es la ausencia de trabajo, es saber cuándo parar.', accion: null, accionLabel: null },
@@ -1416,21 +1416,27 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
             if(sinActividad.length===0) return null;
             return(
               <Card>
-                <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Proyectos sin actividad</div>
-                <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Lo que no estás atendiendo también pesa</div>
+                <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Lo que no estás atendiendo</div>
+                <div style={{fontSize:11,color:'#B0AA9F',marginBottom:16}}>Proyectos sin ninguna tarea activa — también generan presión aunque no los estés pensando</div>
                 {laborales.length>0&&(
-                  <div style={{marginBottom:12}}>
-                    <div style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#C4312A',marginBottom:6}}>Trabajo — riesgo</div>
-                    {laborales.map(p=>(
-                      <div key={p.id} style={{fontSize:12,color:'#2C2825',padding:'4px 0',borderBottom:'1px solid #F5F2EE'}}>{p.name}</div>
+                  <div style={{marginBottom:14}}>
+                    <div style={{fontSize:11,color:'#9B8878',fontWeight:500,marginBottom:8}}>Trabajo</div>
+                    {laborales.map((p,i)=>(
+                      <div key={p.id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:i<laborales.length-1?'1px solid #F5F2EE':'none'}}>
+                        <div style={{width:4,height:4,borderRadius:'50%',background:'#C4A882',flexShrink:0}}/>
+                        <span style={{fontSize:12,color:'#2C2825'}}>{p.name}</span>
+                      </div>
                     ))}
                   </div>
                 )}
                 {personales.length>0&&(
                   <div>
-                    <div style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#C4A882',marginBottom:6}}>Personal — frustración</div>
-                    {personales.map(p=>(
-                      <div key={p.id} style={{fontSize:12,color:'#2C2825',padding:'4px 0',borderBottom:'1px solid #F5F2EE'}}>{p.name}</div>
+                    <div style={{fontSize:11,color:'#9B8878',fontWeight:500,marginBottom:8}}>Personal</div>
+                    {personales.map((p,i)=>(
+                      <div key={p.id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 0',borderBottom:i<personales.length-1?'1px solid #F5F2EE':'none'}}>
+                        <div style={{width:4,height:4,borderRadius:'50%',background:'#C4A882',flexShrink:0}}/>
+                        <span style={{fontSize:12,color:'#2C2825'}}>{p.name}</span>
+                      </div>
                     ))}
                   </div>
                 )}
