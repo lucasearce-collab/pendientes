@@ -1300,42 +1300,22 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0}){
         <div>
           {/* Indicador de presión total */}
           <Card>
-            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16}}>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14}}>
               <div>
                 <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Presión actual</div>
-                <div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>Ejecución · Fricción · Latencia</div>
+                <div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>Análisis de carga cognitiva</div>
               </div>
-              <div style={{display:'flex',alignItems:'baseline',gap:4}}>
-                <span style={{fontSize:28,fontWeight:300,color:!cogLoad?'#C8C3BB':cogLoad.status==='green'?'#3B6D11':cogLoad.status==='yellow'?'#8B6914':'#C4312A',lineHeight:1}}>{cogLoad?cogLoad.score:'—'}</span>
-                {cogLoad&&<span style={{fontSize:11,color:'#C8C3BB'}}>/100</span>}
-              </div>
+              {cogLoad&&<StatusBadge status={cogLoad.status} label={cogLoad.status==='green'?'Saludable':cogLoad.status==='yellow'?'Elevada':'Crítica'}/>}
             </div>
             {cogLoad?(
               <>
-                <div style={{height:8,background:'#EAE6E0',borderRadius:99,marginBottom:14,overflow:'hidden'}}>
+                <div style={{height:8,background:'#EAE6E0',borderRadius:99,marginBottom:20,overflow:'hidden'}}>
                   <div style={{height:'100%',width:cogLoad.score+'%',background:cogLoad.status==='green'?'#8FAF8A':cogLoad.status==='yellow'?'#C4A882':'#C4312A',borderRadius:99,transition:'width .6s cubic-bezier(.34,1,.64,1)'}}/>
                 </div>
-                {/* Diagnóstico */}
-                <div style={{background:'#FAFAF8',borderRadius:10,padding:'12px 14px',marginBottom:16,border:'1px solid #EAE6E0'}}>
-                  <div style={{fontSize:13,color:'#2C2825',fontWeight:500,marginBottom:4}}>{cogLoad.titulo}</div>
-                  <div style={{fontSize:12,color:'#B0AA9F',lineHeight:1.65}}>{cogLoad.consejo}</div>
-                </div>
-                {/* Desglose de fuentes */}
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-                  {[
-                    {label:'Vencidas',val:cogLoad.breakdown.vencidas,color:'#C4312A',hint:'Deuda'},
-                    {label:'Para hoy',val:cogLoad.breakdown.paraHoy,color:'#C4A882',hint:'Demanda'},
-                    {label:'Frentes activos',val:cogLoad.breakdown.proyectosActivos,color:'#5B6BAF',hint:'Dispersión'},
-                    {label:'Postergación',val:cogLoad.breakdown.promedioSnooze+'×',color:'#9B8878',hint:'Fricción'},
-                    {label:'Sin actividad trabajo',val:cogLoad.breakdown.latenciaLaboral,color:'#C4312A',hint:'Riesgo'},
-                    {label:'Sin actividad personal',val:cogLoad.breakdown.latenciaPersonal,color:'#C4A882',hint:'Frustración'},
-                  ].map(item=>(
-                    <div key={item.label} style={{background:'#FAFAF8',borderRadius:10,padding:'10px 10px',border:'1px solid #EAE6E0'}}>
-                      <div style={{fontSize:16,fontWeight:300,color:item.val>0||item.val!=='0×'?item.color:'#C8C3BB',lineHeight:1}}>{item.val}</div>
-                      <div style={{fontSize:9,color:'#C8C3BB',marginTop:3,lineHeight:1.3}}>{item.label}</div>
-                      <div style={{fontSize:8,color:'#D5CFC8',marginTop:1,letterSpacing:'.04em',textTransform:'uppercase'}}>{item.hint}</div>
-                    </div>
-                  ))}
+                <div style={{fontSize:14,fontWeight:400,color:'#2C2825',lineHeight:1.5,marginBottom:12}}>{cogLoad.titulo}</div>
+                <div style={{background:'#FAFAF8',borderRadius:10,padding:'12px 14px',border:'1px solid #EAE6E0'}}>
+                  <div style={{fontSize:11,fontWeight:500,letterSpacing:'.06em',textTransform:'uppercase',color:'#C4A882',marginBottom:6}}>Qué hacer</div>
+                  <div style={{fontSize:13,color:'#2C2825',lineHeight:1.65}}>{cogLoad.consejo}</div>
                 </div>
               </>
             ):(
