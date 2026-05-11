@@ -524,7 +524,16 @@ export default function App() {
     const sec = SECTIONS.find(s => s.id === sectionId);
     if (!sec) return;
     setSection(sectionId);
-    setSubView(sec.subTabs[0].id);
+    // Leer orden guardado de localStorage para tener el valor más reciente
+    let firstTab = sec.subTabs[0].id;
+    try{
+      const saved = JSON.parse(localStorage.getItem('clarity_subtab_orders')||'{}');
+      const order = saved[sectionId];
+      if(order && order.length>0 && sec.subTabs.find(t=>t.id===order[0])){
+        firstTab = order[0];
+      }
+    }catch{}
+    setSubView(firstTab);
     setActiveProjId(null);
   }
 
