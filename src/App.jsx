@@ -158,6 +158,11 @@ function TypeDot({ type, done }) {
   if (!t.color) return null;
   return <div style={{width:t.size,height:t.size,borderRadius:"50%",background:done?"#C8C3BB":t.color,flexShrink:0,boxShadow:(!done&&t.ring)?`0 0 0 2px white, 0 0 0 3.5px ${t.color}`:"none"}}/>;
 }
+function RecurrenceBadge({type}){
+  if(!type) return null;
+  const label = type==='daily'?'↻ diaria':type==='weekly'?'↻ semanal':'↻ mensual';
+  return <span style={{fontFamily:"'DM Sans'",fontSize:9,color:"#C4A882",background:"#FBF8F2",padding:"1px 5px",borderRadius:99,flexShrink:0}}>{label}</span>;
+}
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 function LoginScreen() {
