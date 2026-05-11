@@ -1241,7 +1241,7 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
       {tab==='rendimiento'&&(
         <div>
 
-          {/* Barras semanales */}
+          {/* Barras semanales — altura en px, no en % */}
           <Card>
             <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:20}}>
               <div>
@@ -1253,16 +1253,16 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
                 <div style={{fontSize:10,color:'#B0AA9F',marginTop:2}}>esta semana</div>
               </div>
             </div>
-            <div style={{display:'flex',alignItems:'flex-end',gap:6,height:90,marginBottom:8}}>
+            <div style={{display:'flex',alignItems:'flex-end',gap:6,marginBottom:8}}>
               {completedByDay.map((count,i)=>{
-                const pct=(count/maxDay)*100;
-                const isToday=weekDays[i]===today;
+                const BAR_MAX = 80; // px
+                const barH = maxDay>0 ? Math.max(Math.round((count/maxDay)*BAR_MAX), count>0?6:3) : 3;
+                const isToday = weekDays[i]===today;
                 return(
                   <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:5}}>
-                    <div style={{flex:1,display:'flex',alignItems:'flex-end',width:'100%'}}>
-                      <div style={{width:'100%',borderRadius:'5px 5px 0 0',height:Math.max(pct,3)+'%',background:isToday?'#2C2825':count>0?'#C4B5A5':'#EAE6E0',position:'relative',transition:'height .4s'}}>
-                        {count>0&&<span style={{position:'absolute',top:-16,left:'50%',transform:'translateX(-50%)',fontSize:10,color:isToday?'#2C2825':'#9B8878',fontWeight:500,whiteSpace:'nowrap'}}>{count}</span>}
-                      </div>
+                    <div style={{position:'relative',width:'100%',display:'flex',justifyContent:'center'}}>
+                      {count>0&&<span style={{position:'absolute',top:-16,fontSize:10,color:isToday?'#2C2825':'#9B8878',fontWeight:500}}>{count}</span>}
+                      <div style={{width:'100%',height:barH+'px',borderRadius:'5px 5px 0 0',background:isToday?'#2C2825':count>0?'#C4B5A5':'#EAE6E0',transition:'height .4s'}}/>
                     </div>
                     <span style={{fontSize:9,color:isToday?'#2C2825':'#C8C3BB',fontWeight:isToday?500:400,letterSpacing:'.04em'}}>{DAY_LABELS[i]}</span>
                   </div>
@@ -1271,30 +1271,23 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
             </div>
           </Card>
 
-          {/* Mapa de calor de horas */}
+          {/* Mapa de calor de horas — grilla de celdas */}
           {hasHourData&&(
             <Card>
               <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Ventanas de claridad</div>
               <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Horas del día donde más completás — tu pico es <strong style={{color:'#9B8878',fontWeight:500}}>{peakLabel}</strong></div>
-              <div style={{display:'flex',gap:2,alignItems:'flex-end',height:48}}>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(24,1fr)',gap:3,marginBottom:8}}>
                 {hourCounts.map((count,h)=>{
                   const pct = count/maxHour;
                   const isPeak = h===peakHour;
-                  if(count===0&&(h<6||h>22)) return <div key={h} style={{flex:1}}/>;
+                  const bg = isPeak?'#2C2825':pct>=0.7?'#9B8878':pct>=0.4?'#C4B5A5':pct>=0.1?'#E5E0DA':'#F5F2EE';
                   return(
-                    <div key={h} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center'}}>
-                      <div style={{
-                        width:'100%',
-                        height:Math.max(pct*44,count>0?3:0)+'px',
-                        borderRadius:'3px 3px 0 0',
-                        background:isPeak?'#2C2825':pct>0.6?'#9B8878':pct>0.3?'#C4B5A5':'#EAE6E0',
-                        transition:'height .4s'
-                      }}/>
-                    </div>
+                    <div key={h} title={`${h}:00 — ${count} tarea${count!==1?'s':''}`}
+                      style={{height:28,borderRadius:4,background:bg,transition:'background .3s',cursor:'default'}}/>
                   );
                 })}
               </div>
-              <div style={{display:'flex',justifyContent:'space-between',marginTop:6}}>
+              <div style={{display:'flex',justifyContent:'space-between'}}>
                 {['12am','6am','12pm','6pm','11pm'].map(l=>(
                   <span key={l} style={{fontSize:9,color:'#D5CFC8'}}>{l}</span>
                 ))}
