@@ -141,8 +141,17 @@ const fmtDate = (d) => {
 
 const projToDb  = (p,uid) => ({ id:p.id, area:p.area, name:p.name, monto:p.monto||"", importance:p.importance||"normal", description:p.description||"", main_goal:p.mainGoal||"", secondary_goals:p.secondaryGoals||[], goal_id:p.goal_id||null, goal_ids:p.goal_ids||[], sort_order:p.sortOrder||0, user_id:uid });
 const projFromDb = r => { const goalIds = (r.goal_ids&&r.goal_ids.length>0) ? r.goal_ids : (r.goal_id ? [r.goal_id] : []); return { id:r.id, area:r.area, name:r.name, monto:r.monto||"", importance:r.importance||"normal", description:r.description||"", mainGoal:r.main_goal||"", secondaryGoals:r.secondary_goals||[], goal_id:goalIds[0]||null, goal_ids:goalIds, sortOrder:r.sort_order||0 }; };
-const taskToDb  = (t,uid) => ({ id:t.id, project_id:t.projectId, title:t.title, type:t.type||"normal", date:t.date||"", responsable:t.responsable||"", notes:t.notes||"", done:t.done||false, sort_order:t.sortOrder||0, user_id:uid, completed_at:t.completed_at||null, snoozed_count:t.snoozed_count||0 });
-const taskFromDb = r => ({ id:r.id, projectId:r.project_id, title:r.title, type:r.type||"normal", date:r.date||"", responsable:r.responsable||"", notes:r.notes||"", done:r.done||false, sortOrder:r.sort_order||0, completed_at:r.completed_at||null, snoozed_count:r.snoozed_count||0 });
+// Calcula la próxima fecha para una tarea recurrente
+function calcNextRecurrence(dateStr, type){
+  const d = new Date(dateStr + 'T12:00:00');
+  if(type==='daily')   d.setDate(d.getDate()+1);
+  if(type==='weekly')  d.setDate(d.getDate()+7);
+  if(type==='monthly') d.setMonth(d.getMonth()+1);
+  return localDate(d);
+}
+
+const taskToDb  = (t,uid) => ({ id:t.id, project_id:t.projectId, title:t.title, type:t.type||"normal", date:t.date||"", responsable:t.responsable||"", notes:t.notes||"", done:t.done||false, sort_order:t.sortOrder||0, user_id:uid, completed_at:t.completed_at||null, snoozed_count:t.snoozed_count||0, recurrence_type:t.recurrence_type||null, recurrence_id:t.recurrence_id||null });
+const taskFromDb = r => ({ id:r.id, projectId:r.project_id, title:r.title, type:r.type||"normal", date:r.date||"", responsable:r.responsable||"", notes:r.notes||"", done:r.done||false, sortOrder:r.sort_order||0, completed_at:r.completed_at||null, snoozed_count:r.snoozed_count||0, recurrence_type:r.recurrence_type||null, recurrence_id:r.recurrence_id||null });
 
 function TypeDot({ type, done }) {
   const t = TASK_TYPE[type||"normal"];
@@ -370,6 +379,28 @@ export default function App() {
       setCelebrate(cel);
       setTimeout(()=>setCelebrate(null),2200);
       trackEvent("task_completed",id,"task",{type:task.type||"normal",projectId:task.projectId});
+      // Si es recurrente, crear la siguiente instancia
+      if(task.recurrence_type && task.date){
+        const nextDate = calcNextRecurrence(task.date, task.recurrence_type);
+        const recId = task.recurrence_id || task.id; // grupo de recurrencia
+        const nextTask = {
+          id: 't'+Date.now()+'r',
+          projectId: task.projectId,
+          title: task.title,
+          type: task.type||'normal',
+          date: nextDate,
+          responsable: task.responsable||'',
+          notes: task.notes||'',
+          done: false,
+          sortOrder: 0,
+          snoozed_count: 0,
+          completed_at: null,
+          recurrence_type: task.recurrence_type,
+          recurrence_id: recId,
+        };
+        setTasks(ts=>[nextTask,...ts]);
+        await safeUpsert("tasks", taskToDb(nextTask, uid));
+      }
     }
     await safeUpsert("tasks",taskToDb(u,uid));
   }
@@ -1068,9 +1099,12 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
     const scoreEjecucion = (vencidas*10) + (paraHoy*3) + (promedioSnooze*5) + (proyectosActivos*7);
 
     // ── 2. PRESIÓN DE LATENCIA (proyectos sin tareas pendientes) ──
-    const proyectosSinTareas = projects.filter(p=>
-      !pendientes.some(t=>t.projectId===p.id)
-    );
+    const hace15d = Date.now() - 15*24*60*60*1000;
+    const proyectosSinTareas = projects.filter(p=>{
+      const tienePendiente = pendientes.some(t=>t.projectId===p.id);
+      const tieneReciente  = tasks.some(t=>t.done&&t.projectId===p.id&&t.completed_at&&new Date(t.completed_at).getTime()>hace15d);
+      return !tienePendiente && !tieneReciente;
+    });
     const latenciaPersonal = proyectosSinTareas.filter(p=>p.area==='personal').length;
     const latenciaLaboral  = proyectosSinTareas.filter(p=>p.area==='trabajo').length;
     const scoreLatencia = (latenciaPersonal*4) + (latenciaLaboral*8);
@@ -1403,7 +1437,12 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
 
           {/* Proyectos sin actividad */}
           {(()=>{
-            const sinActividad = projects.filter(p=>!tasks.some(t=>!t.done&&t.projectId===p.id));
+            const hace15dias = Date.now() - 15*24*60*60*1000;
+            const sinActividad = projects.filter(p=>{
+              const tienePendiente = tasks.some(t=>!t.done&&t.projectId===p.id);
+              const tieneReciente  = tasks.some(t=>t.done&&t.projectId===p.id&&t.completed_at&&new Date(t.completed_at).getTime()>hace15dias);
+              return !tienePendiente && !tieneReciente;
+            });
             const laborales  = sinActividad.filter(p=>p.area==='trabajo');
             const personales = sinActividad.filter(p=>p.area==='personal');
             if(sinActividad.length===0) return null;
@@ -2461,6 +2500,7 @@ function TaskRows({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorder
                   {proj&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C",fontWeight:500}}>{proj.name}</span>}
                   {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:overdue?"#C4896A":"#9B948C"}}>{fmtDate(task.date)}</span>}
                   {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A",fontWeight:500}}>→ {task.responsable}</span>}
+                  <RecurrenceBadge type={task.recurrence_type}/>
                 </div>
               </div>
               <TypeDot type={task.type} done={task.done}/>
@@ -2613,6 +2653,17 @@ function EditSheet({task,projects,onSave,onDelete,isDesktop}){
       </div>
     </div>
     <textarea className="si" rows={3} placeholder="Notas..." value={form.notes||""} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{resize:"none",fontFamily:"'DM Sans'",fontSize:14}}/>
+    {/* Toggle repetición en edición */}
+    <div style={{marginBottom:14}}>
+      <span className="sl">Repetir</span>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[{l:"No",v:null},{l:"Cada día",v:"daily"},{l:"Cada semana",v:"weekly"},{l:"Cada mes",v:"monthly"}].map(op=>(
+          <button key={String(op.v)} onClick={()=>setForm(f=>({...f,recurrence_type:op.v||null}))}
+            className={`dc${(form.recurrence_type||null)===op.v?" on":""}`}>{op.l}</button>
+        ))}
+      </div>
+      {form.recurrence_type&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",marginTop:6}}>Al completar, la siguiente aparecerá automáticamente.</div>}
+    </div>
     <button className="sv" onClick={()=>onSave(form)}>Guardar</button>
     <button onClick={onDelete} style={{width:"100%",background:"none",border:"none",color:"#C4A89A",fontFamily:"'DM Sans'",fontSize:14,padding:"14px 0 0",cursor:"pointer"}}>Eliminar tarea</button>
   </div>);
@@ -2623,12 +2674,13 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[],sh
   const [type,setType]=useState("normal");
   const [date,setDate]=useState(initialDate||"");
   const [responsable,setResponsable]=useState("");
+  const [recurrence,setRecurrence]=useState(null); // null | 'daily' | 'weekly' | 'monthly'
   const [selProjId,setSelProjId]=useState(projectId||null);
   const [projOpen,setProjOpen]=useState(false);
   const cls=isDesktop?"d-modal":"sheet";
   const areaProjects = projects.filter(p=>p.area===area);
   const selProj = areaProjects.find(p=>p.id===selProjId);
-  function go(){if(!title.trim())return;onAdd({projectId:selProjId,title:title.trim(),type,date,responsable});}
+  function go(){if(!title.trim())return;onAdd({projectId:selProjId,title:title.trim(),type,date,responsable,recurrence_type:recurrence});}
   return(<div className={cls}>
     {!isDesktop&&<div className="hd"/>}
     <span className="sl">{selProj?selProj.name:projectName||"Nueva tarea"}</span>
