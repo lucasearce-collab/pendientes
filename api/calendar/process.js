@@ -29,10 +29,10 @@ async function getEvents(accessToken) {
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   const data = await res.json();
-  return (data.items || []).filter(e => e.start?.dateTime); // solo eventos con hora, no días completos
+  return (data.items || []).filter(e => e.start?.dateTime);
 }
 
-async function processEventWithGemini(event) {
+async function processEventWithGroq(event) {
   const title = event.summary || 'Sin título';
   const start = event.start.dateTime;
   const end = event.end?.dateTime;
@@ -40,7 +40,6 @@ async function processEventWithGemini(event) {
 
   if (duration < 20) return [];
 
-  // Calcular fecha pre (día anterior) y post (día siguiente)
   const eventDate = new Date(start);
   const preDate = new Date(eventDate); preDate.setDate(preDate.getDate() - 1);
   const postDate = new Date(eventDate); postDate.setDate(postDate.getDate() + 1);
@@ -57,22 +56,25 @@ Devolvé SOLO un JSON válido sin markdown ni texto extra:
 
 Reglas:
 - Máximo 2 tareas (una pre y una post si aplica)
-- Si es reunión personal/social sin contexto laboral claro: {"tareas":[]}
-- El título debe ser específico: no "Preparar reunión" sino "Preparar agenda y KPIs para ${title}"`;
+- Si es reunión personal o social sin contexto laboral: {"tareas":[]}
+- El título debe ser específico, no genérico`;
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 500 },
-      }),
-    }
-  );
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      max_tokens: 500,
+    }),
+  });
+
   const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{"tareas":[]}';
+  const text = data.choices?.[0]?.message?.content || '{"tareas":[]}';
 
   try {
     const clean = text.replace(/```json|```/g, '').trim();
@@ -108,7 +110,6 @@ export default async function handler(req, res) {
         const events = await getEvents(accessToken);
 
         for (const event of events) {
-          // Evitar duplicados
           const { data: existing } = await supabase
             .from('calendar_suggestions')
             .select('id')
@@ -118,7 +119,7 @@ export default async function handler(req, res) {
 
           if (existing?.length > 0) continue;
 
-          const tareas = await processEventWithGemini(event);
+          const tareas = await processEventWithGroq(event);
 
           for (const tarea of tareas) {
             await supabase.from('calendar_suggestions').insert({
