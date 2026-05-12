@@ -3593,8 +3593,8 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   const [procesandoVoz, setProcesandoVoz] = useState(false);
   const [tareasVoz, setTareasVoz] = useState([]);
   const [transcriptVoz, setTranscriptVoz] = useState('');
-  const mediaRecorderRef = React.useRef(null);
-  const chunksRef = React.useRef([]);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
 
   async function iniciarGrabacion(){
     try{
