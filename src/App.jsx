@@ -3551,9 +3551,40 @@ function ErrorToast({message,onDismiss}){
   );
 }
 
-function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop,onVerSemana,onUpdateTask}){
+function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop,onVerSemana,onUpdateTask,userId,supabase,onAddTask}){
   const today = todayStr();
   const todayTasks = (tasks||[]).filter(t=>!t.done&&t.date===today).sort(taskSort);
+
+  // Sugerencias del agente de calendar
+  const [sugerencias, setSugerencias] = useState([]);
+  useEffect(()=>{
+    if(!userId||!supabase) return;
+    supabase.from('calendar_suggestions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status','pending')
+      .order('created_at',{ascending:false})
+      .then(({data})=>{ if(data) setSugerencias(data); });
+  },[userId]);
+
+  async function aceptarSugerencia(s){
+    // Crear la tarea en Clarity
+    if(onAddTask) onAddTask({
+      title: s.task_title,
+      date: s.suggested_date,
+      projectId: null,
+      type: 'normal',
+      notes: `Sugerido por el agente — ${s.event_title}`,
+    });
+    // Marcar como aceptada
+    await supabase.from('calendar_suggestions').update({status:'accepted'}).eq('id',s.id);
+    setSugerencias(sg=>sg.filter(x=>x.id!==s.id));
+  }
+
+  async function descartarSugerencia(s){
+    await supabase.from('calendar_suggestions').update({status:'dismissed'}).eq('id',s.id);
+    setSugerencias(sg=>sg.filter(x=>x.id!==s.id));
+  }
 
   const [diaDificil, setDiaDificil] = useState(false);
   const [seleccionadas, setSeleccionadas] = useState(new Set());
@@ -3713,6 +3744,23 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         )}
       </div>
       <ToastReagendado/>
+      {sugerencias.length>0&&(
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:11,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',marginBottom:10}}>Tu agenda sugiere</div>
+          {sugerencias.map(s=>(
+            <div key={s.id} style={{background:'white',borderRadius:12,border:'1px solid #EAE6E0',padding:'12px 14px',marginBottom:8,display:'flex',alignItems:'flex-start',gap:10}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,color:'#2C2825',marginBottom:3}}>{s.task_title}</div>
+                <div style={{fontSize:10,color:'#B0AA9F'}}>{s.momento==='pre'?'Antes de':'Después de'} {s.event_title}{s.suggested_date&&<span> · {s.suggested_date}</span>}</div>
+              </div>
+              <div style={{display:'flex',gap:6,flexShrink:0}}>
+                <button onClick={()=>aceptarSugerencia(s)} style={{background:'#2C2825',color:'white',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>+ Agregar</button>
+                <button onClick={()=>descartarSugerencia(s)} style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,padding:'5px 8px',fontSize:11,cursor:'pointer',fontFamily:"'DM Sans'"}}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <div style={{display:"flex",gap:48,alignItems:"flex-start"}}>
         <div style={{flex:1,minWidth:0}}>
           <SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/>
@@ -3746,6 +3794,23 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         )}
       </div>
       <ToastReagendado/>
+      {sugerencias.length>0&&(
+        <div style={{padding:'0 16px',marginBottom:8}}>
+          <div style={{fontSize:11,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',margin:'12px 0 8px'}}>Tu agenda sugiere</div>
+          {sugerencias.map(s=>(
+            <div key={s.id} style={{background:'white',borderRadius:12,border:'1px solid #EAE6E0',padding:'12px 14px',marginBottom:8,display:'flex',alignItems:'flex-start',gap:10}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,color:'#2C2825',marginBottom:3}}>{s.task_title}</div>
+                <div style={{fontSize:10,color:'#B0AA9F'}}>{s.momento==='pre'?'Antes de':'Después de'} {s.event_title}{s.suggested_date&&<span> · {s.suggested_date}</span>}</div>
+              </div>
+              <div style={{display:'flex',gap:6,flexShrink:0}}>
+                <button onClick={()=>aceptarSugerencia(s)} style={{background:'#2C2825',color:'white',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>+ Agregar</button>
+                <button onClick={()=>descartarSugerencia(s)} style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,padding:'5px 8px',fontSize:11,cursor:'pointer',fontFamily:"'DM Sans'"}}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {todayTasks.length>0&&<><SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/><TaskList tasks={todayTasks}/></>}
       {overdueWork.length>0&&<><SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/><TaskList tasks={overdueWork} overdue/></>}
       <ModalDiaDificil/>
@@ -4379,7 +4444,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
              <FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop={desktop}/>
            </div>
           :<div style={desktop?{padding:"24px 48px"}:{}}>
-             <HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop} onVerSemana={()=>setSemanaModal(true)} onUpdateTask={updateTask}/>
+             <HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop} onVerSemana={()=>setSemanaModal(true)} onUpdateTask={updateTask} userId={uid} supabase={supabase} onAddTask={t=>addTask(t.projectId,t)}/>
            </div>
       )}
 
