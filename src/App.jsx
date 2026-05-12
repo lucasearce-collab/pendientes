@@ -315,7 +315,7 @@ export default function App() {
       setTasks(userTasks);
       setGoals(userGoals);
       setLoading(false);
-      loadPoints(session.user.id);
+      await loadPoints(session.user.id);
       // Load rescheduled count for analytics
       supabase.from('events').select('id',{count:'exact'}).eq('user_id',session.user.id).eq('event_type','task_rescheduled').then(({count})=>setRescheduledCount(count||0));
       // Mostrar onboarding si el usuario nunca aceptó los términos
@@ -1767,6 +1767,364 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
 }
 
 
+// ─── Onboarding Flow ──────────────────────────────────────────────────────────
+function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
+  const [step, setStep] = useState(0);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [data, setData] = useState({largo:[], medio:[], anio:[], proyectos:[]});
+  const [input, setInput] = useState('');
+  const [selectedMetaId, setSelectedMetaId] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const COLORS = {largo:'#5B6BAF', medio:'#8A8EA8', anio:'#9B8878', proyecto:'#8FAF8A'};
+
+  const STEPS = [
+    {type:'terms'},
+    {type:'intro'},
+    {type:'done'},
+  ];
+
+  async function finish(){
+    setSaving(true);
+    await supabase.from('user_profiles').upsert({id:uid, terms_accepted:true, terms_accepted_at:new Date().toISOString()});
+    onComplete([], []);
+  }
+
+  function addItem(horizon){
+    if(!input.trim()) return;
+    setData(d=>({...d, [horizon]:[...d[horizon], input.trim()]}));
+    setInput('');
+  }
+
+  function removeItem(horizon, i){
+    setData(d=>({...d, [horizon]:d[horizon].filter((_,j)=>j!==i)}));
+  }
+
+  function addProyecto(){
+    if(!input.trim()) return;
+    const metaTitle = selectedMetaId!==null && data.anio[selectedMetaId] ? data.anio[selectedMetaId] : null;
+    setData(d=>({...d, proyectos:[...d.proyectos, {name:input.trim(), metaId:selectedMetaId, metaTitle}]}));
+    setInput('');
+  }
+
+  function removeProyecto(i){
+    setData(d=>({...d, proyectos:d.proyectos.filter((_,j)=>j!==i)}));
+  }
+
+  const s = STEPS[step];
+  const bg = '#F5F2EE';
+  const pct = step<=1?0:step===STEPS.length-1?100:Math.round(((step-1)/totalSteps)*100);
+
+  // ── TERMS ──
+  if(s.type==='terms') return(
+    <div style={{minHeight:'100vh',background:'#EAE6E0',display:'flex',alignItems:isDesktop?'center':'flex-start',justifyContent:'center',fontFamily:"'DM Sans',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#EAE6E0!important;overflow:auto!important;}`}</style>
+      <div style={{width:'100%',maxWidth:420,background:bg,borderRadius:isDesktop?20:0,minHeight:isDesktop?'auto':'100vh',display:'flex',flexDirection:'column',boxShadow:isDesktop?'0 8px 40px rgba(0,0,0,.12)':'none',padding:isDesktop?'0 0 8px':'0'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+        <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+      </div>
+      <div style={{flex:1,padding:'32px 24px 0'}}>
+        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+          <div style={{width:7,height:7,borderRadius:'50%',background:'#9B8878'}}/>
+          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#9B8878'}}>Antes de empezar</span>
+        </div>
+        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Términos de uso</div>
+        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:20}}>Clarity es una herramienta de gestión personal. Al continuar aceptás las siguientes condiciones.</div>
+        <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:20,marginBottom:16,maxHeight:200,overflowY:'auto'}}>
+          {[
+            {title:'Propiedad intelectual', text:'Clarity, su diseño, nombre, sistema de niveles y toda la propiedad intelectual asociada pertenecen exclusivamente a su creador. Está prohibida su reproducción, copia o distribución sin autorización expresa.'},
+            {title:'Tus datos', text:'Tus metas, proyectos y tareas son privados. Nunca los compartiremos con terceros ni los utilizaremos con fines comerciales.'},
+            {title:'Versión Beta', text:'Clarity está en desarrollo activo. Podés encontrar bugs o cambios. Agradecemos tu feedback para mejorar la app.'},
+            {title:'Uso personal', text:'Esta versión beta es de uso personal y no comercial. El acceso puede ser revocado en cualquier momento durante el período beta.'},
+          ].map(({title,text})=>(
+            <div key={title} style={{marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:500,color:'#9B8878',marginBottom:6}}>{title}</div>
+              <div style={{fontSize:12,color:'#B0AA9F',lineHeight:1.7}}>{text}</div>
+            </div>
+          ))}
+        </div>
+        <div onClick={()=>setTermsAccepted(a=>!a)}
+          style={{display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer',padding:16,background:'white',borderRadius:12,border:`1px solid ${termsAccepted?'#9B8878':'#EAE6E0'}`,marginBottom:12,transition:'border-color .2s'}}>
+          <div style={{width:20,height:20,borderRadius:6,border:`1.5px solid ${termsAccepted?'#2C2825':'#C8C3BB'}`,background:termsAccepted?'#2C2825':'transparent',flexShrink:0,marginTop:1,display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}}>
+            {termsAccepted&&<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </div>
+          <span style={{fontSize:13,color:'#2C2825',lineHeight:1.5}}>Leí y acepto los Términos de Uso de Clarity</span>
+        </div>
+        <button onClick={()=>termsAccepted&&setStep(1)} disabled={!termsAccepted}
+          style={{width:'100%',background:termsAccepted?'#2C2825':'#C8C3BB',color:'white',border:'none',borderRadius:12,padding:14,fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:termsAccepted?'pointer':'not-allowed',transition:'all .3s'}}>
+          Continuar →
+        </button>
+      </div>
+      <div style={{height:80}}/>
+    </div>
+    </div>
+  );
+
+  // ── INTRO ──
+  if(s.type==='intro') return(
+    <div style={{minHeight:'100vh',background:'#EAE6E0',display:'flex',alignItems:isDesktop?'center':'flex-start',justifyContent:'center',fontFamily:"'DM Sans',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#EAE6E0!important;overflow:auto!important;}`}</style>
+      <div style={{width:'100%',maxWidth:420,background:bg,borderRadius:isDesktop?20:0,minHeight:isDesktop?'auto':'100vh',display:'flex',flexDirection:'column',boxShadow:isDesktop?'0 8px 40px rgba(0,0,0,.12)':'none'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+        <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+      </div>
+      <div style={{flex:1,padding:'32px 24px 0'}}>
+        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+          <div style={{width:7,height:7,borderRadius:'50%',background:'#C4A882'}}/>
+          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#C4A882'}}>Bienvenido</span>
+        </div>
+        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Clarity funciona en capas</div>
+        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:24}}>Todo se conecta. Tus tareas diarias existen para avanzar proyectos, que a su vez existen para lograr metas. Vamos a construir ese árbol juntos.</div>
+        <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:20,marginBottom:24}}>
+          {[
+            {icon:'🎯', color:'#EEF0F8', titleColor:'#5B6BAF', title:'Metas de vida', desc:'Tu visión a largo, mediano y corto plazo'},
+            {icon:'📁', color:'#EEF6EE', titleColor:'#8FAF8A', title:'Proyectos', desc:'Iniciativas concretas que avanzás semana a semana'},
+            {icon:'✓', color:'#F5F1ED', titleColor:'#9B8878', title:'Tareas', desc:'Las acciones concretas de tu día a día'},
+          ].map(({icon,color,titleColor,title,desc},i,arr)=>(
+            <div key={title}>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <div style={{width:32,height:32,borderRadius:8,background:color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>{icon}</div>
+                <div>
+                  <div style={{fontSize:12,fontWeight:500,color:titleColor,marginBottom:1}}>{title}</div>
+                  <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.4}}>{desc}</div>
+                </div>
+              </div>
+              {i<arr.length-1&&(
+                <div style={{display:'flex',alignItems:'center',gap:8,margin:'10px 0',padding:'0 4px'}}>
+                  <div style={{width:32,display:'flex',justifyContent:'center'}}><div style={{width:1,height:14,background:'#EAE6E0'}}/></div>
+                  <div style={{flex:1,display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{flex:1,height:1,background:'#EAE6E0'}}/>
+                    <span style={{fontSize:10,color:'#C8C3BB'}}>{i===0?'impulsan':'se ejecutan en'}</span>
+                    <div style={{flex:1,height:1,background:'#EAE6E0'}}/>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{fontSize:12,color:'#C8C3BB',textAlign:'center',lineHeight:1.6}}>Cada tarea que completás hace avanzar un proyecto.<br/>Cada proyecto completado acerca una meta.</div>
+      </div>
+      <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'16px 24px 32px',background:'linear-gradient(to top, #F5F2EE 70%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <button onClick={()=>setStep(0)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+        <button onClick={finish} style={{background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>{saving?'Guardando...':'Empezar →'}</button>
+      </div>
+      <div style={{height:80}}/>
+    </div>
+    </div>
+  );
+
+  // ── METAS ──
+  if(s.type==='metas'){
+    const items = data[s.horizon]||[];
+    const selectedSet = new Set(items);
+    const SUGERENCIAS = {
+      largo: {
+        dinero: ["Vivir de mis rentas / Ser financieramente libre","Ser dueño de mi propio negocio o estudio","Tener mi casa propia pagada"],
+        salud:  ["Tener un cuerpo ágil y sano para toda la vida","Vivir con paz mental, sin ansiedad ni estrés","Ser experto en mi hobby — música, deporte, arte"],
+        amor:   ["Formar mi propia familia / Criar a mis hijos","Ayudar siempre a mis viejos","Tener amigos que sean como hermanos"],
+      },
+      medio: {
+        dinero: ["Cambiar de trabajo por uno que me guste más","Aprender una habilidad que me dé más plata","Saldar todas mis deudas y estar tranquilo"],
+        salud:  ["Hacer un viaje largo a ese lugar que siempre soñé","Entrenar seguido y comer mejor para verme bien","Dedicarle al menos 3 horas por semana a lo que me apasiona"],
+        amor:   ["Encontrar una pareja con la que proyectar a futuro","Pasar más tiempo de calidad con mi familia","Mudarnos a un lugar que nos haga felices a todos"],
+      },
+      anio: {
+        dinero: ["Armar mi fondo de emergencia para estar cubierto","Hacer un curso o certificación para mejorar mi perfil","Organizar mis gastos y empezar a ahorrar mes a mes"],
+        salud:  ["Entrenar al menos 3 veces por semana de forma fija","Hacerme todos los chequeos médicos pendientes","Dormir 7-8 horas diarias para rendir mejor"],
+        amor:   ["Organizar una salida semanal con gente que quiero","Llamar o visitar más seguido a mis viejos o abuelos","Hacer un viaje corto con amigos o pareja"],
+      },
+    };
+    const cats = [
+      { key:'dinero', label:'Dinero', emoji:'💰', selColor:'#5B6BAF', selBg:'#F0F1F8', selBorder:'#5B6BAF' },
+      { key:'salud',  label:'Salud',  emoji:'🍎', selColor:'#3B6D11', selBg:'#EAF3DE', selBorder:'#8FAF8A' },
+      { key:'amor',   label:'Amor',   emoji:'❤️', selColor:'#9B4A6A', selBg:'#FBF0F4', selBorder:'#C49A7A' },
+    ];
+    const sugs = SUGERENCIAS[s.horizon] || {};
+    const allSugTexts = Object.values(sugs).flat();
+    function toggleSugerencia(text){
+      if(selectedSet.has(text)) removeItem(s.horizon, items.indexOf(text));
+      else setData(d=>({...d,[s.horizon]:[...d[s.horizon],text]}));
+    }
+    return(
+      <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+          <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+          <span style={{fontSize:11,color:'#C8C3BB'}}>{stepNum} de {totalSteps}</span>
+        </div>
+        <div style={{margin:'16px 24px 0',height:2,background:'#EAE6E0',borderRadius:99,overflow:'hidden'}}>
+          <div style={{height:'100%',width:pct+'%',background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .5s cubic-bezier(.34,1,.64,1)'}}/>
+        </div>
+        <div style={{padding:'24px 24px 0'}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:10}}>
+            <div style={{width:7,height:7,borderRadius:'50%',background:s.color}}/>
+            <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:s.color}}>{s.label}</span>
+            <span style={{fontSize:10,color:'#C8C3BB'}}>{s.sub}</span>
+          </div>
+          <div style={{fontSize:24,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:4}}>{s.title}</div>
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6}}>Elegí una o más. No hace falta elegir en todas las categorías.</div>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'14px 24px 0'}}>
+          {cats.map(cat=>(
+            <div key={cat.key} style={{marginBottom:16}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:7}}>
+                <span style={{fontSize:13}}>{cat.emoji}</span>
+                <span style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#B0AA9F'}}>{cat.label}</span>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                {(sugs[cat.key]||[]).map(text=>{
+                  const sel = selectedSet.has(text);
+                  return(
+                    <div key={text} onClick={()=>toggleSugerencia(text)}
+                      style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'9px 13px',borderRadius:11,border:`1px solid ${sel?cat.selBorder:'#EAE6E0'}`,background:sel?cat.selBg:'white',fontSize:13,color:sel?cat.selColor:'#2C2825',cursor:'pointer',lineHeight:1.4,transition:'all .15s',userSelect:'none'}}>
+                      <span style={{flex:1}}>{text}</span>
+                      {sel&&<span style={{fontSize:12,flexShrink:0}}>✓</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <div style={{marginBottom:8}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:7}}>
+              <span style={{fontSize:13}}>✏️</span>
+              <span style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#B0AA9F'}}>Algo tuyo</span>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <input value={input} onChange={e=>setInput(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&addItem(s.horizon)}
+                style={{flex:1,padding:'10px 13px',borderRadius:11,border:'1px solid #E5E1DB',background:'white',fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825',outline:'none'}}
+                placeholder="Escribí una meta propia..."/>
+              <button onClick={()=>addItem(s.horizon)} disabled={!input.trim()}
+                style={{width:42,borderRadius:11,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
+            </div>
+          </div>
+          {items.filter(item=>!allSugTexts.includes(item)).map((item,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 13px',background:'white',borderRadius:11,border:'1px solid #EAE6E0',marginBottom:5}}>
+              <div style={{width:5,height:5,borderRadius:'50%',background:s.color,flexShrink:0}}/>
+              <span style={{flex:1,fontSize:13,color:'#2C2825'}}>{item}</span>
+              <button onClick={()=>removeItem(s.horizon,items.indexOf(item))} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:17,lineHeight:1}}>×</button>
+            </div>
+          ))}
+          <div style={{height:100}}/>
+        </div>
+        <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'14px 24px 32px',background:'linear-gradient(to top, #F5F2EE 75%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <button onClick={()=>setStep(step-1)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+          {items.length>0&&<span style={{fontSize:11,color:'#9B8878',background:'#F5F1ED',padding:'3px 10px',borderRadius:99}}>{items.length} elegida{items.length!==1?'s':''}</span>}
+          <button onClick={()=>setStep(step+1)}
+            style={{background:items.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'12px 24px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
+            {items.length===0?'Saltar →':'Siguiente →'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── PROYECTOS ──
+  if(s.type==='proyectos'){
+    const metasAnio = data.anio||[];
+    return(
+      <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+          <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+          <span style={{fontSize:11,color:'#C8C3BB'}}>{stepNum} de {totalSteps}</span>
+        </div>
+        <div style={{margin:'16px 24px 0',height:2,background:'#EAE6E0',borderRadius:99,overflow:'hidden'}}>
+          <div style={{height:'100%',width:'100%',background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .5s'}}/>
+        </div>
+        <div style={{flex:1,padding:'32px 24px 0'}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+            <div style={{width:7,height:7,borderRadius:'50%',background:s.color}}/>
+            <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:s.color}}>Proyectos</span>
+          </div>
+          <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>{s.title}</div>
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:20}}>
+            {metasAnio.length>0?'Relacioná cada proyecto con la meta de este año que impulsa.':s.q}
+          </div>
+          <div style={{display:'flex',gap:8,marginBottom:14}}>
+            <input value={input} onChange={e=>setInput(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&addProyecto()}
+              style={{flex:1,padding:'13px 16px',borderRadius:12,border:'1px solid #E5E1DB',background:'white',fontFamily:"'DM Sans'",fontSize:14,color:'#2C2825',outline:'none'}}
+              placeholder="Nombre del proyecto..." autoFocus/>
+            <button onClick={addProyecto} disabled={!input.trim()}
+              style={{width:46,borderRadius:12,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
+          </div>
+          {metasAnio.length>0&&(
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,fontWeight:500,letterSpacing:'.1em',textTransform:'uppercase',color:'#B0AA9F',marginBottom:8}}>Relacionar con meta de este año</div>
+              <div style={{background:'white',borderRadius:12,border:'1px solid #EAE6E0',overflow:'hidden'}}>
+                {[{id:null,title:'Sin relacionar'},...metasAnio.map((m,i)=>({id:i,title:m}))].map(({id,title})=>(
+                  <div key={id??'none'} onClick={()=>setSelectedMetaId(id)}
+                    style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:'1px solid #F5F2EE',cursor:'pointer',background:selectedMetaId===id?'#F5F1ED':'transparent',transition:'background .15s'}}>
+                    <div style={{width:16,height:16,borderRadius:'50%',border:`1.5px solid ${selectedMetaId===id?'#9B8878':'#C8C3BB'}`,background:selectedMetaId===id?'#9B8878':'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s',flexShrink:0}}>
+                      {selectedMetaId===id&&<div style={{width:6,height:6,borderRadius:'50%',background:'white'}}/>}
+                    </div>
+                    <span style={{fontSize:13,color:id===null?'#B0AA9F':'#2C2825'}}>{title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {data.proyectos.length>0&&(
+            <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',overflow:'hidden',marginBottom:20}}>
+              {data.proyectos.map((p,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:12,padding:'13px 16px',borderBottom:i<data.proyectos.length-1?'1px solid #F5F2EE':'none'}}>
+                  <div style={{width:6,height:6,borderRadius:'50%',background:s.color,flexShrink:0,marginTop:5}}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:14,color:'#2C2825'}}>{p.name}</div>
+                    {p.metaTitle?<div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>→ {p.metaTitle}</div>:<div style={{fontSize:11,color:'#EAE6E0',marginTop:2}}>Sin meta asignada</div>}
+                  </div>
+                  <button onClick={()=>removeProyecto(i)} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:18,lineHeight:1}}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'16px 24px 32px',background:'linear-gradient(to top, #F5F2EE 70%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <button onClick={()=>setStep(step-1)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+          <button onClick={()=>setStep(step+1)}
+            style={{background:data.proyectos.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
+            {data.proyectos.length===0?'Saltar →':'Empezar →'}
+          </button>
+        </div>
+        <div style={{height:80}}/>
+        <div style={{textAlign:'center',paddingBottom:24}}>
+          <button onClick={()=>onComplete([],[])} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:12,color:'#C8C3BB',textDecoration:'underline',textUnderlineOffset:2}}>
+            Prefiero empezar desde cero
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── DONE ──
+  if(s.type!=='done') return null;
+  const totalMetas = (data.largo||[]).length + (data.medio||[]).length + (data.anio||[]).length;
+  const totalProyectos = (data.proyectos||[]).length;
+  const relacionados = (data.proyectos||[]).filter(p=>p.metaId!==null).length;
+
+  return(
+    <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',fontFamily:"'DM Sans',sans-serif",padding:32,textAlign:'center'}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;}`}</style>
+      <div style={{fontSize:40,marginBottom:20}}>🌱</div>
+      <div style={{fontSize:28,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Tu árbol está listo</div>
+      <div style={{fontSize:14,color:'#B0AA9F',lineHeight:1.7,marginBottom:8,maxWidth:280}}>
+        {totalMetas} meta{totalMetas!==1?'s':''} · {totalProyectos} proyecto{totalProyectos!==1?'s':''}
+        {relacionados>0?` · ${relacionados} relacion${relacionados!==1?'es':''}`:''}.
+      </div>
+      <div style={{fontSize:12,color:'#C8C3BB',lineHeight:1.7,maxWidth:260,marginBottom:32}}>
+        Ahora podés agregar tareas desde la tab Tareas y asignarlas a cada proyecto. Cada tarea completada suma puntos y hace crecer tu cerezo.
+      </div>
+      {saving
+        ?<div style={{fontSize:14,color:'#B0AA9F'}}>Guardando...</div>
+        :<button onClick={finish} style={{background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'14px 36px',fontFamily:"'DM Sans'",fontSize:15,fontWeight:500,cursor:'pointer'}}>
+          Entrar a Clarity →
+        </button>
+      }
+    </div>
+  );
+}
 function CelebrationToast({celebrate}){
   if(!celebrate) return null;
   const isProject = celebrate.type==='project';
