@@ -2559,7 +2559,7 @@ function AppStyles(){return(<style>{`
   .sheet-overlay{position:fixed;inset:0;background:rgba(44,40,37,.45);z-index:100;animation:fadeIn .2s;}
   .sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#F7F5F2;border-radius:20px 20px 0 0;padding:20px 20px 44px;z-index:101;animation:slideUp .28s cubic-bezier(.4,0,.2,1);max-height:92vh;overflow-y:auto;}
   .d-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;background:#F7F5F2;border-radius:16px;padding:28px;z-index:101;animation:fadeIn .2s;box-shadow:0 20px 60px rgba(0,0,0,.15);max-height:90vh;overflow-y:auto;}
-  @keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
   .si{width:100%;background:white;border:1px solid #E5E1DB;border-radius:10px;padding:10px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#3A3530;}.si:focus{border-color:#B5A99A;}
   .sl{font-family:'DM Sans';font-size:10px;color:#B0AA9F;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:block;}
   .sv{width:100%;background:#6B6258;color:white;border:none;border-radius:12px;padding:13px;font-size:15px;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;margin-top:16px;}
@@ -3720,19 +3720,45 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     ? <DTaskList tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks}/>
     : <TaskRows tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks} {...(sw||{})}/>;
 
-  const BtnMic = () => procesandoVoz ? (
-    <div style={{position:'fixed',bottom:100,right:24,zIndex:300,width:56,height:56,borderRadius:'50%',background:'#C4A882',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(0,0,0,.15)'}}>
-      <div style={{width:22,height:22,border:'2px solid white',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 1s linear infinite'}}/>
+  const BtnMic = () => (
+    <div style={{
+      position:'fixed',bottom:desktop?0:56,left:0,right:0,zIndex:200,
+      background:'#FAFAF8',borderTop:'1px solid #EAE6E0',
+      padding:'10px 16px',
+      display:'flex',alignItems:'center',gap:10,
+    }}>
+      <div style={{
+        flex:1,background:'#F5F2EE',borderRadius:99,
+        padding:'9px 14px',fontSize:12,color:grabando?'#C4312A':'#C8C3BB',
+        fontFamily:"'DM Sans'",
+        display:'flex',alignItems:'center',gap:8,
+      }}>
+        {procesandoVoz
+          ? <><div style={{width:10,height:10,borderRadius:'50%',border:'2px solid #C4A882',borderTopColor:'transparent',animation:'spin 1s linear infinite',flexShrink:0}}/> Procesando...</>
+          : grabando
+          ? <><div style={{width:8,height:8,borderRadius:'50%',background:'#C4312A',flexShrink:0,animation:'pulse 1s ease-in-out infinite'}}/> Grabando — soltá para procesar</>
+          : 'Dictá una tarea o contame qué pasó...'
+        }
+      </div>
+      <button
+        onMouseDown={iniciarGrabacion}
+        onMouseUp={detenerGrabacion}
+        onTouchStart={e=>{e.preventDefault();iniciarGrabacion();}}
+        onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
+        style={{
+          width:38,height:38,borderRadius:'50%',flexShrink:0,
+          background:grabando?'#C4312A':procesandoVoz?'#C4A882':'#2C2825',
+          border:'none',cursor:'pointer',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          transition:'all .2s',
+        }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="2" width="6" height="12" rx="3"/>
+          <path d="M5 10a7 7 0 0 0 14 0"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+        </svg>
+      </button>
     </div>
-  ) : (
-    <button
-      onMouseDown={iniciarGrabacion}
-      onMouseUp={detenerGrabacion}
-      onTouchStart={e=>{e.preventDefault();iniciarGrabacion();}}
-      onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
-      style={{position:'fixed',bottom:100,right:24,zIndex:300,width:56,height:56,borderRadius:'50%',background:grabando?'#C4312A':'#2C2825',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:grabando?'0 0 0 8px rgba(196,49,42,.2)':'0 4px 16px rgba(0,0,0,.2)',transition:'all .2s',fontSize:22}}>
-      🎤
-    </button>
   );
 
   const BtnSemana = () => (
