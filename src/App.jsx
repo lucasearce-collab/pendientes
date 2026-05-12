@@ -3587,6 +3587,78 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   }
 
   const [diaDificil, setDiaDificil] = useState(false);
+
+  // Agente de voz
+  const [grabando, setGrabando] = useState(false);
+  const [procesandoVoz, setProcesandoVoz] = useState(false);
+  const [tareasVoz, setTareasVoz] = useState([]);
+  const [transcriptVoz, setTranscriptVoz] = useState('');
+  const mediaRecorderRef = React.useRef(null);
+  const chunksRef = React.useRef([]);
+
+  async function iniciarGrabacion(){
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      const mr = new MediaRecorder(stream, {mimeType:'audio/webm'});
+      chunksRef.current = [];
+      mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t=>t.stop());
+        const blob = new Blob(chunksRef.current, {type:'audio/webm'});
+        if(blob.size < 1000){ setProcesandoVoz(false); return; }
+        await procesarAudio(blob);
+      };
+      mr.start();
+      mediaRecorderRef.current = mr;
+      setGrabando(true);
+    } catch(e){
+      console.error('Error grabando:', e);
+      alert('No se pudo acceder al micrófono');
+    }
+  }
+
+  function detenerGrabacion(){
+    if(mediaRecorderRef.current && grabando){
+      mediaRecorderRef.current.stop();
+      setGrabando(false);
+      setProcesandoVoz(true);
+    }
+  }
+
+  async function procesarAudio(blob){
+    try{
+      const fd = new FormData();
+      fd.append('audio', blob, 'audio.webm');
+      const res = await fetch('/api/voice-task', {method:'POST', body:fd});
+      const data = await res.json();
+      if(data.tareas?.length>0){
+        setTareasVoz(data.tareas);
+        setTranscriptVoz(data.transcript||'');
+      } else {
+        alert('No detecté tareas. Intentá ser más específico.');
+      }
+    } catch(e){
+      console.error('Error procesando audio:', e);
+      alert('Error al procesar el audio');
+    } finally {
+      setProcesandoVoz(false);
+    }
+  }
+
+  async function aceptarTareaVoz(t){
+    if(onAddTask) onAddTask({
+      title: t.titulo,
+      date: t.fecha,
+      projectId: null,
+      type: 'normal',
+      notes: t.razon ? `Sugerido por el agente: ${t.razon}` : '',
+    });
+    setTareasVoz(tv=>tv.filter(x=>x.titulo!==t.titulo));
+  }
+
+  function descartarTareaVoz(t){
+    setTareasVoz(tv=>tv.filter(x=>x.titulo!==t.titulo));
+  }
   const [seleccionadas, setSeleccionadas] = useState(new Set());
   const [reagendado, setReagendado] = useState(false);
   const [reagendadasCount, setReagendasCount] = useState(0);
@@ -3779,6 +3851,59 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         </div>
       </div>
       <ModalDiaDificil/>
+
+      {/* Panel tareas por voz */}
+      {tareasVoz.length>0&&(
+        <div style={{marginTop:20,background:'#F5F2EE',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 18px'}}>
+          <div style={{fontSize:11,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',marginBottom:4}}>Escuché esto</div>
+          {transcriptVoz&&<div style={{fontSize:11,color:'#C8C3BB',marginBottom:12,fontStyle:'italic'}}>"{transcriptVoz}"</div>}
+          {tareasVoz.map((t,i)=>(
+            <div key={i} style={{background:'white',borderRadius:10,border:'1px solid #EAE6E0',padding:'10px 12px',marginBottom:8,display:'flex',alignItems:'flex-start',gap:10}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
+                  {t.tipo==='sugerida'&&<span style={{fontSize:9,background:'#F0F1F8',color:'#5B6BAF',padding:'1px 6px',borderRadius:99,fontWeight:500}}>sugerida</span>}
+                  <span style={{fontSize:12,color:'#2C2825'}}>{t.titulo}</span>
+                </div>
+                <div style={{fontSize:10,color:'#B0AA9F'}}>
+                  {t.fecha&&<span>{t.fecha}</span>}
+                  {t.proyecto_sugerido&&<span> · {t.proyecto_sugerido}</span>}
+                  {t.tipo==='sugerida'&&t.razon&&<div style={{marginTop:2,color:'#C8C3BB'}}>{t.razon}</div>}
+                </div>
+              </div>
+              <div style={{display:'flex',gap:6,flexShrink:0}}>
+                <button onClick={()=>aceptarTareaVoz(t)} style={{background:'#2C2825',color:'white',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>+ Agregar</button>
+                <button onClick={()=>descartarTareaVoz(t)} style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,padding:'5px 8px',fontSize:11,cursor:'pointer',fontFamily:"'DM Sans'"}}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Botón micrófono flotante */}
+      <div style={{position:'fixed',bottom:desktop?32:90,right:desktop?48:24,zIndex:100}}>
+        {procesandoVoz?(
+          <div style={{width:52,height:52,borderRadius:'50%',background:'#C4A882',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(0,0,0,.15)'}}>
+            <div style={{width:20,height:20,border:'2px solid white',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 1s linear infinite'}}/>
+          </div>
+        ):(
+          <button
+            onMouseDown={iniciarGrabacion}
+            onMouseUp={detenerGrabacion}
+            onTouchStart={e=>{e.preventDefault();iniciarGrabacion();}}
+            onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
+            style={{
+              width:52,height:52,borderRadius:'50%',
+              background:grabando?'#C4312A':'#2C2825',
+              border:'none',cursor:'pointer',
+              display:'flex',alignItems:'center',justifyContent:'center',
+              boxShadow:grabando?'0 0 0 8px rgba(196,49,42,.2)':'0 4px 16px rgba(0,0,0,.2)',
+              transition:'all .2s',
+              fontSize:20,
+            }}>
+            🎤
+          </button>
+        )}
+      </div>
     </div>
   );
 
@@ -3814,6 +3939,59 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       {todayTasks.length>0&&<><SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/><TaskList tasks={todayTasks}/></>}
       {overdueWork.length>0&&<><SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/><TaskList tasks={overdueWork} overdue/></>}
       <ModalDiaDificil/>
+
+      {/* Panel tareas por voz — mobile */}
+      {tareasVoz.length>0&&(
+        <div style={{margin:'12px 16px',background:'#F5F2EE',borderRadius:14,border:'1px solid #EAE6E0',padding:'14px 16px'}}>
+          <div style={{fontSize:11,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',marginBottom:4}}>Escuché esto</div>
+          {transcriptVoz&&<div style={{fontSize:11,color:'#C8C3BB',marginBottom:10,fontStyle:'italic'}}>"{transcriptVoz}"</div>}
+          {tareasVoz.map((t,i)=>(
+            <div key={i} style={{background:'white',borderRadius:10,border:'1px solid #EAE6E0',padding:'10px 12px',marginBottom:8,display:'flex',alignItems:'flex-start',gap:10}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3,flexWrap:'wrap'}}>
+                  {t.tipo==='sugerida'&&<span style={{fontSize:9,background:'#F0F1F8',color:'#5B6BAF',padding:'1px 6px',borderRadius:99,fontWeight:500}}>sugerida</span>}
+                  <span style={{fontSize:12,color:'#2C2825'}}>{t.titulo}</span>
+                </div>
+                <div style={{fontSize:10,color:'#B0AA9F'}}>
+                  {t.fecha&&<span>{t.fecha}</span>}
+                  {t.proyecto_sugerido&&<span> · {t.proyecto_sugerido}</span>}
+                  {t.tipo==='sugerida'&&t.razon&&<div style={{marginTop:2,color:'#C8C3BB'}}>{t.razon}</div>}
+                </div>
+              </div>
+              <div style={{display:'flex',gap:6,flexShrink:0}}>
+                <button onClick={()=>aceptarTareaVoz(t)} style={{background:'#2C2825',color:'white',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>+ Agregar</button>
+                <button onClick={()=>descartarTareaVoz(t)} style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,padding:'5px 8px',fontSize:11,cursor:'pointer',fontFamily:"'DM Sans'"}}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Botón micrófono flotante — mobile */}
+      <div style={{position:'fixed',bottom:90,right:24,zIndex:100}}>
+        {procesandoVoz?(
+          <div style={{width:56,height:56,borderRadius:'50%',background:'#C4A882',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(0,0,0,.15)'}}>
+            <div style={{width:22,height:22,border:'2px solid white',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 1s linear infinite'}}/>
+          </div>
+        ):(
+          <button
+            onMouseDown={iniciarGrabacion}
+            onMouseUp={detenerGrabacion}
+            onTouchStart={e=>{e.preventDefault();iniciarGrabacion();}}
+            onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
+            style={{
+              width:56,height:56,borderRadius:'50%',
+              background:grabando?'#C4312A':'#2C2825',
+              border:'none',cursor:'pointer',
+              display:'flex',alignItems:'center',justifyContent:'center',
+              boxShadow:grabando?'0 0 0 8px rgba(196,49,42,.2)':'0 4px 16px rgba(0,0,0,.2)',
+              transition:'all .2s',
+              fontSize:22,
+            }}>
+            🎤
+          </button>
+        )}
+      </div>
     </div>
   );
 }
