@@ -7,11 +7,15 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  const { code, error } = req.query;
+  const { code, error, state } = req.query;
 
-  if (error || !code) {
+  if (error || !code || !state) {
+    console.error('Missing params:', { code: !!code, error, state: !!state });
     return res.redirect('https://pendientes-eight.vercel.app/?calendar_error=1');
   }
+
+  const userId = decodeURIComponent(state);
+  console.log('Processing callback for user:', userId);
 
   try {
     // Intercambiar código por tokens
@@ -28,43 +32,33 @@ export default async function handler(req, res) {
     });
 
     const tokens = await tokenRes.json();
-    console.log('Tokens:', JSON.stringify({ 
+    console.log('Token response:', { 
       has_access: !!tokens.access_token, 
       has_refresh: !!tokens.refresh_token,
-      error: tokens.error 
-    }));
+      error: tokens.error,
+      error_description: tokens.error_description
+    });
 
     if (!tokens.access_token) {
       return res.redirect('https://pendientes-eight.vercel.app/?calendar_error=2');
     }
 
-    // Obtener email del usuario de Google
-    const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${tokens.access_token}` },
-    });
-    const userInfo = await userRes.json();
-    const email = userInfo.email;
-
-    // Buscar usuario en Supabase
-    const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
-    if (authError) throw authError;
-
-    const authUser = authData.users.find(u => u.email === email);
-    if (!authUser) {
-      return res.redirect('https://pendientes-eight.vercel.app/?calendar_error=3');
-    }
-
-    // Guardar token
+    // Guardar token directamente con el userId del state
+    const tokenToSave = tokens.refresh_token || tokens.access_token;
     const { error: updateError } = await supabase
       .from('user_profiles')
       .update({
-        google_calendar_token: tokens.refresh_token || tokens.access_token,
+        google_calendar_token: tokenToSave,
         calendar_connected: true,
       })
-      .eq('id', authUser.id);
+      .eq('id', userId);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      console.error('Update error:', updateError);
+      return res.redirect('https://pendientes-eight.vercel.app/?calendar_error=3');
+    }
 
+    console.log('Token saved successfully for user:', userId);
     res.redirect('https://pendientes-eight.vercel.app/?calendar_connected=1');
 
   } catch (e) {
