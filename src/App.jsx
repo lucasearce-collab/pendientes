@@ -3720,6 +3720,21 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     ? <DTaskList tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks}/>
     : <TaskRows tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks} {...(sw||{})}/>;
 
+  const BtnMic = () => procesandoVoz ? (
+    <div style={{position:'fixed',bottom:100,right:24,zIndex:300,width:56,height:56,borderRadius:'50%',background:'#C4A882',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(0,0,0,.15)'}}>
+      <div style={{width:22,height:22,border:'2px solid white',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 1s linear infinite'}}/>
+    </div>
+  ) : (
+    <button
+      onMouseDown={iniciarGrabacion}
+      onMouseUp={detenerGrabacion}
+      onTouchStart={e=>{e.preventDefault();iniciarGrabacion();}}
+      onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
+      style={{position:'fixed',bottom:100,right:24,zIndex:300,width:56,height:56,borderRadius:'50%',background:grabando?'#C4312A':'#2C2825',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:grabando?'0 0 0 8px rgba(196,49,42,.2)':'0 4px 16px rgba(0,0,0,.2)',transition:'all .2s',fontSize:22}}>
+      🎤
+    </button>
+  );
+
   const BtnSemana = () => (
     <button onClick={onVerSemana}
       style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",fontWeight:300,padding:"0",letterSpacing:".01em"}}>
@@ -3879,31 +3894,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         </div>
       )}
 
-      {/* Botón micrófono flotante */}
-      <div style={{position:'fixed',bottom:desktop?32:90,right:desktop?48:24,zIndex:100}}>
-        {procesandoVoz?(
-          <div style={{width:52,height:52,borderRadius:'50%',background:'#C4A882',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(0,0,0,.15)'}}>
-            <div style={{width:20,height:20,border:'2px solid white',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 1s linear infinite'}}/>
-          </div>
-        ):(
-          <button
-            onMouseDown={iniciarGrabacion}
-            onMouseUp={detenerGrabacion}
-            onTouchStart={e=>{e.preventDefault();iniciarGrabacion();}}
-            onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
-            style={{
-              width:52,height:52,borderRadius:'50%',
-              background:grabando?'#C4312A':'#2C2825',
-              border:'none',cursor:'pointer',
-              display:'flex',alignItems:'center',justifyContent:'center',
-              boxShadow:grabando?'0 0 0 8px rgba(196,49,42,.2)':'0 4px 16px rgba(0,0,0,.2)',
-              transition:'all .2s',
-              fontSize:20,
-            }}>
-            🎤
-          </button>
-        )}
-      </div>
+      <BtnMic/>
     </div>
   );
 
@@ -3967,31 +3958,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         </div>
       )}
 
-      {/* Botón micrófono flotante — mobile */}
-      <div style={{position:'fixed',bottom:90,right:24,zIndex:100}}>
-        {procesandoVoz?(
-          <div style={{width:56,height:56,borderRadius:'50%',background:'#C4A882',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(0,0,0,.15)'}}>
-            <div style={{width:22,height:22,border:'2px solid white',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 1s linear infinite'}}/>
-          </div>
-        ):(
-          <button
-            onMouseDown={iniciarGrabacion}
-            onMouseUp={detenerGrabacion}
-            onTouchStart={e=>{e.preventDefault();iniciarGrabacion();}}
-            onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
-            style={{
-              width:56,height:56,borderRadius:'50%',
-              background:grabando?'#C4312A':'#2C2825',
-              border:'none',cursor:'pointer',
-              display:'flex',alignItems:'center',justifyContent:'center',
-              boxShadow:grabando?'0 0 0 8px rgba(196,49,42,.2)':'0 4px 16px rgba(0,0,0,.2)',
-              transition:'all .2s',
-              fontSize:22,
-            }}>
-            🎤
-          </button>
-        )}
-      </div>
+      <BtnMic/>
     </div>
   );
 }
