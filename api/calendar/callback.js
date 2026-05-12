@@ -1,6 +1,4 @@
 // api/calendar/callback.js
-// Google redirige acá después del login. Guarda el refresh_token en Supabase.
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -11,16 +9,12 @@ const supabase = createClient(
 export default async function handler(req, res) {
   const { code, error } = req.query;
 
-  if (error) {
+  if (error || !code) {
     return res.redirect('https://pendientes-eight.vercel.app/?calendar_error=1');
   }
 
-  if (!code) {
-    return res.status(400).send('Falta el código de autorización');
-  }
-
   try {
-    // Intercambiar el código por tokens
+    // Intercambiar código por tokens
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -34,38 +28,47 @@ export default async function handler(req, res) {
     });
 
     const tokens = await tokenRes.json();
+    console.log('Tokens:', JSON.stringify({ 
+      has_access: !!tokens.access_token, 
+      has_refresh: !!tokens.refresh_token,
+      error: tokens.error 
+    }));
 
-    if (!tokens.refresh_token) {
+    if (!tokens.access_token) {
       return res.redirect('https://pendientes-eight.vercel.app/?calendar_error=2');
     }
 
-    // Obtener el email del usuario
+    // Obtener email del usuario de Google
     const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
     });
     const userInfo = await userRes.json();
+    const email = userInfo.email;
 
-    // Buscar el user_id en Supabase por email
-    const { data: authUser } = await supabase
-      .from('user_profiles')
-      .select('id')
-      .eq('id', (await supabase.auth.admin.getUserByEmail(userInfo.email)).data?.user?.id)
-      .single();
+    // Buscar usuario en Supabase
+    const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
+    if (authError) throw authError;
 
-    // Guardar el refresh_token en user_profiles
-    await supabase
+    const authUser = authData.users.find(u => u.email === email);
+    if (!authUser) {
+      return res.redirect('https://pendientes-eight.vercel.app/?calendar_error=3');
+    }
+
+    // Guardar token
+    const { error: updateError } = await supabase
       .from('user_profiles')
-      .update({ 
-        google_calendar_token: tokens.refresh_token,
+      .update({
+        google_calendar_token: tokens.refresh_token || tokens.access_token,
         calendar_connected: true,
       })
-      .eq('id', authUser?.id);
+      .eq('id', authUser.id);
 
-    // Redirigir de vuelta a la app con éxito
+    if (updateError) throw updateError;
+
     res.redirect('https://pendientes-eight.vercel.app/?calendar_connected=1');
 
   } catch (e) {
-    console.error('Calendar callback error:', e);
-    res.redirect('https://pendientes-eight.vercel.app/?calendar_error=3');
+    console.error('Calendar callback error:', e.message);
+    res.redirect('https://pendientes-eight.vercel.app/?calendar_error=4');
   }
 }
