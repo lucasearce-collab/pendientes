@@ -3722,7 +3722,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
 
   const BtnMic = () => (
     <div style={{
-      position:'fixed',bottom:desktop?0:'calc(56px + env(safe-area-inset-bottom, 0px))',left:0,right:0,zIndex:200,
+      position:'fixed',bottom:desktop?0:80,left:0,right:0,zIndex:200,
       background:'#FAFAF8',borderTop:'1px solid #EAE6E0',
       padding:'10px 16px',
       display:'flex',alignItems:'center',gap:10,
