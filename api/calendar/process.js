@@ -22,10 +22,13 @@ async function getAccessToken(refreshToken) {
 }
 
 async function getEvents(accessToken) {
-  const now = new Date().toISOString();
-  const in48h = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  // Desde ayer 00:00 hasta +48hs desde ahora
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(0, 0, 0, 0);
+  const in48h = new Date(Date.now() + 48 * 60 * 60 * 1000);
   const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(now)}&timeMax=${encodeURIComponent(in48h)}&singleEvents=true&orderBy=startTime&maxResults=20`,
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(yesterday.toISOString())}&timeMax=${encodeURIComponent(in48h.toISOString())}&singleEvents=true&orderBy=startTime&maxResults=30`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   const data = await res.json();
@@ -45,19 +48,31 @@ async function processEventWithGroq(event) {
   const postDate = new Date(eventDate); postDate.setDate(postDate.getDate() + 1);
   const fmt = d => d.toISOString().slice(0, 10);
 
+  const now = new Date();
+  const isPast = eventDate < now;
+  const momentoLabel = isPast ? 'post (reunión ya ocurrió)' : 'pre (reunión próxima)';
+
   const prompt = `Sos un asistente de productividad ejecutiva. Analizá esta reunión y sugerí tareas concretas.
 
 Reunión: ${title}
 Duración: ${duration} minutos
 Fecha: ${fmt(eventDate)}
+Estado: ${isPast ? 'Ya ocurrió' : 'Próxima'}
+
+${isPast
+  ? `La reunión ya ocurrió. Sugerí tareas de seguimiento: minutas, acuerdos a cumplir, comunicaciones pendientes, próximos pasos concretos.`
+  : `La reunión es próxima. Sugerí tareas de preparación: materiales, agenda, revisiones previas.`
+}
 
 Devolvé SOLO un JSON válido sin markdown ni texto extra:
-{"tareas":[{"titulo":"tarea accionable y específica","fecha":"${fmt(preDate)} o ${fmt(postDate)}","momento":"pre o post","proyecto_sugerido":"nombre del cliente o proyecto"}]}
+{"tareas":[{"titulo":"tarea accionable y específica","fecha":"${isPast ? fmt(postDate) : fmt(preDate)}","momento":"${isPast ? 'post' : 'pre'}","proyecto_sugerido":"nombre del cliente o proyecto"}]}
 
 Reglas:
-- Máximo 2 tareas (una pre y una post si aplica)
+- Máximo 2 tareas
 - Si es reunión personal o social sin contexto laboral: {"tareas":[]}
-- El título debe ser específico, no genérico`;
+- El título debe ser específico y accionable, no genérico
+- Para reuniones pasadas: empezá el título con un verbo (Enviar, Confirmar, Agendar, Documentar)
+- Para reuniones futuras: empezá el título con un verbo (Preparar, Revisar, Armar, Leer)`;
 
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -85,17 +100,27 @@ Reglas:
 }
 
 export default async function handler(req, res) {
-  if (req.query.key !== process.env.NEWSLETTER_SECRET) {
+  const validKey = req.query.key === process.env.NEWSLETTER_SECRET;
+  const validUser = !!req.query.user_id; // llamada autenticada desde el frontend (usuario logueado)
+  if (!validKey && !validUser) {
     return res.status(401).json({ error: 'No autorizado' });
   }
 
   try {
-    const { data: users, error } = await supabase
+    // Si viene user_id en query, procesar solo ese usuario (llamada desde frontend)
+    const targetUserId = req.query.user_id || null;
+
+    let query = supabase
       .from('user_profiles')
       .select('id, google_calendar_token')
-      .eq('is_premium', true)
       .eq('calendar_connected', true)
       .not('google_calendar_token', 'is', null);
+
+    if (targetUserId) {
+      query = query.eq('id', targetUserId);
+    }
+
+    const { data: users, error } = await query;
 
     if (error) throw error;
     if (!users?.length) return res.json({ message: 'No hay usuarios con calendario conectado', processed: 0 });
