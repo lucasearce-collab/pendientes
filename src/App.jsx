@@ -4136,27 +4136,24 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     : <TaskRows tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks} {...(sw||{})}/>;
 
   const BtnMic = () => (
-    <div style={{
-      position:'fixed',bottom:desktop?0:80,left:0,right:0,zIndex:200,
-      background:'#FAFAF8',borderTop:'1px solid #EAE6E0',
-      padding:'10px 16px',
-      display:'flex',alignItems:'center',gap:10,
-    }}>
-      <div style={{
-        flex:1,background:'#F5F2EE',borderRadius:99,
-        padding:'9px 14px',fontSize:12,color:grabando?'#C4312A':'#C8C3BB',
-        fontFamily:"'DM Sans'",
-        display:'flex',alignItems:'center',gap:8,
-      }}>
-        {procesandoVoz
-          ? <><div style={{width:10,height:10,borderRadius:'50%',border:'2px solid #C4A882',borderTopColor:'transparent',animation:'spin 1s linear infinite',flexShrink:0}}/> Procesando...</>
-          : voiceError
-          ? <><div style={{color:'#C4312A',fontWeight:500}}>⚠️ {voiceError}</div></>
-          : grabando
-          ? <><div style={{width:8,height:8,borderRadius:'50%',background:'#C4312A',flexShrink:0,animation:'pulse 1s ease-in-out infinite'}}/> Grabando — soltá para procesar</>
-          : 'Dictá una tarea o contame qué pasó...'
-        }
-      </div>
+    <div style={{position:'fixed',bottom:desktop?24:96,right:desktop?32:20,zIndex:200,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:8,pointerEvents:'none'}}>
+      {/* Toast de estado — solo visible cuando hay algo que mostrar */}
+      {(grabando||procesandoVoz||voiceError)&&(
+        <div style={{
+          pointerEvents:'none',
+          background:'#2C2825',color:'white',
+          borderRadius:10,padding:'7px 12px',
+          fontFamily:"'DM Sans'",fontSize:12,fontWeight:300,
+          boxShadow:'0 4px 16px rgba(0,0,0,.18)',
+          whiteSpace:'nowrap',
+          display:'flex',alignItems:'center',gap:8,
+        }}>
+          {procesandoVoz&&<><div style={{width:8,height:8,borderRadius:'50%',border:'2px solid #C4A882',borderTopColor:'transparent',animation:'spin 1s linear infinite',flexShrink:0}}/> Procesando...</>}
+          {grabando&&!procesandoVoz&&<><div style={{width:7,height:7,borderRadius:'50%',background:'#E07070',flexShrink:0,animation:'pulse 1s ease-in-out infinite'}}/> Grabando · soltá para procesar</>}
+          {voiceError&&!grabando&&!procesandoVoz&&<span style={{color:'#E07070'}}>⚠ {voiceError}</span>}
+        </div>
+      )}
+      {/* FAB circular */}
       <button
         onMouseDown={iniciarGrabacion}
         onMouseUp={detenerGrabacion}
@@ -4165,17 +4162,31 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
         onTouchCancel={e=>{e.preventDefault();detenerGrabacion();}}
         style={{
-          width:38,height:38,borderRadius:'50%',flexShrink:0,
+          pointerEvents:'auto',
+          width:48,height:48,borderRadius:'50%',
           background:grabando?'#C4312A':procesandoVoz?'#C4A882':'#2C2825',
           border:'none',cursor:'pointer',
           display:'flex',alignItems:'center',justifyContent:'center',
+          boxShadow:'0 4px 16px rgba(44,40,37,.22)',
           transition:'all .2s',
+          flexShrink:0,
         }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="9" y="2" width="6" height="12" rx="3"/>
+        {/* Ícono micrófono + chispa AI */}
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="2" width="6" height="11" rx="3"/>
           <path d="M5 10a7 7 0 0 0 14 0"/>
           <line x1="12" y1="19" x2="12" y2="22"/>
+          {/* chispa ✦ arriba a la derecha del mic */}
         </svg>
+        {/* Indicador AI — punto brillante esquina superior derecha */}
+        {!grabando&&!procesandoVoz&&(
+          <div style={{
+            position:'absolute',top:9,right:9,
+            width:7,height:7,borderRadius:'50%',
+            background:'#C4A882',
+            border:'2px solid #2C2825',
+          }}/>
+        )}
       </button>
     </div>
   );
@@ -4357,37 +4368,83 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     </div>
   );
 
+  const ACCION_LABEL = {
+    crear_tarea:      'Nueva tarea',
+    crear_proyecto:   'Nuevo proyecto',
+    completar_tarea:  'Completar',
+    reprogramar_tarea:'Mover al',
+  };
+
   const PanelVoz = accionesVoz.length>0 ? (
-    <div style={{margin:desktop?'0 0 24px':'12px 16px',background:'#F5F2EE',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 18px'}}>
-      <div style={{fontSize:11,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',marginBottom:4}}>Escuché esto (Revisa y aprueba)</div>
-      {transcriptVoz&&<div style={{fontSize:11,color:'#C8C3BB',marginBottom:12,fontStyle:'italic'}}>"{transcriptVoz}"</div>}
-      {accionesVoz.map((a)=>(
-        <div key={a.id} style={{background:'white',borderRadius:10,border:'1px solid #EAE6E0',padding:'10px 12px',marginBottom:8,display:'flex',alignItems:'flex-start',gap:10}}>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3,flexWrap:'wrap'}}>
-              {a.tipo_accion==='crear_tarea'&&<span style={{fontSize:12,color:'#2C2825'}}>📝 Nueva Tarea: {a.titulo}</span>}
-              {a.tipo_accion==='crear_proyecto'&&<span style={{fontSize:12,color:'#2C2825'}}>📂 Nuevo Proyecto: {a.nombre}</span>}
-              {a.tipo_accion==='completar_tarea'&&<span style={{fontSize:12,color:'#2C2825'}}>✅ Completar: {a._tarea_encontrada ? a._tarea_encontrada.title : `"${a.titulo_tarea}" (No encontrada)`}</span>}
-              {a.tipo_accion==='reprogramar_tarea'&&<span style={{fontSize:12,color:'#2C2825'}}>📅 Mover: {a._tarea_encontrada ? a._tarea_encontrada.title : `"${a.titulo_tarea}" (No encontrada)`}</span>}
+    <div style={{margin:desktop?'0 0 24px':'12px 20px 4px'}}>
+      {/* Encabezado */}
+      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+        <div style={{width:5,height:5,borderRadius:'50%',background:'#C4A882'}}/>
+        <span style={{fontFamily:"'DM Sans'",fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878'}}>
+          Escuché esto
+        </span>
+        {transcriptVoz&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C8C3BB',fontStyle:'italic',marginLeft:4}}>· {transcriptVoz}</span>}
+      </div>
+      {/* Tarjetas */}
+      {accionesVoz.map((a)=>{
+        const disabled = !a._tarea_encontrada && (a.tipo_accion==='completar_tarea'||a.tipo_accion==='reprogramar_tarea');
+        let titulo = '';
+        if(a.tipo_accion==='crear_tarea') titulo = a.titulo;
+        if(a.tipo_accion==='crear_proyecto') titulo = a.nombre;
+        if(a.tipo_accion==='completar_tarea') titulo = a._tarea_encontrada ? a._tarea_encontrada.title : `"${a.titulo_tarea}" — no encontrada`;
+        if(a.tipo_accion==='reprogramar_tarea') titulo = a._tarea_encontrada ? `${a._tarea_encontrada.title} → ${a.nueva_fecha}` : `"${a.titulo_tarea}" — no encontrada`;
+        return(
+          <div key={a.id} style={{
+            display:'flex',alignItems:'center',gap:12,
+            padding:'11px 0',
+            borderBottom:'1px solid #EAE6E0',
+          }}>
+            {/* Barra accent */}
+            <div style={{width:3,borderRadius:99,alignSelf:'stretch',background:'#C4A882',flexShrink:0,minHeight:18}}/>
+            {/* Contenido */}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825',lineHeight:1.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                {titulo}
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:4,marginTop:2,flexWrap:'wrap'}}>
+                <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{ACCION_LABEL[a.tipo_accion]}</span>
+                {a.tipo_accion==='crear_tarea'&&a.fecha&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{a.fecha}</span></>}
+                {a.tipo_accion==='crear_tarea'&&a._proyecto_id&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#9B8878'}}>{(projects.find(p=>p.id===a._proyecto_id)||{}).name||''}</span></>}
+                {a.tipo_accion==='crear_tarea'&&!a._proyecto_id&&a.proyecto_nombre&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C4A882'}}>sin proyecto asignado</span></>}
+                {a.tipo==='sugerida'&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C8C3BB'}}>sugerida</span></>}
+              </div>
             </div>
-            <div style={{fontSize:10,color:'#B0AA9F'}}>
-              {a.tipo_accion==='crear_tarea'&&<>
-                {a.fecha&&<span>{a.fecha}</span>}
-                {a._proyecto_id&&<span> · Proyecto asignado</span>}
-                {!a._proyecto_id&&a.proyecto_nombre&&<span style={{color:'#C4312A'}}> · Proyecto '{a.proyecto_nombre}' no encontrado</span>}
-                {a.tipo==='sugerida'&&a.razon&&<div style={{marginTop:2,color:'#C8C3BB'}}>{a.razon}</div>}
-              </>}
-              {a.tipo_accion==='reprogramar_tarea'&&a._tarea_encontrada&&<>
-                <span>→ {a.nueva_fecha}</span>
-              </>}
+            {/* Acciones */}
+            <div style={{display:'flex',gap:6,flexShrink:0}}>
+              <button
+                onClick={()=>ejecutarAccionVoz(a)}
+                disabled={disabled}
+                style={{
+                  background:disabled?'#F0EDE8':'#2C2825',
+                  color:disabled?'#C8C3BB':'white',
+                  border:'none',borderRadius:8,
+                  padding:'6px 12px',
+                  fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,
+                  cursor:disabled?'not-allowed':'pointer',
+                  transition:'all .15s',
+                }}>
+                Agregar
+              </button>
+              <button
+                onClick={()=>descartarAccionVoz(a)}
+                style={{
+                  background:'none',color:'#C8C3BB',
+                  border:'1px solid #EAE6E0',borderRadius:8,
+                  padding:'6px 8px',
+                  fontFamily:"'DM Sans'",fontSize:12,
+                  cursor:'pointer',
+                }}>
+                ✕
+              </button>
             </div>
           </div>
-          <div style={{display:'flex',gap:6,flexShrink:0}}>
-            <button onClick={()=>ejecutarAccionVoz(a)} disabled={!a._tarea_encontrada && (a.tipo_accion==='completar_tarea' || a.tipo_accion==='reprogramar_tarea')} style={{background:(!a._tarea_encontrada && (a.tipo_accion==='completar_tarea' || a.tipo_accion==='reprogramar_tarea'))?'#EAE6E0':'#2C2825',color:'white',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:500,cursor:(!a._tarea_encontrada && (a.tipo_accion==='completar_tarea' || a.tipo_accion==='reprogramar_tarea'))?'not-allowed':'pointer',fontFamily:"'DM Sans'"}}>✔️</button>
-            <button onClick={()=>descartarAccionVoz(a)} style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,padding:'5px 8px',fontSize:11,cursor:'pointer',fontFamily:"'DM Sans'"}}>✕</button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   ) : null;
 
