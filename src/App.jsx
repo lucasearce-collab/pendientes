@@ -3953,20 +3953,26 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   const [transcriptVoz, setTranscriptVoz] = useState('');
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
+  const isHoldingRef = useRef(false);
 
   async function iniciarGrabacion(){
+    isHoldingRef.current = true;
     try{
       const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      if (!isHoldingRef.current) {
+        stream.getTracks().forEach(t=>t.stop());
+        return;
+      }
       const mr = new MediaRecorder(stream); // Dejar que el navegador elija el formato (mp4 en iOS)
       chunksRef.current = [];
       mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
       mr.onstop = async () => {
         stream.getTracks().forEach(t=>t.stop());
-        const blob = new Blob(chunksRef.current);
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/mp4' });
         if(blob.size < 1000){ setProcesandoVoz(false); return; }
         await procesarAudio(blob, blob.type);
       };
-      mr.start();
+      mr.start(500); // El timeslice (500ms) evita un bug muy común en iOS donde graba silencio
       mediaRecorderRef.current = mr;
       setGrabando(true);
     } catch(e){
@@ -3976,6 +3982,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   }
 
   function detenerGrabacion(){
+    isHoldingRef.current = false;
     if(mediaRecorderRef.current && grabando){
       mediaRecorderRef.current.stop();
       setGrabando(false);
