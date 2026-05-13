@@ -308,23 +308,8 @@ export default function App() {
       ]);
       if(ps.error||ts.error||gs.error) throw new Error("Error cargando datos");
       const userProjects=(ps.data||[]).map(projFromDb);
-      const rawTasks=(ts.data||[]).map(taskFromDb);
+      const userTasks=(ts.data||[]).map(taskFromDb);
       const userGoals=(gs.data||[]).map(goalFromDb);
-
-      // Auto-asignar fecha de hoy a tareas sin fecha (retroactivo)
-      const today = todayStr();
-      const tasksToFix = rawTasks.filter(t => !t.done && (!t.date || t.date === ''));
-      const userTasks = rawTasks.map(t => {
-        if (!t.done && (!t.date || t.date === '')) return { ...t, date: today };
-        return t;
-      });
-      if (tasksToFix.length > 0) {
-        const fixUid = session.user.id;
-        tasksToFix.forEach(t => {
-          supabase.from('tasks').update({ date: today }).eq('id', t.id).eq('user_id', fixUid).then(() => {});
-        });
-      }
-
       setProjects(userProjects);
       setTasks(userTasks);
       setGoals(userGoals);
@@ -3959,6 +3944,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   }
 
   const [diaDificil, setDiaDificil] = useState(false);
+  const [verTodoModal, setVerTodoModal] = useState(false);
 
   // Agente de voz
   const [grabando, setGrabando] = useState(false);
@@ -4194,10 +4180,115 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     </div>
   );
 
+  // ── Modal Ver Todo ──
+  const VerTodoModal = () => {
+    if (!verTodoModal) return null;
+
+    const allPending = (tasks||[])
+      .filter(t => !t.done)
+      .map(t => {
+        const proj = (projects||[]).find(p => p.id === t.projectId);
+        return { ...t, _proj: proj };
+      })
+      .sort((a, b) => {
+        if (!a.date && !b.date) return 0;
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return a.date.localeCompare(b.date);
+      });
+
+    const today = todayStr();
+    const fmt = d => {
+      if (!d) return 'sin fecha';
+      if (d === today) return 'hoy';
+      const [,m,day] = d.split('-');
+      const months = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      return `${parseInt(day)} ${months[parseInt(m)]}`;
+    };
+
+    const AREA_COLOR = { trabajo: '#9B8878', personal: '#8A9E8A' };
+
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(44,40,37,.5)',zIndex:150,display:'flex',alignItems:'flex-end',justifyContent:'center'}}
+        onClick={e=>{if(e.target===e.currentTarget)setVerTodoModal(false);}}>
+        <div style={{
+          width:'100%',maxWidth:desktop?600:430,
+          background:'#F5F2EE',
+          borderRadius:desktop?'20px 20px 0 0':'20px 20px 0 0',
+          display:'flex',flexDirection:'column',
+          maxHeight:'85vh',
+          boxShadow:'0 -4px 40px rgba(0,0,0,.12)',
+        }}>
+          {/* Handle mobile */}
+          {!desktop&&<div style={{width:36,height:3,background:'#D5CFC8',borderRadius:99,margin:'14px auto 0',flexShrink:0}}/>}
+          {/* Header */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:desktop?'20px 32px 16px':'16px 20px 12px',flexShrink:0}}>
+            <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825'}}>
+              Todas las tareas
+              <span style={{fontWeight:300,color:'#B0AA9F',marginLeft:8}}>{allPending.length}</span>
+            </span>
+            <button onClick={()=>setVerTodoModal(false)}
+              style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:20,color:'#C8C3BB',lineHeight:1,padding:0}}>×</button>
+          </div>
+          {/* Lista */}
+          <div style={{overflowY:'auto',WebkitOverflowScrolling:'touch',flex:1,padding:desktop?'0 32px 32px':'0 0 32px'}}>
+            {allPending.length === 0 && (
+              <div style={{textAlign:'center',padding:'40px 0',color:'#C8C3BB',fontFamily:"'DM Sans'",fontSize:14}}>Sin tareas pendientes ·</div>
+            )}
+            {allPending.map(t => {
+              const areaColor = AREA_COLOR[t._proj?.area] || '#D5CFC8';
+              const isOverdueTask = t.date && t.date < today;
+              return (
+                <div key={t.id}
+                  onClick={()=>{ onOpen(t); setVerTodoModal(false); }}
+                  style={{
+                    display:'flex',alignItems:'center',gap:0,
+                    padding:desktop?'0 0 0 0':'0 20px',
+                    cursor:'pointer',
+                  }}>
+                  <div style={{
+                    display:'flex',alignItems:'center',gap:12,
+                    flex:1,
+                    padding:'11px 0',
+                    borderBottom:'1px solid #EAE6E0',
+                  }}>
+                    {/* Barra de color área */}
+                    <div style={{width:3,borderRadius:99,alignSelf:'stretch',background:areaColor,flexShrink:0,minHeight:18}}/>
+                    {/* Check */}
+                    <button onClick={e=>{e.stopPropagation(); toggleDone(t.id);}}
+                      style={{width:18,height:18,borderRadius:'50%',border:`1.5px solid #D5CFC8`,background:'none',cursor:'pointer',flexShrink:0,padding:0}}/>
+                    {/* Título + meta info */}
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:"'DM Sans'",fontSize:14,color:'#2C2825',lineHeight:1.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                        {t.title}
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
+                        {t._proj&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{t._proj.name}</span>}
+                        {t._proj&&t.date&&<span style={{color:'#D5CFC8',fontSize:10}}>·</span>}
+                        {t.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:isOverdueTask?'#C4A882':'#B0AA9F'}}>{fmt(t.date)}</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const BtnSemana = () => (
     <button onClick={onVerSemana}
       style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",fontWeight:300,padding:"0",letterSpacing:".01em"}}>
       ver semana →
+    </button>
+  );
+
+  const BtnVerTodo = () => (
+    <button onClick={()=>setVerTodoModal(true)}
+      style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",fontWeight:300,padding:"0",letterSpacing:".01em"}}>
+      ver todo →
     </button>
   );
 
@@ -4304,14 +4395,16 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
 
   if(isEmpty) return(
     <div>
-      <div style={{display:"flex",justifyContent:"flex-end",padding:desktop?"0 0 16px":"8px 20px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:desktop?"0 0 16px":"8px 20px"}}>
         <BtnSemana/>
+        <BtnVerTodo/>
       </div>
       {PanelVoz}
       <div style={{textAlign:"center",padding:desktop?"60px 0":"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
       <button onClick={()=>onOpenAddSheet ? onOpenAddSheet({projectId:null,area:'trabajo',projectName:'',showProjectSelector:true}) : onAddTask({id:null,name:'',area:'trabajo',showProjectSelector:true})} className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:8}:{}}>
         <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
       </button>
+      <VerTodoModal/>
       <ModalDiaDificil/>
       <BtnMic/>
     </div>
@@ -4320,7 +4413,10 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   if(desktop) return(
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <BtnSemana/>
+        <div style={{display:"flex",gap:16}}>
+          <BtnSemana/>
+          <BtnVerTodo/>
+        </div>
         {todayTasks.length>=2&&(
           <button onClick={abrirDiaDificil}
             style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:0,letterSpacing:".01em"}}>
@@ -4369,6 +4465,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       <button onClick={()=>onOpenAddSheet ? onOpenAddSheet({projectId:null,area:'trabajo',projectName:'',showProjectSelector:true}) : onAddTask({id:null,name:'',area:'trabajo',showProjectSelector:true})} className="d-newp" style={{marginTop:16}}>
         <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
       </button>
+      <VerTodoModal/>
       <ModalDiaDificil/>
 
       <BtnMic/>
@@ -4378,7 +4475,10 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   return(
     <div style={{paddingBottom:16}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 20px 0"}}>
-        <BtnSemana/>
+        <div style={{display:"flex",gap:16}}>
+          <BtnSemana/>
+          <BtnVerTodo/>
+        </div>
         {todayTasks.length>=2&&(
           <button onClick={abrirDiaDificil}
             style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:0,letterSpacing:".01em"}}>
@@ -4411,6 +4511,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       <button onClick={()=>onOpenAddSheet ? onOpenAddSheet({projectId:null,area:'trabajo',projectName:'',showProjectSelector:true}) : onAddTask({id:null,name:'',area:'trabajo',showProjectSelector:true})} className="m-newp">
         <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
       </button>
+      <VerTodoModal/>
       <ModalDiaDificil/>
 
 
