@@ -32,7 +32,14 @@ async function getEvents(accessToken) {
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
   const data = await res.json();
-  return (data.items || []).filter(e => e.start?.dateTime);
+  return (data.items || []).filter(e => {
+    if (!e.start?.dateTime) return false;
+    // Solo reuniones aceptadas o organizadas por el usuario
+    if (e.organizer?.self) return true;
+    const self = (e.attendees || []).find(a => a.self);
+    if (!self) return true; // sin attendees = evento propio
+    return self.responseStatus === 'accepted';
+  });
 }
 
 async function processEventWithGroq(event) {
@@ -137,6 +144,12 @@ export default async function handler(req, res) {
 
         const events = await getEvents(accessToken);
         console.log('[calendar] eventos encontrados:', events.length, events.map(e=>e.summary));
+
+        // Limpiar sugerencias pendientes viejas antes de generar nuevas
+        await supabase.from('calendar_suggestions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('status', 'pending');
 
         for (const event of events) {
           console.log('[calendar] procesando evento:', event.summary, event.start?.dateTime);
