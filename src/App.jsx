@@ -3956,6 +3956,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   const isHoldingRef = useRef(false);
 
   async function iniciarGrabacion(){
+    if (grabando || isHoldingRef.current) return;
     isHoldingRef.current = true;
     try{
       const stream = await navigator.mediaDevices.getUserMedia({audio:true});
@@ -4116,8 +4117,10 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       <button
         onMouseDown={iniciarGrabacion}
         onMouseUp={detenerGrabacion}
+        onMouseLeave={detenerGrabacion}
         onTouchStart={e=>{e.preventDefault();iniciarGrabacion();}}
         onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
+        onTouchCancel={e=>{e.preventDefault();detenerGrabacion();}}
         style={{
           width:38,height:38,borderRadius:'50%',flexShrink:0,
           background:grabando?'#C4312A':procesandoVoz?'#C4A882':'#2C2825',
