@@ -3957,14 +3957,14 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   async function iniciarGrabacion(){
     try{
       const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-      const mr = new MediaRecorder(stream, {mimeType:'audio/webm'});
+      const mr = new MediaRecorder(stream); // Dejar que el navegador elija el formato (mp4 en iOS)
       chunksRef.current = [];
       mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
       mr.onstop = async () => {
         stream.getTracks().forEach(t=>t.stop());
-        const blob = new Blob(chunksRef.current, {type:'audio/webm'});
+        const blob = new Blob(chunksRef.current);
         if(blob.size < 1000){ setProcesandoVoz(false); return; }
-        await procesarAudio(blob);
+        await procesarAudio(blob, blob.type);
       };
       mr.start();
       mediaRecorderRef.current = mr;
@@ -3983,11 +3983,11 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     }
   }
 
-  async function procesarAudio(blob){
+  async function procesarAudio(blob, mimeType){
     try{
       const res = await fetch('/api/voice-task', {
         method:'POST', 
-        headers: { 'Content-Type': 'audio/webm' },
+        headers: { 'Content-Type': mimeType || 'audio/mp4' },
         body: blob 
       });
       const data = await res.json();
