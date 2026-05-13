@@ -14,10 +14,15 @@ export default async function handler(req, res) {
 
     if (!audioBuffer || audioBuffer.length === 0) return res.status(400).json({ error: 'No audio found' });
 
+    const contentType = req.headers['content-type'] || 'audio/webm';
+    let ext = 'webm';
+    if (contentType.includes('mp4') || contentType.includes('m4a')) ext = 'm4a';
+    else if (contentType.includes('mpeg')) ext = 'mp3';
+
     // 1. Transcribir con Groq Whisper
     const formData = new FormData();
-    const blob = new Blob([audioBuffer], { type: 'audio/webm' });
-    formData.append('file', blob, 'audio.webm');
+    const blob = new Blob([audioBuffer], { type: contentType });
+    formData.append('file', blob, `audio.${ext}`);
     formData.append('model', 'whisper-large-v3');
     formData.append('language', 'es');
     formData.append('response_format', 'json');
