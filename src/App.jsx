@@ -4350,6 +4350,33 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         )}
       </div>
       <ToastReagendado/>
+
+      {/* Panel tareas por voz — mobile */}
+      {tareasVoz.length>0&&(
+        <div style={{margin:'12px 16px',background:'#F5F2EE',borderRadius:14,border:'1px solid #EAE6E0',padding:'14px 16px'}}>
+          <div style={{fontSize:11,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',marginBottom:4}}>Escuché esto (Revisa y aprueba)</div>
+          {transcriptVoz&&<div style={{fontSize:11,color:'#C8C3BB',marginBottom:10,fontStyle:'italic'}}>"{transcriptVoz}"</div>}
+          {tareasVoz.map((t,i)=>(
+            <div key={i} style={{background:'white',borderRadius:10,border:'1px solid #EAE6E0',padding:'10px 12px',marginBottom:8,display:'flex',alignItems:'flex-start',gap:10}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3,flexWrap:'wrap'}}>
+                  {t.tipo==='sugerida'&&<span style={{fontSize:9,background:'#F0F1F8',color:'#5B6BAF',padding:'1px 6px',borderRadius:99,fontWeight:500}}>sugerida</span>}
+                  <span style={{fontSize:12,color:'#2C2825'}}>{t.titulo}</span>
+                </div>
+                <div style={{fontSize:10,color:'#B0AA9F'}}>
+                  {t.fecha&&<span>{t.fecha}</span>}
+                  {t.proyecto_sugerido&&<span> · {t.proyecto_sugerido}</span>}
+                  {t.tipo==='sugerida'&&t.razon&&<div style={{marginTop:2,color:'#C8C3BB'}}>{t.razon}</div>}
+                </div>
+              </div>
+              <div style={{display:'flex',gap:6,flexShrink:0}}>
+                <button onClick={()=>aceptarTareaVoz(t)} style={{background:'#2C2825',color:'white',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>✔️</button>
+                <button onClick={()=>setTareasVoz(tv=>tv.filter(x=>x.titulo!==t.titulo))} style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,padding:'5px 8px',fontSize:11,cursor:'pointer',fontFamily:"'DM Sans'"}}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {sugerencias.length>0&&(
         <div style={{padding:'0 16px',marginBottom:8}}>
           <div style={{fontSize:11,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',margin:'12px 0 8px'}}>Tu agenda sugiere</div>
@@ -4371,32 +4398,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       {overdueWork.length>0&&<><SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/><TaskList tasks={overdueWork} overdue/></>}
       <ModalDiaDificil/>
 
-      {/* Panel tareas por voz — mobile */}
-      {tareasVoz.length>0&&(
-        <div style={{margin:'12px 16px',background:'#F5F2EE',borderRadius:14,border:'1px solid #EAE6E0',padding:'14px 16px'}}>
-          <div style={{fontSize:11,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',marginBottom:4}}>Escuché esto</div>
-          {transcriptVoz&&<div style={{fontSize:11,color:'#C8C3BB',marginBottom:10,fontStyle:'italic'}}>"{transcriptVoz}"</div>}
-          {tareasVoz.map((t,i)=>(
-            <div key={i} style={{background:'white',borderRadius:10,border:'1px solid #EAE6E0',padding:'10px 12px',marginBottom:8,display:'flex',alignItems:'flex-start',gap:10}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3,flexWrap:'wrap'}}>
-                  {t.tipo==='sugerida'&&<span style={{fontSize:9,background:'#F0F1F8',color:'#5B6BAF',padding:'1px 6px',borderRadius:99,fontWeight:500}}>sugerida</span>}
-                  <span style={{fontSize:12,color:'#2C2825'}}>{t.titulo}</span>
-                </div>
-                <div style={{fontSize:10,color:'#B0AA9F'}}>
-                  {t.fecha&&<span>{t.fecha}</span>}
-                  {t.proyecto_sugerido&&<span> · {t.proyecto_sugerido}</span>}
-                  {t.tipo==='sugerida'&&t.razon&&<div style={{marginTop:2,color:'#C8C3BB'}}>{t.razon}</div>}
-                </div>
-              </div>
-              <div style={{display:'flex',gap:6,flexShrink:0}}>
-                <button onClick={()=>aceptarTareaVoz(t)} style={{background:'#2C2825',color:'white',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>+ Agregar</button>
-                <button onClick={()=>descartarTareaVoz(t)} style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,padding:'5px 8px',fontSize:11,cursor:'pointer',fontFamily:"'DM Sans'"}}>✕</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+
 
       <BtnMic/>
     </div>
