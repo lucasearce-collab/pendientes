@@ -3985,9 +3985,11 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
 
   async function procesarAudio(blob){
     try{
-      const fd = new FormData();
-      fd.append('audio', blob, 'audio.webm');
-      const res = await fetch('/api/voice-task', {method:'POST', body:fd});
+      const res = await fetch('/api/voice-task', {
+        method:'POST', 
+        headers: { 'Content-Type': 'audio/webm' },
+        body: blob 
+      });
       const data = await res.json();
       if(data.tareas?.length>0){
         setTareasVoz(data.tareas);
