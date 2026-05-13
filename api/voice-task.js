@@ -43,38 +43,51 @@ export default async function handler(req, res) {
       return res.status(200).json({ tareas: [], transcript: '' });
     }
 
-    // 2. Extraer tareas y sugerir próximos pasos con Llama
+    // 2. Extraer tareas e intenciones con Llama
     const today = new Date().toISOString().slice(0, 10);
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
-    const prompt = `Sos un asistente ejecutivo de productividad. Analizá este audio transcripto y extraé o sugerí tareas accionables.
+    const prompt = `Sos un asistente ejecutivo de productividad. Analizá este audio transcripto y detectá las acciones que el usuario quiere realizar en su gestor de tareas.
 
 Transcripción: "${transcript}"
 
 Fecha de hoy: ${today}
 
-Tu trabajo es:
-1. Si el usuario menciona tareas explícitas ("tengo que...", "llamar a...", "enviar...", "agendar...") → extraélas directamente
-2. Si el usuario describe una situación, reunión o contexto sin mencionar tareas explícitas → sugerí 2-3 próximos pasos lógicos como tareas
-3. Si hay una mezcla → hacé las dos cosas
+Tu trabajo es clasificar la intención y extraer los parámetros. Las acciones posibles son:
+1. crear_tarea: El usuario quiere agregar una nueva tarea. Extraé el título, la fecha (usá ${today} si es para hoy, ${tomorrow} si es para mañana) y el nombre del proyecto si se menciona uno.
+2. crear_proyecto: El usuario quiere crear un proyecto nuevo. Extraé el nombre.
+3. completar_tarea: El usuario dice que ya terminó o completó una tarea. Extraé el título aproximado de la tarea.
+4. reprogramar_tarea: El usuario quiere mover o patear una tarea para otro día. Extraé el título de la tarea y la nueva fecha.
 
 Reglas:
-- Si no se menciona fecha, usá ${today} (hoy)
-- Si dice "mañana" usá ${tomorrow}
-- El título de cada tarea debe ser específico y accionable
-- Detectá el proyecto si hay contexto suficiente (nombre de cliente, empresa, proyecto)
-- Diferenciá si es una tarea que el usuario dijo explícitamente vs una que vos sugerís
+- Si no hay intenciones claras, devolvé un array vacío.
+- Si el usuario simplemente narra su día sin pedir nada explícito, sugerí 1 o 2 "crear_tarea" lógicas como próximos pasos (marcá tipo="sugerida").
+- Devolvé SOLO un JSON válido sin markdown.
 
-Devolvé SOLO un JSON válido sin markdown:
+Formato esperado:
 {
   "transcript": "el texto original resumido en una línea",
-  "tareas": [
+  "acciones": [
     {
-      "titulo": "título específico y accionable",
-      "fecha": "YYYY-MM-DD",
-      "proyecto_sugerido": "nombre del proyecto o null",
+      "tipo_accion": "crear_tarea",
+      "titulo": "título accionable",
+      "fecha": "YYYY-MM-DD o null",
+      "proyecto_nombre": "nombre del proyecto o null",
       "tipo": "explicita o sugerida",
-      "razon": "por qué sugerís esta tarea si es sugerida"
+      "razon": "por qué sugerís esta tarea (si es sugerida)"
+    },
+    {
+      "tipo_accion": "crear_proyecto",
+      "nombre": "nombre del nuevo proyecto"
+    },
+    {
+      "tipo_accion": "completar_tarea",
+      "titulo_tarea": "título de la tarea a completar"
+    },
+    {
+      "tipo_accion": "reprogramar_tarea",
+      "titulo_tarea": "título de la tarea a mover",
+      "nueva_fecha": "YYYY-MM-DD"
     }
   ]
 }`;
@@ -98,14 +111,14 @@ Devolvé SOLO un JSON válido sin markdown:
     if (!llamaRes.ok) {
       return res.status(500).json({ error: 'Llama error: ' + JSON.stringify(llamaData) });
     }
-    const text = llamaData.choices?.[0]?.message?.content || '{"tareas":[]}';
+    const text = llamaData.choices?.[0]?.message?.content || '{"acciones":[]}';
 
     try {
       const clean = text.replace(/```json|```/gi, '').trim();
       const parsed = JSON.parse(clean);
       return res.status(200).json({
         transcript,
-        tareas: parsed.tareas || [],
+        acciones: parsed.acciones || [],
       });
     } catch (e) {
       return res.status(500).json({ error: 'Error parseando respuesta de Llama: ' + text });
