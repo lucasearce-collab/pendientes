@@ -129,12 +129,18 @@ export default async function handler(req, res) {
 
     for (const user of users) {
       try {
+        console.log('[calendar] procesando usuario:', user.id);
+        
         const accessToken = await getAccessToken(user.google_calendar_token);
-        if (!accessToken) continue;
+        console.log('[calendar] accessToken obtenido:', !!accessToken);
+        if (!accessToken) { console.log('[calendar] sin accessToken, skip'); continue; }
 
         const events = await getEvents(accessToken);
+        console.log('[calendar] eventos encontrados:', events.length, events.map(e=>e.summary));
 
         for (const event of events) {
+          console.log('[calendar] procesando evento:', event.summary, event.start?.dateTime);
+          
           const { data: existing } = await supabase
             .from('calendar_suggestions')
             .select('id')
@@ -142,12 +148,13 @@ export default async function handler(req, res) {
             .eq('event_id', event.id)
             .eq('status', 'pending');
 
-          if (existing?.length > 0) continue;
+          if (existing?.length > 0) { console.log('[calendar] ya existe sugerencia para:', event.summary); continue; }
 
           const tareas = await processEventWithGroq(event);
+          console.log('[calendar] tareas generadas para', event.summary, ':', tareas);
 
           for (const tarea of tareas) {
-            await supabase.from('calendar_suggestions').insert({
+            const { error: insertError } = await supabase.from('calendar_suggestions').insert({
               user_id: user.id,
               event_id: event.id,
               event_title: event.summary,
@@ -157,15 +164,17 @@ export default async function handler(req, res) {
               momento: tarea.momento,
               status: 'pending',
             });
+            if (insertError) console.error('[calendar] error insert:', insertError);
           }
 
           if (tareas.length > 0) results.push({ event: event.summary, tareas: tareas.length });
         }
       } catch (e) {
-        console.error('Error usuario:', user.id, e.message);
+        console.error('[calendar] error usuario:', user.id, e.message, e.stack);
       }
     }
 
+    console.log('[calendar] resultado final:', { processed: users.length, suggestions: results });
     return res.json({ processed: users.length, suggestions: results });
 
   } catch (e) {
