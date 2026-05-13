@@ -3964,21 +3964,27 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         stream.getTracks().forEach(t=>t.stop());
         return;
       }
-      const mr = new MediaRecorder(stream); // Dejar que el navegador elija el formato (mp4 en iOS)
+      const mr = new MediaRecorder(stream); 
       chunksRef.current = [];
       mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
       mr.onstop = async () => {
         stream.getTracks().forEach(t=>t.stop());
-        const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/mp4' });
-        if(blob.size < 1000){ setProcesandoVoz(false); return; }
+        const type = chunksRef.current[0]?.type || mr.mimeType || 'audio/mp4';
+        const blob = new Blob(chunksRef.current, { type });
+        if (blob.size === 0) {
+          setProcesandoVoz(false);
+          alert('No se capturó audio (tamaño 0). Asegúrate de darle permisos al micrófono.');
+          return;
+        }
         await procesarAudio(blob, blob.type);
       };
-      mr.start(500); // El timeslice (500ms) evita un bug muy común en iOS donde graba silencio
+      mr.start(500); 
       mediaRecorderRef.current = mr;
       setGrabando(true);
     } catch(e){
+      isHoldingRef.current = false;
       console.error('Error grabando:', e);
-      alert('No se pudo acceder al micrófono');
+      alert('No se pudo acceder al micrófono. Por favor, revisa los permisos de Safari.');
     }
   }
 
@@ -4006,7 +4012,10 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       }
       
       if(data.tareas?.length>0){
-        setTareasVoz(data.tareas);
+        setTareasVoz(prev => {
+          const nuevas = data.tareas.filter(t => !prev.some(p => p.titulo === t.titulo));
+          return [...prev, ...nuevas];
+        });
         setTranscriptVoz(data.transcript||'');
       } else {
         alert('No detecté tareas. (Transcripción: ' + (data.transcript || 'vacia') + ')');
