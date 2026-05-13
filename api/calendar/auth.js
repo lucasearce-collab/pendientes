@@ -17,7 +17,7 @@ export default function handler(req, res) {
     `&response_type=code` +
     `&scope=${encodeURIComponent(scopes)}` +
     `&access_type=offline` +
-    `&prompt=consent` +
+    `&prompt=select_account%20consent` +
     `&state=${encodeURIComponent(userId)}`;
 
   res.redirect(authUrl);
