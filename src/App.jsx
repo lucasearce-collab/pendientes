@@ -4260,6 +4260,34 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
           ))}
         </div>
       )}
+
+      {/* Panel tareas por voz */}
+      {tareasVoz.length>0&&(
+        <div style={{marginBottom:24,background:'#F5F2EE',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 18px'}}>
+          <div style={{fontSize:11,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',marginBottom:4}}>Escuché esto (Revisa y aprueba)</div>
+          {transcriptVoz&&<div style={{fontSize:11,color:'#C8C3BB',marginBottom:12,fontStyle:'italic'}}>"{transcriptVoz}"</div>}
+          {tareasVoz.map((t,i)=>(
+            <div key={i} style={{background:'white',borderRadius:10,border:'1px solid #EAE6E0',padding:'10px 12px',marginBottom:8,display:'flex',alignItems:'flex-start',gap:10}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
+                  {t.tipo==='sugerida'&&<span style={{fontSize:9,background:'#F0F1F8',color:'#5B6BAF',padding:'1px 6px',borderRadius:99,fontWeight:500}}>sugerida</span>}
+                  <span style={{fontSize:12,color:'#2C2825'}}>{t.titulo}</span>
+                </div>
+                <div style={{fontSize:10,color:'#B0AA9F'}}>
+                  {t.fecha&&<span>{t.fecha}</span>}
+                  {t.proyecto_sugerido&&<span> · {t.proyecto_sugerido}</span>}
+                  {t.tipo==='sugerida'&&t.razon&&<div style={{marginTop:2,color:'#C8C3BB'}}>{t.razon}</div>}
+                </div>
+              </div>
+              <div style={{display:'flex',gap:6,flexShrink:0}}>
+                <button onClick={()=>aceptarTareaVoz(t)} style={{background:'#2C2825',color:'white',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>✔️</button>
+                <button onClick={()=>setTareasVoz(tv=>tv.filter(x=>x.titulo!==t.titulo))} style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,padding:'5px 8px',fontSize:11,cursor:'pointer',fontFamily:"'DM Sans'"}}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{display:"flex",gap:48,alignItems:"flex-start"}}>
         <div style={{flex:1,minWidth:0}}>
           <SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/>
@@ -5001,7 +5029,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
              <FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop={desktop}/>
            </div>
           :<div style={desktop?{padding:"24px 48px"}:{}}>
-             <HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop} onVerSemana={()=>setSemanaModal(true)} onUpdateTask={updateTask} userId={uid} supabase={supabase} onAddTask={t=>addTask(t.projectId,t)}/>
+             <HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop} onVerSemana={()=>setSemanaModal(true)} onUpdateTask={updateTask} userId={uid} supabase={supabase} onAddTask={t=>addTask(t)}/>
            </div>
       )}
 
