@@ -82,16 +82,15 @@ const IMPORTANCE = {
 const SECTIONS = [
   {
     id: "hoy",
-    label: "Hoy",
+    label: "Mi día",
     subTabs: [
-      { id: "hoy", label: "Hoy" },
+      { id: "hoy", label: "Mi día" },
     ],
   },
   {
-    id: "tareas",
-    label: "Acción",
+    id: "proyectos",
+    label: "Proyectos",
     subTabs: [
-      { id: "tareas",    label: "Tareas"    },
       { id: "proyectos", label: "Proyectos" },
     ],
   },
@@ -309,8 +308,23 @@ export default function App() {
       ]);
       if(ps.error||ts.error||gs.error) throw new Error("Error cargando datos");
       const userProjects=(ps.data||[]).map(projFromDb);
-      const userTasks=(ts.data||[]).map(taskFromDb);
+      const rawTasks=(ts.data||[]).map(taskFromDb);
       const userGoals=(gs.data||[]).map(goalFromDb);
+
+      // Auto-asignar fecha de hoy a tareas sin fecha (retroactivo)
+      const today = todayStr();
+      const tasksToFix = rawTasks.filter(t => !t.done && (!t.date || t.date === ''));
+      const userTasks = rawTasks.map(t => {
+        if (!t.done && (!t.date || t.date === '')) return { ...t, date: today };
+        return t;
+      });
+      if (tasksToFix.length > 0) {
+        const fixUid = session.user.id;
+        tasksToFix.forEach(t => {
+          supabase.from('tasks').update({ date: today }).eq('id', t.id).eq('user_id', fixUid).then(() => {});
+        });
+      }
+
       setProjects(userProjects);
       setTasks(userTasks);
       setGoals(userGoals);
@@ -3909,7 +3923,7 @@ function ErrorToast({message,onDismiss}){
   );
 }
 
-function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop,onVerSemana,onUpdateTask,userId,supabase,onAddTask,onAddProject}){
+function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop,onVerSemana,onUpdateTask,userId,supabase,onAddTask,onOpenAddSheet,onAddProject}){
   const today = todayStr();
   const todayTasks = (tasks||[]).filter(t=>!t.done&&t.date===today).sort(taskSort);
 
@@ -4295,6 +4309,9 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       </div>
       {PanelVoz}
       <div style={{textAlign:"center",padding:desktop?"60px 0":"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
+      <button onClick={()=>onOpenAddSheet ? onOpenAddSheet({projectId:null,area:'trabajo',projectName:'',showProjectSelector:true}) : onAddTask({id:null,name:'',area:'trabajo',showProjectSelector:true})} className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:8}:{}}>
+        <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
+      </button>
       <ModalDiaDificil/>
       <BtnMic/>
     </div>
@@ -4349,6 +4366,9 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
           }
         </div>
       </div>
+      <button onClick={()=>onOpenAddSheet ? onOpenAddSheet({projectId:null,area:'trabajo',projectName:'',showProjectSelector:true}) : onAddTask({id:null,name:'',area:'trabajo',showProjectSelector:true})} className="d-newp" style={{marginTop:16}}>
+        <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
+      </button>
       <ModalDiaDificil/>
 
       <BtnMic/>
@@ -4388,6 +4408,9 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       )}
       {todayTasks.length>0&&<><SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/><TaskList tasks={todayTasks}/></>}
       {overdueWork.length>0&&<><SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/><TaskList tasks={overdueWork} overdue/></>}
+      <button onClick={()=>onOpenAddSheet ? onOpenAddSheet({projectId:null,area:'trabajo',projectName:'',showProjectSelector:true}) : onAddTask({id:null,name:'',area:'trabajo',showProjectSelector:true})} className="m-newp">
+        <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
+      </button>
       <ModalDiaDificil/>
 
 
@@ -4894,7 +4917,7 @@ function TourApp({onClose}){
 function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline,desktop,showTour,setShowTour,uid,supabase}){
 
   const activeSec = SECTIONS.find(s => s.id === section);
-  const showAreaPills = subView==="tareas" || subView==="proyectos";
+  const showAreaPills = subView==="proyectos";
   const [semanaModal, setSemanaModal] = useState(false);
 
   // Orden de sub-tabs por sección — persiste en localStorage
@@ -4914,10 +4937,10 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
   const [dragSubTab, setDragSubTab] = useState(null);
 
   const NAV_ITEMS = [
-    { id:"hoy",      label:"Hoy",      icon:"⊙" },
-    { id:"tareas",   label:"Acción",   icon:"☐" },
-    { id:"metas",    label:"Metas",    icon:"⋈" },
-    { id:"progreso", label:"Progreso", icon:"❀" },
+    { id:"hoy",       label:"Mi día",    icon:"⊙" },
+    { id:"proyectos", label:"Proyectos", icon:"☐" },
+    { id:"metas",     label:"Metas",     icon:"⋈" },
+    { id:"progreso",  label:"Progreso",  icon:"❀" },
   ];
 
   // ── Sub-nav + contenido (compartido mobile/desktop) ──
@@ -5023,7 +5046,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
              <FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop={desktop}/>
            </div>
           :<div style={desktop?{padding:"24px 48px"}:{}}>
-             <HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop} onVerSemana={()=>setSemanaModal(true)} onUpdateTask={updateTask} userId={uid} supabase={supabase} onAddTask={t=>addTask(t)} onAddProject={addProject}/>
+             <HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop} onVerSemana={()=>setSemanaModal(true)} onUpdateTask={updateTask} userId={uid} supabase={supabase} onAddTask={t=>addTask(t)} onOpenAddSheet={(cfg)=>setAddSheet(cfg)} onAddProject={addProject}/>
            </div>
       )}
 
