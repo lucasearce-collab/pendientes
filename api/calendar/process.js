@@ -42,7 +42,7 @@ async function getEvents(accessToken) {
   });
 }
 
-async function processEventWithGroq(event) {
+async function processEventWithGroq(event, userProjects = []) {
   const title = event.summary || 'Sin título';
   const start = event.start.dateTime;
   const end = event.end?.dateTime;
@@ -57,29 +57,74 @@ async function processEventWithGroq(event) {
 
   const now = new Date();
   const isPast = eventDate < now;
-  const momentoLabel = isPast ? 'post (reunión ya ocurrió)' : 'pre (reunión próxima)';
 
-  const prompt = `Sos un asistente de productividad ejecutiva. Analizá esta reunión y sugerí tareas concretas.
+  // Detectar si es reunión con cliente (hay asistentes de dominio externo)
+  const attendees = event.attendees || [];
+  const externalAttendees = attendees.filter(a => 
+    !a.self && 
+    a.email && 
+    !a.email.endsWith('@simetrik.com') &&
+    !a.email.endsWith('@resource.calendar.google.com')
+  );
+  const isClientMeeting = externalAttendees.length > 0;
+  const clientDomains = [...new Set(externalAttendees.map(a => a.email.split('@')[1]))].join(', ');
+  const attendeeNames = externalAttendees.slice(0, 3).map(a => a.displayName || a.email).join(', ');
+
+  // Proyectos existentes para contexto
+  const projectList = userProjects.length > 0 
+    ? `Proyectos existentes del usuario: ${userProjects.map(p => p.name).join(', ')}`
+    : '';
+
+  const tipoReunion = isClientMeeting 
+    ? `Reunión con CLIENTE externo. Asistentes externos: ${attendeeNames || clientDomains}.`
+    : 'Reunión interna (todos del mismo equipo).';
+
+  const instruccionesPasada = isClientMeeting ? `
+La reunión con el cliente ya ocurrió. Sugerí tareas de alto valor como:
+- Enviar presentación o materiales usados en la reunión al cliente
+- Documentar acuerdos y próximos pasos acordados con el cliente
+- Asignar responsables internos para cada próximo paso acordado
+- Enviar minuta formal al cliente con resumen de lo discutido
+- Agendar próxima reunión de seguimiento si corresponde
+Priorizá las tareas más impactantes para la relación con el cliente.` 
+  : `
+La reunión interna ya ocurrió. Sugerí tareas como:
+- Documentar decisiones tomadas y distribuirlas al equipo
+- Ejecutar los próximos pasos acordados
+- Hacer seguimiento de compromisos asumidos por cada persona`;
+
+  const instruccionesFutura = isClientMeeting ? `
+La reunión con el cliente es próxima. Sugerí tareas de preparación como:
+- Investigar el cliente: situación actual, últimas interacciones, objetivos
+- Preparar presentación o materiales específicos para esta reunión
+- Definir el objetivo concreto que querés lograr en esta reunión
+- Revisar acuerdos previos y pendientes con este cliente
+Priorizá las tareas que más impacten en el resultado de la reunión.`
+  : `
+La reunión interna es próxima. Sugerí tareas de preparación como:
+- Preparar agenda y materiales necesarios
+- Revisar temas pendientes del equipo relacionados a esta reunión`;
+
+  const prompt = `Sos un asistente de productividad ejecutiva para un Account Manager de una empresa de software B2B llamada Simetrik.
 
 Reunión: ${title}
 Duración: ${duration} minutos
 Fecha: ${fmt(eventDate)}
-Estado: ${isPast ? 'Ya ocurrió' : 'Próxima'}
+Tipo: ${tipoReunion}
+${projectList}
 
-${isPast
-  ? `La reunión ya ocurrió. Sugerí tareas de seguimiento: minutas, acuerdos a cumplir, comunicaciones pendientes, próximos pasos concretos.`
-  : `La reunión es próxima. Sugerí tareas de preparación: materiales, agenda, revisiones previas.`
-}
+${isPast ? instruccionesPasada : instruccionesFutura}
+
+Reglas importantes:
+- Máximo 2 tareas, priorizando las más impactantes
+- Si es reunión personal/social/1:1 informal sin contexto laboral claro: devolvé {"tareas":[]}
+- Cada título debe ser específico, mencionar el cliente o proyecto por nombre, y empezar con un verbo de acción
+- Para proyecto_sugerido: si el nombre del cliente o reunión coincide con alguno de los proyectos existentes, usá ESE nombre exacto. Si no, sugerí el nombre más lógico
+- Las reuniones con clientes son prioritarias — generá siempre tareas para ellas
+- No sugerís tareas genéricas como "Preparar materiales" sin mencionar para qué cliente o reunión
 
 Devolvé SOLO un JSON válido sin markdown ni texto extra:
-{"tareas":[{"titulo":"tarea accionable y específica","fecha":"${isPast ? fmt(postDate) : fmt(preDate)}","momento":"${isPast ? 'post' : 'pre'}","proyecto_sugerido":"nombre del cliente o proyecto"}]}
-
-Reglas:
-- Máximo 2 tareas
-- Si es reunión personal o social sin contexto laboral: {"tareas":[]}
-- El título debe ser específico y accionable, no genérico
-- Para reuniones pasadas: empezá el título con un verbo (Enviar, Confirmar, Agendar, Documentar)
-- Para reuniones futuras: empezá el título con un verbo (Preparar, Revisar, Armar, Leer)`;
+{"tareas":[{"titulo":"tarea accionable y específica mencionando el cliente","fecha":"${isPast ? fmt(postDate) : fmt(preDate)}","momento":"${isPast ? 'post' : 'pre'}","proyecto_sugerido":"nombre exacto del proyecto si existe, sino nombre del cliente"}]}`;
 
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
@@ -145,6 +190,12 @@ export default async function handler(req, res) {
         const events = await getEvents(accessToken);
         console.log('[calendar] eventos encontrados:', events.length, events.map(e=>e.summary));
 
+        // Cargar proyectos del usuario para contexto
+        const { data: userProjects } = await supabase
+          .from('projects')
+          .select('id, name, area')
+          .eq('user_id', user.id);
+
         // Limpiar sugerencias pendientes viejas antes de generar nuevas
         await supabase.from('calendar_suggestions')
           .delete()
@@ -163,7 +214,7 @@ export default async function handler(req, res) {
 
           if (existing?.length > 0) { console.log('[calendar] ya existe sugerencia para:', event.summary); continue; }
 
-          const tareas = await processEventWithGroq(event);
+          const tareas = await processEventWithGroq(event, userProjects || []);
           console.log('[calendar] tareas generadas para', event.summary, ':', tareas);
 
           for (const tarea of tareas) {
