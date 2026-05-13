@@ -3909,7 +3909,7 @@ function ErrorToast({message,onDismiss}){
   );
 }
 
-function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop,onVerSemana,onUpdateTask,userId,supabase,onAddTask}){
+function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop,onVerSemana,onUpdateTask,userId,supabase,onAddTask,onAddProject}){
   const today = todayStr();
   const todayTasks = (tasks||[]).filter(t=>!t.done&&t.date===today).sort(taskSort);
 
@@ -3949,7 +3949,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   // Agente de voz
   const [grabando, setGrabando] = useState(false);
   const [procesandoVoz, setProcesandoVoz] = useState(false);
-  const [tareasVoz, setTareasVoz] = useState([]);
+  const [accionesVoz, setAccionesVoz] = useState([]);
   const [transcriptVoz, setTranscriptVoz] = useState('');
   const [voiceError, setVoiceError] = useState(null);
   const mediaRecorderRef = useRef(null);
@@ -4017,14 +4017,28 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         return;
       }
       
-      if(data.tareas?.length>0){
-        setTareasVoz(prev => {
-          const nuevas = data.tareas.filter(t => !prev.some(p => p.titulo === t.titulo));
-          return [...prev, ...nuevas];
+      const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
+      
+      if(data.acciones?.length>0){
+        const processed = data.acciones.map(a => {
+          let enriched = { ...a, id: Math.random().toString(36).substr(2,9) };
+          if (a.tipo_accion === 'crear_tarea' && a.proyecto_nombre) {
+            const pName = normalize(a.proyecto_nombre);
+            const foundProj = projects.find(p => normalize(p.name).includes(pName));
+            if (foundProj) enriched._proyecto_id = foundProj.id;
+          }
+          if (a.tipo_accion === 'completar_tarea' || a.tipo_accion === 'reprogramar_tarea') {
+            const tName = normalize(a.titulo_tarea);
+            const foundTask = tasks.find(t => !t.done && normalize(t.title).includes(tName));
+            if (foundTask) enriched._tarea_encontrada = foundTask;
+          }
+          return enriched;
         });
+
+        setAccionesVoz(prev => [...prev, ...processed]);
         setTranscriptVoz(data.transcript||'');
       } else {
-        setVoiceError('No detecté tareas (' + (data.transcript || 'vacía').slice(0,30) + ')');
+        setVoiceError('No detecté acciones (' + (data.transcript || 'vacía').slice(0,30) + ')');
       }
     } catch(e){
       console.error('Error procesando audio:', e);
@@ -4034,19 +4048,31 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     }
   }
 
-  async function aceptarTareaVoz(t){
-    if(onAddTask) onAddTask({
-      title: t.titulo,
-      date: t.fecha,
-      projectId: null,
-      type: 'normal',
-      notes: t.razon ? `Sugerido por el agente: ${t.razon}` : '',
-    });
-    setTareasVoz(tv=>tv.filter(x=>x.titulo!==t.titulo));
+  async function ejecutarAccionVoz(a){
+    if (a.tipo_accion === 'crear_tarea') {
+      if(onAddTask) onAddTask({
+        title: a.titulo,
+        date: a.fecha,
+        projectId: a._proyecto_id || null,
+        type: 'normal',
+        notes: a.razon ? `Sugerido por el agente: ${a.razon}` : '',
+      });
+    } else if (a.tipo_accion === 'crear_proyecto') {
+      if(onAddProject) onAddProject({ name: a.nombre, area: 'Personal' }); // TODO: usar area activa
+    } else if (a.tipo_accion === 'completar_tarea') {
+      if(a._tarea_encontrada && toggleDone) {
+        toggleDone(a._tarea_encontrada.id, true);
+      }
+    } else if (a.tipo_accion === 'reprogramar_tarea') {
+      if(a._tarea_encontrada && onUpdateTask) {
+        onUpdateTask({ ...a._tarea_encontrada, date: a.nueva_fecha });
+      }
+    }
+    setAccionesVoz(av=>av.filter(x=>x.id!==a.id));
   }
 
-  function descartarTareaVoz(t){
-    setTareasVoz(tv=>tv.filter(x=>x.titulo!==t.titulo));
+  function descartarAccionVoz(a){
+    setAccionesVoz(av=>av.filter(x=>x.id!==a.id));
   }
   const [seleccionadas, setSeleccionadas] = useState(new Set());
   const [reagendado, setReagendado] = useState(false);
@@ -4226,26 +4252,34 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     </div>
   );
 
-  const PanelVoz = tareasVoz.length>0 ? (
+  const PanelVoz = accionesVoz.length>0 ? (
     <div style={{margin:desktop?'0 0 24px':'12px 16px',background:'#F5F2EE',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 18px'}}>
       <div style={{fontSize:11,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',marginBottom:4}}>Escuché esto (Revisa y aprueba)</div>
       {transcriptVoz&&<div style={{fontSize:11,color:'#C8C3BB',marginBottom:12,fontStyle:'italic'}}>"{transcriptVoz}"</div>}
-      {tareasVoz.map((t,i)=>(
-        <div key={i} style={{background:'white',borderRadius:10,border:'1px solid #EAE6E0',padding:'10px 12px',marginBottom:8,display:'flex',alignItems:'flex-start',gap:10}}>
+      {accionesVoz.map((a)=>(
+        <div key={a.id} style={{background:'white',borderRadius:10,border:'1px solid #EAE6E0',padding:'10px 12px',marginBottom:8,display:'flex',alignItems:'flex-start',gap:10}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3,flexWrap:'wrap'}}>
-              {t.tipo==='sugerida'&&<span style={{fontSize:9,background:'#F0F1F8',color:'#5B6BAF',padding:'1px 6px',borderRadius:99,fontWeight:500}}>sugerida</span>}
-              <span style={{fontSize:12,color:'#2C2825'}}>{t.titulo}</span>
+              {a.tipo_accion==='crear_tarea'&&<span style={{fontSize:12,color:'#2C2825'}}>📝 Nueva Tarea: {a.titulo}</span>}
+              {a.tipo_accion==='crear_proyecto'&&<span style={{fontSize:12,color:'#2C2825'}}>📂 Nuevo Proyecto: {a.nombre}</span>}
+              {a.tipo_accion==='completar_tarea'&&<span style={{fontSize:12,color:'#2C2825'}}>✅ Completar: {a._tarea_encontrada ? a._tarea_encontrada.title : `"${a.titulo_tarea}" (No encontrada)`}</span>}
+              {a.tipo_accion==='reprogramar_tarea'&&<span style={{fontSize:12,color:'#2C2825'}}>📅 Mover: {a._tarea_encontrada ? a._tarea_encontrada.title : `"${a.titulo_tarea}" (No encontrada)`}</span>}
             </div>
             <div style={{fontSize:10,color:'#B0AA9F'}}>
-              {t.fecha&&<span>{t.fecha}</span>}
-              {t.proyecto_sugerido&&<span> · {t.proyecto_sugerido}</span>}
-              {t.tipo==='sugerida'&&t.razon&&<div style={{marginTop:2,color:'#C8C3BB'}}>{t.razon}</div>}
+              {a.tipo_accion==='crear_tarea'&&<>
+                {a.fecha&&<span>{a.fecha}</span>}
+                {a._proyecto_id&&<span> · Proyecto asignado</span>}
+                {!a._proyecto_id&&a.proyecto_nombre&&<span style={{color:'#C4312A'}}> · Proyecto '{a.proyecto_nombre}' no encontrado</span>}
+                {a.tipo==='sugerida'&&a.razon&&<div style={{marginTop:2,color:'#C8C3BB'}}>{a.razon}</div>}
+              </>}
+              {a.tipo_accion==='reprogramar_tarea'&&a._tarea_encontrada&&<>
+                <span>→ {a.nueva_fecha}</span>
+              </>}
             </div>
           </div>
           <div style={{display:'flex',gap:6,flexShrink:0}}>
-            <button onClick={()=>aceptarTareaVoz(t)} style={{background:'#2C2825',color:'white',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>✔️</button>
-            <button onClick={()=>setTareasVoz(tv=>tv.filter(x=>x.titulo!==t.titulo))} style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,padding:'5px 8px',fontSize:11,cursor:'pointer',fontFamily:"'DM Sans'"}}>✕</button>
+            <button onClick={()=>ejecutarAccionVoz(a)} disabled={!a._tarea_encontrada && (a.tipo_accion==='completar_tarea' || a.tipo_accion==='reprogramar_tarea')} style={{background:(!a._tarea_encontrada && (a.tipo_accion==='completar_tarea' || a.tipo_accion==='reprogramar_tarea'))?'#EAE6E0':'#2C2825',color:'white',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:500,cursor:(!a._tarea_encontrada && (a.tipo_accion==='completar_tarea' || a.tipo_accion==='reprogramar_tarea'))?'not-allowed':'pointer',fontFamily:"'DM Sans'"}}>✔️</button>
+            <button onClick={()=>descartarAccionVoz(a)} style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,padding:'5px 8px',fontSize:11,cursor:'pointer',fontFamily:"'DM Sans'"}}>✕</button>
           </div>
         </div>
       ))}
@@ -4316,33 +4350,6 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         </div>
       </div>
       <ModalDiaDificil/>
-
-      {/* Panel tareas por voz */}
-      {tareasVoz.length>0&&(
-        <div style={{marginTop:20,background:'#F5F2EE',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 18px'}}>
-          <div style={{fontSize:11,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',marginBottom:4}}>Escuché esto</div>
-          {transcriptVoz&&<div style={{fontSize:11,color:'#C8C3BB',marginBottom:12,fontStyle:'italic'}}>"{transcriptVoz}"</div>}
-          {tareasVoz.map((t,i)=>(
-            <div key={i} style={{background:'white',borderRadius:10,border:'1px solid #EAE6E0',padding:'10px 12px',marginBottom:8,display:'flex',alignItems:'flex-start',gap:10}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
-                  {t.tipo==='sugerida'&&<span style={{fontSize:9,background:'#F0F1F8',color:'#5B6BAF',padding:'1px 6px',borderRadius:99,fontWeight:500}}>sugerida</span>}
-                  <span style={{fontSize:12,color:'#2C2825'}}>{t.titulo}</span>
-                </div>
-                <div style={{fontSize:10,color:'#B0AA9F'}}>
-                  {t.fecha&&<span>{t.fecha}</span>}
-                  {t.proyecto_sugerido&&<span> · {t.proyecto_sugerido}</span>}
-                  {t.tipo==='sugerida'&&t.razon&&<div style={{marginTop:2,color:'#C8C3BB'}}>{t.razon}</div>}
-                </div>
-              </div>
-              <div style={{display:'flex',gap:6,flexShrink:0}}>
-                <button onClick={()=>aceptarTareaVoz(t)} style={{background:'#2C2825',color:'white',border:'none',borderRadius:8,padding:'5px 10px',fontSize:11,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>+ Agregar</button>
-                <button onClick={()=>descartarTareaVoz(t)} style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,padding:'5px 8px',fontSize:11,cursor:'pointer',fontFamily:"'DM Sans'"}}>✕</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       <BtnMic/>
     </div>
@@ -5016,7 +5023,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
              <FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop={desktop}/>
            </div>
           :<div style={desktop?{padding:"24px 48px"}:{}}>
-             <HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop} onVerSemana={()=>setSemanaModal(true)} onUpdateTask={updateTask} userId={uid} supabase={supabase} onAddTask={t=>addTask(t)}/>
+             <HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop} onVerSemana={()=>setSemanaModal(true)} onUpdateTask={updateTask} userId={uid} supabase={supabase} onAddTask={t=>addTask(t)} onAddProject={addProject}/>
            </div>
       )}
 
