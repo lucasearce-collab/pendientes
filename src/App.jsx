@@ -3991,11 +3991,17 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         body: blob 
       });
       const data = await res.json();
+      
+      if(!res.ok || data.error) {
+        alert('Error del servidor: ' + (data.error || 'Fallo desconocido'));
+        return;
+      }
+      
       if(data.tareas?.length>0){
         setTareasVoz(data.tareas);
         setTranscriptVoz(data.transcript||'');
       } else {
-        alert('No detecté tareas. Intentá ser más específico.');
+        alert('No detecté tareas. (Transcripción: ' + (data.transcript || 'vacia') + ')');
       }
     } catch(e){
       console.error('Error procesando audio:', e);
