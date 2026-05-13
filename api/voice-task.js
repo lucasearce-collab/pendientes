@@ -10,37 +10,14 @@ export default async function handler(req, res) {
     // Leer el body como buffer
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
-    const buffer = Buffer.concat(chunks);
+    const audioBuffer = Buffer.concat(chunks);
 
-    // Parsear multipart form-data manualmente
-    const boundary = req.headers['content-type']?.split('boundary=')[1];
-    if (!boundary) return res.status(400).json({ error: 'No boundary' });
-
-    // Extraer el archivo de audio del form-data
-    const bodyStr = buffer.toString('binary');
-    const parts = bodyStr.split('--' + boundary);
-    let audioBuffer = null;
-    let filename = 'audio.webm';
-
-    for (const part of parts) {
-      if (part.includes('Content-Disposition') && part.includes('name="audio"')) {
-        const headerEnd = part.indexOf('\r\n\r\n');
-        if (headerEnd !== -1) {
-          const headerPart = part.substring(0, headerEnd);
-          const filenameMatch = headerPart.match(/filename="([^"]+)"/);
-          if (filenameMatch) filename = filenameMatch[1];
-          const audioPart = part.substring(headerEnd + 4, part.lastIndexOf('\r\n'));
-          audioBuffer = Buffer.from(audioPart, 'binary');
-        }
-      }
-    }
-
-    if (!audioBuffer) return res.status(400).json({ error: 'No audio found' });
+    if (!audioBuffer || audioBuffer.length === 0) return res.status(400).json({ error: 'No audio found' });
 
     // 1. Transcribir con Groq Whisper
     const formData = new FormData();
     const blob = new Blob([audioBuffer], { type: 'audio/webm' });
-    formData.append('file', blob, filename);
+    formData.append('file', blob, 'audio.webm');
     formData.append('model', 'whisper-large-v3');
     formData.append('language', 'es');
     formData.append('response_format', 'json');
