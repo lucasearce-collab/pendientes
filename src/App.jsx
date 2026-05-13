@@ -3951,6 +3951,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   const [procesandoVoz, setProcesandoVoz] = useState(false);
   const [tareasVoz, setTareasVoz] = useState([]);
   const [transcriptVoz, setTranscriptVoz] = useState('');
+  const [voiceError, setVoiceError] = useState(null);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const isHoldingRef = useRef(false);
@@ -3958,6 +3959,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   async function iniciarGrabacion(){
     if (grabando || isHoldingRef.current) return;
     isHoldingRef.current = true;
+    setVoiceError(null);
     try{
       const stream = await navigator.mediaDevices.getUserMedia({audio:true});
       if (!isHoldingRef.current) {
@@ -3973,7 +3975,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         const blob = new Blob(chunksRef.current, { type });
         if (blob.size === 0) {
           setProcesandoVoz(false);
-          alert('No se capturó audio (tamaño 0). Asegúrate de darle permisos al micrófono.');
+          setVoiceError('No capturó audio (permisos).');
           return;
         }
         await procesarAudio(blob, blob.type);
@@ -3984,7 +3986,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     } catch(e){
       isHoldingRef.current = false;
       console.error('Error grabando:', e);
-      alert('No se pudo acceder al micrófono. Por favor, revisa los permisos de Safari.');
+      setVoiceError('Error al acceder al micrófono.');
     }
   }
 
@@ -3999,15 +4001,19 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
 
   async function procesarAudio(blob, mimeType){
     try{
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s límite
       const res = await fetch('/api/voice-task', {
         method:'POST', 
         headers: { 'Content-Type': mimeType || 'audio/mp4' },
-        body: blob 
+        body: blob,
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
       const data = await res.json();
       
       if(!res.ok || data.error) {
-        alert('Error del servidor: ' + (data.error || 'Fallo desconocido'));
+        setVoiceError('Error: ' + (data.error || 'Fallo desconocido').slice(0,40));
         return;
       }
       
@@ -4018,11 +4024,11 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         });
         setTranscriptVoz(data.transcript||'');
       } else {
-        alert('No detecté tareas. (Transcripción: ' + (data.transcript || 'vacia') + ')');
+        setVoiceError('No detecté tareas (' + (data.transcript || 'vacía').slice(0,30) + ')');
       }
     } catch(e){
       console.error('Error procesando audio:', e);
-      alert('Error al procesar el audio');
+      setVoiceError(e.name === 'AbortError' ? 'Tiempo de espera agotado.' : 'Error de conexión.');
     } finally {
       setProcesandoVoz(false);
     }
@@ -4118,6 +4124,8 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       }}>
         {procesandoVoz
           ? <><div style={{width:10,height:10,borderRadius:'50%',border:'2px solid #C4A882',borderTopColor:'transparent',animation:'spin 1s linear infinite',flexShrink:0}}/> Procesando...</>
+          : voiceError
+          ? <><div style={{color:'#C4312A',fontWeight:500}}>⚠️ {voiceError}</div></>
           : grabando
           ? <><div style={{width:8,height:8,borderRadius:'50%',background:'#C4312A',flexShrink:0,animation:'pulse 1s ease-in-out infinite'}}/> Grabando — soltá para procesar</>
           : 'Dictá una tarea o contame qué pasó...'
