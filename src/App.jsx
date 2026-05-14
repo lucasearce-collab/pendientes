@@ -4380,43 +4380,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     : <TaskRows tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks} {...(sw||{})}/>;
 
   // ── Panel Chat Clarity ──
-  const PanelChat = chatOpen && chatVoz.length > 0 ? (
-    <div style={{
-      margin: desktop?'0 0 20px':'12px 20px 4px',
-      background:'white',borderRadius:14,
-      border:'1px solid #EAE6E0',
-      overflow:'hidden',
-    }}>
-      {/* Header */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:'1px solid #F5F2EE'}}>
-        <div style={{display:'flex',alignItems:'center',gap:6}}>
-          <div style={{width:5,height:5,borderRadius:'50%',background:'#C4A882'}}/>
-          <span style={{fontFamily:"'DM Sans'",fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878'}}>Clarity</span>
-        </div>
-        <button onClick={()=>{setChatOpen(false);setChatVoz([]);}}
-          style={{background:'none',border:'none',cursor:'pointer',color:'#C8C3BB',fontSize:16,padding:0,lineHeight:1}}>×</button>
-      </div>
-      {/* Mensajes */}
-      <div style={{padding:'12px 16px',display:'flex',flexDirection:'column',gap:10}}>
-        {chatVoz.map((m,i)=>(
-          <div key={i} style={{display:'flex',flexDirection:'column',gap:2,alignItems:m.rol==='user'?'flex-end':'flex-start'}}>
-            {m.rol==='user'
-              ? <div style={{
-                  background:'#F5F2EE',borderRadius:'12px 12px 2px 12px',
-                  padding:'8px 12px',maxWidth:'85%',
-                  fontFamily:"'DM Sans'",fontSize:13,color:'#8C877F',fontStyle:'italic',
-                }}>{m.texto}</div>
-              : <div style={{
-                  background:'#2C2825',borderRadius:'2px 12px 12px 12px',
-                  padding:'10px 14px',maxWidth:'90%',
-                  fontFamily:"'DM Sans'",fontSize:13,color:'white',lineHeight:1.5,
-                }}>{m.texto}</div>
-            }
-          </div>
-        ))}
-      </div>
-    </div>
-  ) : null;
+  // PanelChat reemplazado por PanelClarity abajo
 
   const BtnMic = () => (
     <div style={{position:'fixed',bottom:desktop?24:96,right:desktop?32:20,zIndex:200,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:8,pointerEvents:'none'}}>
@@ -4825,115 +4789,133 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     reprogramar_tarea:'Mover al',
   };
 
-  const PanelVoz = accionesVoz.length>0 ? (
-    <div style={{margin:desktop?'0 0 24px':'12px 20px 4px'}}>
-      {/* Encabezado */}
-      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
-        <div style={{width:5,height:5,borderRadius:'50%',background:'#C4A882'}}/>
-        <span style={{fontFamily:"'DM Sans'",fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878'}}>
-          Escuché esto
-        </span>
-        {transcriptVoz&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C8C3BB',fontStyle:'italic',marginLeft:4}}>· {transcriptVoz}</span>}
+  // Panel unificado Clarity — chat + acciones
+  const hasContent = chatVoz.length > 0 || accionesVoz.length > 0;
+  const PanelClarity = hasContent ? (
+    <div style={{
+      margin: desktop?'0 0 20px':'12px 20px 4px',
+      background:'white',borderRadius:14,
+      border:'1px solid #EAE6E0',
+      overflow:'hidden',
+    }}>
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:'1px solid #F5F2EE'}}>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <div style={{width:5,height:5,borderRadius:'50%',background:'#C4A882'}}/>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878'}}>Clarity</span>
+        </div>
+        <button onClick={()=>{setChatOpen(false);setChatVoz([]);setAccionesVoz([]);setTranscriptVoz('');}}
+          style={{background:'none',border:'none',cursor:'pointer',color:'#C8C3BB',fontSize:18,padding:0,lineHeight:1}}>×</button>
       </div>
-      {/* Tarjetas */}
-      {accionesVoz.map((a)=>{
-        const disabled = !a._tarea_encontrada && (a.tipo_accion==='completar_tarea'||a.tipo_accion==='reprogramar_tarea');
-        let titulo = '';
-        if(a.tipo_accion==='crear_tarea') titulo = a.titulo;
-        if(a.tipo_accion==='crear_proyecto') titulo = a.nombre;
-        if(a.tipo_accion==='completar_tarea') titulo = a._tarea_encontrada ? a._tarea_encontrada.title : `"${a.titulo_tarea}" — no encontrada`;
-        if(a.tipo_accion==='reprogramar_tarea') titulo = a._tarea_encontrada ? `${a._tarea_encontrada.title} → ${a.nueva_fecha}` : `"${a.titulo_tarea}" — no encontrada`;
-        return(
-          <div key={a.id} style={{
-            display:'flex',alignItems:'center',gap:12,
-            padding:'11px 0',
-            borderBottom:'1px solid #EAE6E0',
-          }}>
-            {/* Barra accent */}
-            <div style={{width:3,borderRadius:99,alignSelf:'stretch',background:'#C4A882',flexShrink:0,minHeight:18}}/>
-            {/* Contenido */}
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
-                <VozTituloEditor
-                  titulo={titulo}
-                  onChange={(t)=>setAccionesVoz(av=>av.map(x=>x.id===a.id
-                    ? a.tipo_accion==='crear_tarea'
-                      ? {...x,titulo:t}
-                      : {...x,titulo_tarea:t}
-                    : x))}
-                />
-              </div>
-              <div style={{display:'flex',alignItems:'center',gap:4,marginTop:2,flexWrap:'wrap'}}>
-                <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{ACCION_LABEL[a.tipo_accion]}</span>
-                {a.tipo_accion==='crear_tarea'&&a.fecha&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{a.fecha}</span></>}
-                {a.tipo==='sugerida'&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C8C3BB'}}>sugerida</span></>}
-              </div>
-              {/* Selector de proyecto editable */}
-              {a.tipo_accion==='crear_tarea'&&(
-                <VozProyectoSelector
-                  accionId={a.id}
-                  proyectoId={a._proyecto_id||null}
-                  projects={projects}
-                  onChange={(pid)=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_proyecto_id:pid}:x))}
-                />
-              )}
-              {/* Toggle agendar en calendar */}
-              {a.tipo_accion==='crear_tarea'&&calendarTokenReady&&(
-                <div style={{marginTop:8}}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:a._agendar_cal?8:0}}>
-                    <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>Agendar en Google Calendar</span>
-                    <button onClick={()=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_agendar_cal:!x._agendar_cal,_cal_hora:x._cal_hora||'09:00',_cal_dur:x._cal_dur||30}:x))}
-                      style={{width:32,height:18,borderRadius:99,border:'none',cursor:'pointer',
-                        background:a._agendar_cal?'#2C2825':'#D5CFC8',position:'relative',transition:'background .2s',flexShrink:0}}>
-                      <div style={{width:14,height:14,borderRadius:'50%',background:'white',
-                        position:'absolute',top:2,left:a._agendar_cal?16:2,transition:'left .2s'}}/>
-                    </button>
+      {/* Mensajes del chat */}
+      {chatVoz.length>0&&(
+        <div style={{padding:'12px 16px 4px',display:'flex',flexDirection:'column',gap:10}}>
+          {chatVoz.map((m,i)=>(
+            <div key={i} style={{display:'flex',flexDirection:'column',gap:2,alignItems:m.rol==='user'?'flex-end':'flex-start'}}>
+              {m.rol==='user'
+                ? <div style={{
+                    background:'#F5F2EE',borderRadius:'12px 12px 2px 12px',
+                    padding:'8px 12px',maxWidth:'85%',
+                    fontFamily:"'DM Sans'",fontSize:13,color:'#8C877F',fontStyle:'italic',
+                  }}>{m.texto}</div>
+                : <div style={{
+                    background:'#2C2825',borderRadius:'2px 12px 12px 12px',
+                    padding:'10px 14px',maxWidth:'90%',
+                    fontFamily:"'DM Sans'",fontSize:13,color:'white',lineHeight:1.5,
+                  }}>{m.texto}</div>
+              }
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Acciones sugeridas */}
+      {accionesVoz.length>0&&(
+        <div style={{padding:'8px 16px 12px'}}>
+          {chatVoz.length>0&&(
+            <div style={{fontFamily:"'DM Sans'",fontSize:11,letterSpacing:'.06em',textTransform:'uppercase',color:'#C8C3BB',marginBottom:8,marginTop:4}}>
+              Acciones sugeridas
+            </div>
+          )}
+          {accionesVoz.map((a)=>{
+            const disabled = !a._tarea_encontrada && (a.tipo_accion==='completar_tarea'||a.tipo_accion==='reprogramar_tarea');
+            let titulo = '';
+            if(a.tipo_accion==='crear_tarea') titulo = a.titulo;
+            if(a.tipo_accion==='crear_proyecto') titulo = a.nombre;
+            if(a.tipo_accion==='completar_tarea') titulo = a._tarea_encontrada ? a._tarea_encontrada.title : `"${a.titulo_tarea}" — no encontrada`;
+            if(a.tipo_accion==='reprogramar_tarea') titulo = a._tarea_encontrada ? `${a._tarea_encontrada.title} → ${a.nueva_fecha}` : `"${a.titulo_tarea}" — no encontrada`;
+            return(
+              <div key={a.id} style={{
+                display:'flex',alignItems:'center',gap:12,
+                padding:'10px 0',
+                borderBottom:'1px solid #F5F2EE',
+              }}>
+                <div style={{width:3,borderRadius:99,alignSelf:'stretch',background:'#C4A882',flexShrink:0,minHeight:18}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <VozTituloEditor
+                      titulo={titulo}
+                      onChange={(t)=>setAccionesVoz(av=>av.map(x=>x.id===a.id
+                        ? a.tipo_accion==='crear_tarea' ? {...x,titulo:t} : {...x,titulo_tarea:t}
+                        : x))}
+                    />
                   </div>
-                  {a._agendar_cal&&(
-                    <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
-                      <input type="time" value={a._cal_hora||'09:00'}
-                        onChange={e=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_cal_hora:e.target.value}:x))}
-                        style={{border:'1px solid #E5E1DB',borderRadius:8,padding:'4px 8px',fontSize:11,fontFamily:"'DM Sans'",outline:'none',color:'#2C2825',background:'white'}}/>
-                      {[15,30,60].map(d=>(
-                        <button key={d} onClick={()=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_cal_dur:d}:x))}
-                          className={`dc${(a._cal_dur||30)===d?' on':''}`}>{d}m</button>
-                      ))}
+                  <div style={{display:'flex',alignItems:'center',gap:4,marginTop:2,flexWrap:'wrap'}}>
+                    <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{ACCION_LABEL[a.tipo_accion]}</span>
+                    {a.tipo_accion==='crear_tarea'&&a.fecha&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{a.fecha}</span></>}
+                    {a.tipo==='sugerida'&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C8C3BB'}}>sugerida</span></>}
+                  </div>
+                  {a.tipo_accion==='crear_tarea'&&(
+                    <VozProyectoSelector
+                      accionId={a.id}
+                      proyectoId={a._proyecto_id||null}
+                      projects={projects}
+                      onChange={(pid)=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_proyecto_id:pid}:x))}
+                    />
+                  )}
+                  {a.tipo_accion==='crear_tarea'&&calendarTokenReady&&(
+                    <div style={{marginTop:8}}>
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:a._agendar_cal?8:0}}>
+                        <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>Agendar en Google Calendar</span>
+                        <button onClick={()=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_agendar_cal:!x._agendar_cal,_cal_hora:x._cal_hora||'09:00',_cal_dur:x._cal_dur||30}:x))}
+                          style={{width:32,height:18,borderRadius:99,border:'none',cursor:'pointer',
+                            background:a._agendar_cal?'#2C2825':'#D5CFC8',position:'relative',transition:'background .2s',flexShrink:0}}>
+                          <div style={{width:14,height:14,borderRadius:'50%',background:'white',
+                            position:'absolute',top:2,left:a._agendar_cal?16:2,transition:'left .2s'}}/>
+                        </button>
+                      </div>
+                      {a._agendar_cal&&(
+                        <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                          <input type="time" value={a._cal_hora||'09:00'}
+                            onChange={e=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_cal_hora:e.target.value}:x))}
+                            style={{border:'1px solid #E5E1DB',borderRadius:8,padding:'4px 8px',fontSize:11,fontFamily:"'DM Sans'",outline:'none',color:'#2C2825',background:'white'}}/>
+                          {[15,30,60].map(d=>(
+                            <button key={d} onClick={()=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_cal_dur:d}:x))}
+                              className={`dc${(a._cal_dur||30)===d?' on':''}`}>{d}m</button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
-            {/* Acciones */}
-            <div style={{display:'flex',gap:6,flexShrink:0}}>
-              <button
-                onClick={()=>ejecutarAccionVoz(a)}
-                disabled={disabled}
-                style={{
-                  background:disabled?'#F0EDE8':'#2C2825',
-                  color:disabled?'#C8C3BB':'white',
-                  border:'none',borderRadius:8,
-                  padding:'6px 12px',
-                  fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,
-                  cursor:disabled?'not-allowed':'pointer',
-                  transition:'all .15s',
-                }}>
-                Agregar
-              </button>
-              <button
-                onClick={()=>descartarAccionVoz(a)}
-                style={{
-                  background:'none',color:'#C8C3BB',
-                  border:'1px solid #EAE6E0',borderRadius:8,
-                  padding:'6px 8px',
-                  fontFamily:"'DM Sans'",fontSize:12,
-                  cursor:'pointer',
-                }}>
-                ✕
-              </button>
-            </div>
-          </div>
-        );
-      })}
+                <div style={{display:'flex',gap:6,flexShrink:0}}>
+                  <button onClick={()=>ejecutarAccionVoz(a)} disabled={disabled}
+                    style={{background:disabled?'#F0EDE8':'#2C2825',color:disabled?'#C8C3BB':'white',
+                      border:'none',borderRadius:8,padding:'6px 12px',
+                      fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,
+                      cursor:disabled?'not-allowed':'pointer',transition:'all .15s'}}>
+                    Agregar
+                  </button>
+                  <button onClick={()=>descartarAccionVoz(a)}
+                    style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',
+                      borderRadius:8,padding:'6px 8px',fontFamily:"'DM Sans'",fontSize:12,cursor:'pointer'}}>
+                    ✕
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   ) : null;
 
@@ -4945,9 +4927,8 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         <BtnSemana/>
         <BtnVerTodo/>
       </div>
-      {PanelChat}
+      {PanelClarity}
       {PanelCalendar}
-      {PanelVoz}
       <div style={{textAlign:"center",padding:desktop?"60px 0":"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
       <button onClick={()=>onOpenAddSheet ? onOpenAddSheet({projectId:null,area:'trabajo',projectName:'',showProjectSelector:true}) : onAddTask({id:null,name:'',area:'trabajo',showProjectSelector:true})} className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:8}:{}}>
         <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
@@ -4973,9 +4954,8 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         )}
       </div>
       <ToastReagendado/>
-      {PanelChat}
+      {PanelClarity}
       {PanelCalendar}
-      {PanelVoz}
 
       <div style={{display:"flex",gap:48,alignItems:"flex-start"}}>
         <div style={{flex:1,minWidth:0}}>
@@ -5020,9 +5000,8 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       </div>
       <ToastReagendado/>
 
-      {PanelChat}
+      {PanelClarity}
       {PanelCalendar}
-      {PanelVoz}
       {todayTasks.length>0&&<><SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/><TaskList tasks={todayTasks}/></>}
       {overdueWork.length>0&&<><SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/><TaskList tasks={overdueWork} overdue/></>}
       <button onClick={()=>onOpenAddSheet ? onOpenAddSheet({projectId:null,area:'trabajo',projectName:'',showProjectSelector:true}) : onAddTask({id:null,name:'',area:'trabajo',showProjectSelector:true})} className="m-newp">
