@@ -4152,19 +4152,14 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       const enc = new TextEncoder();
 
       function part(name, value, type=null) {
+        const CRLF = '\r\n';
         const header = type
-          ? `--${boundary}
-Content-Disposition: form-data; name="${name}"; filename="audio.${type.split('/')[1]||'webm'}"
-Content-Type: ${type}
-
-`
-          : `--${boundary}
-Content-Disposition: form-data; name="${name}"
-
-`;
-        return [enc.encode(header), typeof value === 'string' ? enc.encode(value) : new Uint8Array(value), enc.encode('
-')];
+          ? '--'+boundary+CRLF+'Content-Disposition: form-data; name="'+name+'"; filename="audio.'+(type.split('/')[1]||'webm')+'"'+CRLF+'Content-Type: '+type+CRLF+CRLF
+          : '--'+boundary+CRLF+'Content-Disposition: form-data; name="'+name+'"'+CRLF+CRLF;
+        return [enc.encode(header), typeof value === 'string' ? enc.encode(value) : new Uint8Array(value), enc.encode(CRLF)];
       }
+
+
 
       const audioArr = await blob.arrayBuffer();
       const contextJson = JSON.stringify({
