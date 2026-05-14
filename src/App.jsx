@@ -1,4 +1,3 @@
-
 import { useState, useRef, useMemo, useEffect } from "react";
 import { BANCO_METAS } from "./goalsBank.js";
 import { createClient } from "@supabase/supabase-js";
