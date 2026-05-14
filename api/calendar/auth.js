@@ -7,7 +7,7 @@ export default function handler(req, res) {
   if (!userId) return res.status(400).json({ error: 'Falta user_id' });
 
   const scopes = [
-    'https://www.googleapis.com/auth/calendar.readonly',
+    'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/userinfo.email',
   ].join(' ');
 
@@ -17,7 +17,7 @@ export default function handler(req, res) {
     `&response_type=code` +
     `&scope=${encodeURIComponent(scopes)}` +
     `&access_type=offline` +
-    `&prompt=select_account%20consent` +
+    `&prompt=consent` +
     `&state=${encodeURIComponent(userId)}`;
 
   res.redirect(authUrl);
