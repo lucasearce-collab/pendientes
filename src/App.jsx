@@ -351,41 +351,23 @@ export default function App() {
   const upcomingWork = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId); if(!p||p.area!=="trabajo"||t.done) return false; return !t.date;}).sort(taskSort);
 
   async function createCalendarEvent(task, projectName, calTime=null, calDuration=30){
-    const token = googleToken;
-    if(!token || !task.date) return false;
+    if(!task.date || !calTime || !uid) return false;
     try {
-      let eventBody;
-      if(calTime){
-        // Evento con hora específica
-        const [h,m] = calTime.split(':').map(Number);
-        const start = new Date(`${task.date}T00:00:00`);
-        start.setHours(h,m,0,0);
-        const end = new Date(start.getTime() + calDuration * 60000);
-        const pad = n => String(n).padStart(2,'0');
-        const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
-        eventBody = {
-          summary: task.title,
-          description: projectName ? `Proyecto: ${projectName}` : '',
-          start: { dateTime: fmt(start), timeZone: 'America/Argentina/Buenos_Aires' },
-          end:   { dateTime: fmt(end),   timeZone: 'America/Argentina/Buenos_Aires' },
-          reminders: { useDefault: true },
-        };
-      } else {
-        // Evento de día completo
-        eventBody = {
-          summary: task.title,
-          description: projectName ? `Proyecto: ${projectName}` : '',
-          start: { date: task.date },
-          end:   { date: task.date },
-          reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 480 }] },
-        };
-      }
-      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      const res = await fetch('/api/calendar/create-event', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(eventBody),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: uid,
+          title: task.title,
+          date: task.date,
+          time: calTime,
+          duration_minutes: calDuration,
+          project_name: projectName || '',
+        }),
       });
-      return res.ok;
+      const data = await res.json();
+      if (!res.ok) { console.error('Calendar error:', data.error); return false; }
+      return true;
     } catch(e) { console.error('Calendar error:', e); return false; }
   }
 
