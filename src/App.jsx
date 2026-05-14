@@ -3998,78 +3998,32 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   const todayTasks = (tasks||[]).filter(t=>!t.done&&t.date===today).sort(taskSort);
 
   // Sugerencias del agente de calendar
-  const [sugerencias, setSugerencias] = useState([]);
   const [calendarConnected, setCalendarConnected] = useState(false);
-  const [cargandoCalendar, setCargandoCalendar] = useState(false);
-  const [calendarError, setCalendarError] = useState(null);
+  const [eventosCalendar, setEventosCalendar] = useState([]);
 
   useEffect(()=>{
     if(!userId||!supabase) return;
-    // Cargar sugerencias pendientes
-    supabase.from('calendar_suggestions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status','pending')
-      .order('created_at',{ascending:false})
-      .then(({data})=>{ if(data) setSugerencias(data); });
     // Verificar si el calendario está conectado
     supabase.from('user_profiles')
       .select('calendar_connected')
       .eq('id', userId)
       .single()
-      .then(({data})=>{ if(data) setCalendarConnected(!!data.calendar_connected); });
-    // Detectar si acaba de conectar el calendario (redirect desde OAuth)
+      .then(({data})=>{
+        if(data?.calendar_connected){
+          setCalendarConnected(true);
+          // Cargar eventos para el micrófono
+          fetch(`/api/calendar/events?user_id=${userId}`)
+            .then(r=>r.json())
+            .then(d=>{ if(d.events) setEventosCalendar(d.events); })
+            .catch(()=>{});
+        }
+      });
+    // Detectar redirect OAuth
     if(window.location.search.includes('calendar_connected=1')){
       setCalendarConnected(true);
       window.history.replaceState({}, '', window.location.pathname);
     }
-    if(window.location.search.includes('calendar_error=')){
-      setCalendarError('Error al conectar el calendario. Intentá de nuevo.');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
   },[userId]);
-
-  async function pedirSugerenciasCalendar(){
-    if(!userId) return;
-    setCargandoCalendar(true);
-    setCalendarError(null);
-    try{
-      const res = await fetch(`/api/calendar/process?user_id=${userId}`);
-      const data = await res.json();
-      if(!res.ok) throw new Error(data.error||'Error desconocido');
-      // Recargar sugerencias
-      const {data: sg} = await supabase
-        .from('calendar_suggestions')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('status','pending')
-        .order('created_at',{ascending:false});
-      if(sg) setSugerencias(sg);
-    } catch(e){
-      setCalendarError('No pude cargar sugerencias. Revisá la conexión.');
-    } finally {
-      setCargandoCalendar(false);
-    }
-  }
-
-  async function aceptarSugerencia(s){
-    // Crear la tarea en Clarity
-    if(onAddTask) onAddTask({
-      title: s.task_title,
-      date: s.suggested_date,
-      projectId: null,
-      type: 'normal',
-      notes: `Sugerido por el agente — ${s.event_title}`,
-    });
-    // Marcar como aceptada
-    await supabase.from('calendar_suggestions').update({status:'accepted'}).eq('id',s.id);
-    setSugerencias(sg=>sg.filter(x=>x.id!==s.id));
-  }
-
-  async function descartarSugerencia(s){
-    await supabase.from('calendar_suggestions').update({status:'dismissed'}).eq('id',s.id);
-    setSugerencias(sg=>sg.filter(x=>x.id!==s.id));
-  }
 
   const [diaDificil, setDiaDificil] = useState(false);
   const [verTodoModal, setVerTodoModal] = useState(false);
@@ -4167,6 +4121,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         tareasPendientes: pendientesCtx,
         tareasCompletadas: completadasCtx,
         historialChat: chatVoz,
+        eventosCalendar: eventosCalendar||[],
       });
 
       const bodyParts = [
@@ -4439,90 +4394,24 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   );
 
   // ── Panel Calendar ──
-  const PanelCalendar = (()=>{
-    // Botón conectar calendario
-    if(!calendarConnected){
-      return(
-        <div style={{margin:desktop?'0 0 20px':'12px 20px 4px',display:'flex',alignItems:'center',gap:10}}>
-          <a href={`/api/calendar/auth?user_id=${userId}`}
-            style={{
-              display:'inline-flex',alignItems:'center',gap:8,
-              fontFamily:"'DM Sans'",fontSize:12,fontWeight:400,
-              color:'#9B8878',textDecoration:'none',
-              border:'1px solid #EAE6E0',borderRadius:8,
-              padding:'6px 12px',background:'none',cursor:'pointer',
-            }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-            Conectar Google Calendar
-          </a>
-          {calendarError&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C4312A'}}>{calendarError}</span>}
-        </div>
-      );
-    }
-
-    // Calendario conectado — botón pedir sugerencias + lista
-    return(
-      <div style={{margin:desktop?'0 0 20px':'12px 20px 4px'}}>
-        {/* Fila header */}
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom: sugerencias.length>0 ? 10 : 0}}>
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <div style={{width:5,height:5,borderRadius:'50%',background:'#8A9E8A'}}/>
-            <span style={{fontFamily:"'DM Sans'",fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:'#8A9E8A'}}>
-              Tu agenda
-              {sugerencias.length>0&&<span style={{fontWeight:300,color:'#B0AA9F',marginLeft:6}}>{sugerencias.length}</span>}
-            </span>
-          </div>
-          <button
-            onClick={pedirSugerenciasCalendar}
-            disabled={cargandoCalendar}
-            style={{
-              background:'none',border:'none',cursor:cargandoCalendar?'default':'pointer',
-              fontFamily:"'DM Sans'",fontSize:12,color:'#C8C3BB',
-              display:'flex',alignItems:'center',gap:6,padding:0,
-            }}>
-            {cargandoCalendar
-              ? <><div style={{width:8,height:8,borderRadius:'50%',border:'2px solid #C4A882',borderTopColor:'transparent',animation:'spin 1s linear infinite'}}/> buscando...</>
-              : 'actualizar →'
-            }
-          </button>
-        </div>
-        {calendarError&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C4312A',marginBottom:8}}>{calendarError}</div>}
-        {/* Sugerencias */}
-        {sugerencias.map(s=>(
-          <div key={s.id} style={{
-            display:'flex',alignItems:'center',gap:12,
-            padding:'11px 0',
-            borderBottom:'1px solid #EAE6E0',
-          }}>
-            <div style={{width:3,borderRadius:99,alignSelf:'stretch',background:'#8A9E8A',flexShrink:0,minHeight:18}}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825',lineHeight:1.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                {s.task_title}
-              </div>
-              <div style={{display:'flex',alignItems:'center',gap:4,marginTop:2}}>
-                <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>
-                  {s.momento==='pre'?'Antes de':'Después de'} {s.event_title}
-                </span>
-                {s.suggested_date&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{s.suggested_date}</span></>}
-              </div>
-            </div>
-            <div style={{display:'flex',gap:6,flexShrink:0}}>
-              <button onClick={()=>aceptarSugerencia(s)} style={{
-                background:'#2C2825',color:'white',border:'none',borderRadius:8,
-                padding:'6px 12px',fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,cursor:'pointer',
-              }}>Agregar</button>
-              <button onClick={()=>descartarSugerencia(s)} style={{
-                background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,
-                padding:'6px 8px',fontFamily:"'DM Sans'",fontSize:12,cursor:'pointer',
-              }}>✕</button>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  })();
+  // Solo muestra botón conectar si el calendario no está conectado
+  const PanelCalendar = !calendarConnected ? (
+    <div style={{margin:desktop?'0 0 16px':'8px 20px 0',display:'flex',alignItems:'center',gap:10}}>
+      <a href={`/api/calendar/auth?user_id=${userId}`}
+        style={{
+          display:'inline-flex',alignItems:'center',gap:8,
+          fontFamily:"'DM Sans'",fontSize:12,fontWeight:400,
+          color:'#9B8878',textDecoration:'none',
+          border:'1px solid #EAE6E0',borderRadius:8,
+          padding:'6px 12px',background:'none',cursor:'pointer',
+        }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        Conectar Google Calendar
+      </a>
+    </div>
+  ) : null;
 
   // ── Modal Ver Todo ──
   const VerTodoModal = () => {
