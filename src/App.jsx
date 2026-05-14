@@ -4601,7 +4601,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
 
   // Selector de proyecto inline para PanelVoz
   function VozProyectoSelector({accionId, proyectoId, projects, onChange}){
-    const [open, setOpen] = React.useState(false);
+    const [open, setOpen] = useState(false);
     const sel = projects.find(p=>p.id===proyectoId);
     return(
       <div style={{marginTop:6,position:'relative'}}>
