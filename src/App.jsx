@@ -1,1 +1,5695 @@
 
+import { useState, useRef, useMemo, useEffect } from "react";
+import { BANCO_METAS } from "./goalsBank.js";
+import { createClient } from "@supabase/supabase-js";
+
+// ─── Supabase ─────────────────────────────────────────────────────────────────
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+
+// ─── Offline queue ───────────────────────────────────────────────────────────
+const QUEUE_KEY = "pendientes_queue";
+
+function loadQueue() {
+  try { return JSON.parse(localStorage.getItem(QUEUE_KEY)||"[]"); } catch { return []; }
+}
+function saveQueue(q) {
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch {}
+}
+
+async function flushQueue() {
+  const queue = loadQueue();
+  if (!queue.length || !navigator.onLine) return;
+  const failed = [];
+  for (const op of queue) {
+    try {
+      if (op.type === "upsert") await supabase.from(op.table).upsert(op.data);
+      else if (op.type === "delete") await supabase.from(op.table).delete().eq("id", op.id);
+    } catch { failed.push(op); }
+  }
+  saveQueue(failed);
+}
+
+async function safeUpsert(table, data) {
+  if (navigator.onLine) {
+    const { error } = await supabase.from(table).upsert(data);
+    if (error) { const q=loadQueue(); q.push({type:"upsert",table,data}); saveQueue(q); }
+  } else {
+    const q=loadQueue(); q.push({type:"upsert",table,data}); saveQueue(q);
+  }
+}
+
+async function safeDelete(table, id) {
+  if (navigator.onLine) {
+    const { error } = await supabase.from(table).delete().eq("id", id);
+    if (error) { const q=loadQueue(); q.push({type:"delete",table,id}); saveQueue(q); }
+  } else {
+    const q=loadQueue(); q.push({type:"delete",table,id}); saveQueue(q);
+  }
+}
+
+async function trackEvent(eventType, entityId=null, entityType=null, metadata={}) {
+  try {
+    const { data:{ session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) return;
+    await supabase.from("events").insert({
+      user_id: session.user.id,
+      event_type: eventType,
+      entity_id: entityId || undefined,
+      entity_type: entityType || undefined,
+      metadata,
+      occurred_at: new Date().toISOString(),
+    });
+  } catch(e) { console.warn("trackEvent failed:", e); }
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const AREAS = {
+  trabajo:  { label:"Trabajo",       color:"#9B8878", dot:"#C4896A" },
+  personal: { label:"Vida Personal", color:"#8A9E8A", dot:"#6B9E78" },
+};
+const TASK_TYPE = {
+  urgente:     { label:"Urgente",     color:"#C4896A", size:7,  ring:false },
+  estrategica: { label:"Estratégica", color:"#5B6BAF", size:10, ring:true  },
+  normal:      { label:"Normal",      color:null,      size:0,  ring:false },
+};
+const IMPORTANCE = {
+  estrategica: { label:"Estratégico", color:"#5B6BAF", bg:"#F0F1F8" },
+  urgente:     { label:"Prioritario", color:"#C49A7A", bg:"#FBF5F0" },
+  normal:      { label:"Normal",      color:"#9B948C", bg:"#F5F3F1" },
+};
+const SECTIONS = [
+  {
+    id: "hoy",
+    label: "Mi día",
+    subTabs: [
+      { id: "hoy", label: "Mi día" },
+    ],
+  },
+  {
+    id: "proyectos",
+    label: "Proyectos",
+    subTabs: [
+      { id: "proyectos", label: "Proyectos" },
+    ],
+  },
+  {
+    id: "metas",
+    label: "Metas",
+    subTabs: [
+      { id: "metas", label: "Metas" },
+    ],
+  },
+  {
+    id: "progreso",
+    label: "Progreso",
+    subTabs: [
+      { id: "analitica", label: "Analítica" },
+      { id: "cerezo",    label: "🌱"        },
+    ],
+  },
+];
+
+const HORIZONS = {
+  anio:    { label:"Este año",  sub:"2025",    color:"#9B8878", bg:"#F5F1ED", ring:"#C4896A" },
+  medio:   { label:"2–5 años", sub:"2026–30",  color:"#8A8EA8", bg:"#F1F2F5", ring:"#8A8EA8" },
+  largo:   { label:"5+ años",  sub:"2031+",    color:"#5B6BAF", bg:"#F0F1F8", ring:"#5B6BAF" },
+};
+
+const goalToDb  = (g,uid) => ({ id:g.id, user_id:uid, title:g.title, description:g.description||"", horizon:g.horizon, parent_id:g.parentId||null, sort_order:g.sortOrder||0 });
+const goalFromDb = r => ({ id:r.id, title:r.title, description:r.description||"", horizon:r.horizon, parentId:r.parent_id||null, sortOrder:r.sort_order||0 });
+
+const localDate  = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const todayStr   = () => localDate(new Date());
+const tomorrow   = () => { const d=new Date(); d.setDate(d.getDate()+1); return localDate(d); };
+const nextMonday = () => { const d=new Date(); const diff=(8-d.getDay())%7||7; d.setDate(d.getDate()+diff); return localDate(d); };
+const isOverdue  = (date,done) => !done && date && date < todayStr();
+const typeGroup  = t => { const tp=t.type||"normal"; if(tp==="estrategica") return 0; if(tp==="urgente") return 1; return 2; };
+const dateGroup  = t => { const tod=todayStr(),tom=tomorrow(); if(!t.date) return 2; if(t.date<tod||t.date===tod||t.date===tom) return 0; return 1; };
+const taskSort   = (a,b) => { if(a.done!==b.done) return a.done?1:-1; const dg=dateGroup(a)-dateGroup(b); if(dg!==0) return dg; const tg=typeGroup(a)-typeGroup(b); if(tg!==0) return tg; if(a.date&&b.date) return a.date<b.date?-1:a.date>b.date?1:0; return 0; };
+
+const fmtDate = (d) => {
+  if (!d) return "";
+  const t = todayStr();
+  if (d===t) return "Hoy";
+  if (d===tomorrow()) return "Mañana";
+  if (d<t) { const days=Math.round((new Date(t)-new Date(d))/86400000); return days===1?"Ayer":`Hace ${days}d`; }
+  const [,m,day]=d.split("-"); return `${day}/${m}`;
+};
+
+const projToDb  = (p,uid) => ({ id:p.id, area:p.area, name:p.name, monto:p.monto||"", importance:p.importance||"normal", description:p.description||"", main_goal:p.mainGoal||"", secondary_goals:p.secondaryGoals||[], goal_id:p.goal_id||null, goal_ids:p.goal_ids||[], sort_order:p.sortOrder||0, user_id:uid });
+const projFromDb = r => { const goalIds = (r.goal_ids&&r.goal_ids.length>0) ? r.goal_ids : (r.goal_id ? [r.goal_id] : []); return { id:r.id, area:r.area, name:r.name, monto:r.monto||"", importance:r.importance||"normal", description:r.description||"", mainGoal:r.main_goal||"", secondaryGoals:r.secondary_goals||[], goal_id:goalIds[0]||null, goal_ids:goalIds, sortOrder:r.sort_order||0 }; };
+// Calcula la próxima fecha para una tarea recurrente
+function calcNextRecurrence(dateStr, type){
+  const d = new Date(dateStr + 'T12:00:00');
+  if(type==='daily')   d.setDate(d.getDate()+1);
+  if(type==='weekly')  d.setDate(d.getDate()+7);
+  if(type==='monthly') d.setMonth(d.getMonth()+1);
+  return localDate(d);
+}
+
+const taskToDb  = (t,uid) => ({ id:t.id, project_id:t.projectId, title:t.title, type:t.type||"normal", date:t.date||"", responsable:t.responsable||"", notes:t.notes||"", done:t.done||false, sort_order:t.sortOrder||0, user_id:uid, completed_at:t.completed_at||null, snoozed_count:t.snoozed_count||0, recurrence_type:t.recurrence_type||null, recurrence_id:t.recurrence_id||null });
+const taskFromDb = r => ({ id:r.id, projectId:r.project_id, title:r.title, type:r.type||"normal", date:r.date||"", responsable:r.responsable||"", notes:r.notes||"", done:r.done||false, sortOrder:r.sort_order||0, completed_at:r.completed_at||null, snoozed_count:r.snoozed_count||0, recurrence_type:r.recurrence_type||null, recurrence_id:r.recurrence_id||null });
+
+function TypeDot({ type, done }) {
+  const t = TASK_TYPE[type||"normal"];
+  if (!t.color) return null;
+  return <div style={{width:t.size,height:t.size,borderRadius:"50%",background:done?"#C8C3BB":t.color,flexShrink:0,boxShadow:(!done&&t.ring)?`0 0 0 2px white, 0 0 0 3.5px ${t.color}`:"none"}}/>;
+}
+function RecurrenceBadge({type}){
+  if(!type) return null;
+  const label = type==='daily'?'↻ diaria':type==='weekly'?'↻ semanal':'↻ mensual';
+  return <span style={{fontFamily:"'DM Sans'",fontSize:9,color:"#C4A882",background:"#FBF8F2",padding:"1px 5px",borderRadius:99,flexShrink:0}}>{label}</span>;
+}
+
+// ─── Login ────────────────────────────────────────────────────────────────────
+function LoginScreen() {
+  const [loading, setLoading] = useState(false);
+  async function login() {
+    setLoading(true);
+    await supabase.auth.signInWithOAuth({
+      provider: "github",
+      options: { redirectTo: window.location.origin }
+    });
+  }
+  async function loginGoogle() {
+    setLoading(true);
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin }
+    });
+  }
+  return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#F7F5F2",fontFamily:"'Lora',serif",flexDirection:"column",gap:32,padding:32}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}`}</style>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:32,color:"#C8C3BB",marginBottom:16}}>◈</div>
+        <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase"}}>Clarity</div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:10,width:"100%",maxWidth:280}}>
+        <button onClick={login} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,background:"#2C2825",color:"white",border:"none",borderRadius:12,padding:"14px 28px",fontSize:14,fontFamily:"'DM Sans'",fontWeight:500,cursor:"pointer",opacity:loading?.6:1,width:"100%"}}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          {loading ? "Conectando..." : "Continuar con GitHub"}
+        </button>
+        <button onClick={loginGoogle} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,background:"white",color:"#2C2825",border:"1px solid #E5E1DB",borderRadius:12,padding:"14px 28px",fontSize:14,fontFamily:"'DM Sans'",fontWeight:500,cursor:"pointer",width:"100%"}}>
+          <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+          Continuar con Google
+        </button>
+      </div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",textAlign:"center",fontStyle:"italic",lineHeight:1.7,maxWidth:220,margin:"0 auto"}}>
+  "La calidad de tus pensamientos determina la calidad de tu vida."
+  <div style={{fontStyle:"normal",fontSize:11,color:"#D5CFC8",marginTop:6,letterSpacing:".04em"}}>— Marco Aurelio</div>
+</div>
+    </div>
+  );
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+export default function App() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [session,  setSession]  = useState(null);
+  const [authReady,setAuthReady]= useState(false);
+  const [tasks,    setTasks]    = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [goals,    setGoals]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [googleToken, setGoogleToken] = useState(null);
+  const [calendarTokenReady, setCalendarTokenReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [opError,   setOpError]   = useState(null);
+  const [isDesktop,setIsDesktop]= useState(window.innerWidth>=768);
+  const [section,  setSection]  = useState("hoy");   // "hoy" | "metas" | "progreso"
+  const [subView,  setSubView]  = useState("hoy");   // sub-tab activo dentro de la sección
+  const [activeArea,setActiveArea]=useState("trabajo");
+  const [activeProjId,setActiveProjId]=useState(null);
+  const [sheet,    setSheet]    = useState(null);
+  const [addSheet, setAddSheet] = useState(null);
+  const [newProjSheet,setNewProjSheet]=useState(null);
+  const [planSheet,setPlanSheet]=useState(null);
+  const [goalSheet,setGoalSheet]=useState(null);
+  const [asistenteSheet,setAsistenteSheet]=useState(false);
+  const [swipedId, setSwipedId] = useState(null);
+  const [celebrate, setCelebrate] = useState(null); // {type:'task'|'project', points:N}
+  const [focusMode, setFocusMode] = useState(false);
+  const [onboarding, setOnboarding] = useState(false);
+  const [showTour, setShowTour] = useState(false);
+  const [rescheduledCount, setRescheduledCount] = useState(0);
+  const [points, setPoints] = useState(0);
+
+  // Load points from Supabase only
+  async function loadPoints(userId){
+    const {data} = await supabase.from('user_profiles').select('points').eq('id',userId).single();
+    if(data){
+      setPoints(data.points||0);
+    } else {
+      // First time user - create profile with 0 points
+      await supabase.from('user_profiles').insert({id:userId, points:0, updated_at:new Date().toISOString()});
+      setPoints(0);
+    }
+    // Clean up any leftover localStorage
+    localStorage.removeItem('clarity_points');
+  }
+
+  async function addPoints(n){
+    setPoints(p=>p+n);
+    if(session?.user?.id){
+      await supabase.rpc('increment_points',{user_id:session.user.id, amount:n});
+    }
+  }
+
+  const TREE_LEVELS = [
+    {name:"Semilla",        min:0,      max:4999},
+    {name:"Brote",          min:5000,   max:19999},
+    {name:"Retoño",         min:20000,  max:59999},
+    {name:"Cerezo en Flor", min:60000,  max:149999},
+    {name:"Cerezo Maduro",  min:150000, max:399999},
+    {name:"Cerezo Mayor",   min:400000, max:999999},
+    {name:"Jindai Zakura",  min:1000000,max:Infinity},
+  ];
+  const currentLevel = TREE_LEVELS.findIndex((l,i)=>points>=l.min&&points<=l.max);
+  const treeLevel = TREE_LEVELS[Math.max(0,currentLevel)];
+  const touchStart = useRef(null);
+
+  useEffect(()=>{
+    const fn=()=>setIsDesktop(window.innerWidth>=768);
+    window.addEventListener("resize",fn); return ()=>window.removeEventListener("resize",fn);
+  },[]);
+
+  useEffect(()=>{
+    const onOnline=()=>{ setIsOnline(true); flushQueue(); };
+    const onOffline=()=>setIsOnline(false);
+    window.addEventListener("online",onOnline);
+    window.addEventListener("offline",onOffline);
+    return ()=>{ window.removeEventListener("online",onOnline); window.removeEventListener("offline",onOffline); };
+  },[]);
+
+  // Auth
+  useEffect(()=>{
+    supabase.auth.getSession().then(({data:{session}})=>{
+      setSession(session); setAuthReady(true);
+    });
+    const {data:{subscription}} = supabase.auth.onAuthStateChange((_,session)=>{
+      setSession(session);
+    });
+    return ()=>subscription.unsubscribe();
+  },[]);
+
+  // Load data
+  useEffect(()=>{
+    if (!session) { setLoading(false); return; }
+    async function load() {
+      setLoading(true);
+      setLoadError(false);
+      try {
+      const [ps,ts,gs] = await Promise.all([
+        supabase.from("projects").select("*").order("sort_order").order("created_at"),
+        supabase.from("tasks").select("*").order("sort_order").order("created_at"),
+        supabase.from("goals").select("*").order("sort_order").order("created_at"),
+      ]);
+      if(ps.error||ts.error||gs.error) throw new Error("Error cargando datos");
+      const userProjects=(ps.data||[]).map(projFromDb);
+      const userTasks=(ts.data||[]).map(taskFromDb);
+      const userGoals=(gs.data||[]).map(goalFromDb);
+      setProjects(userProjects);
+      setTasks(userTasks);
+      setGoals(userGoals);
+      setLoading(false);
+      await loadPoints(session.user.id);
+      // Cargar google_calendar_token para crear eventos
+      supabase.from('user_profiles').select('google_calendar_token,calendar_connected').eq('id',session.user.id).single().then(({data})=>{
+        if(data?.calendar_connected && data?.google_calendar_token){
+          setGoogleToken(data.google_calendar_token);
+          setCalendarTokenReady(true);
+        }
+      });
+      // Load rescheduled count for analytics
+      supabase.from('events').select('id',{count:'exact'}).eq('user_id',session.user.id).eq('event_type','task_rescheduled').then(({count})=>setRescheduledCount(count||0));
+      // Mostrar onboarding si el usuario nunca aceptó los términos
+      const {data: profile} = await supabase.from('user_profiles').select('terms_accepted').eq('id',session.user.id).single();
+      if(!profile || !profile.terms_accepted){
+        setOnboarding(true);
+      }
+      } catch(e) {
+        console.error("Load error:", e);
+        setLoadError(true);
+        setLoading(false);
+      }
+    }
+    load();
+  },[session]);
+
+  if (!authReady) return <Loader/>;
+  if (!session)   return <LoginScreen/>;
+  if (loading)    return <Loader/>;
+
+  const uid = session.user.id;
+  const projectsForArea = a => projects.filter(p=>p.area===a);
+  const tasksForProject = id => tasks.filter(t=>t.projectId===id);
+  const overdueWork = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p?.area==="trabajo"&&isOverdue(t.date,t.done);}).sort(taskSort);
+  const todayWork   = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p?.area==="trabajo"&&t.date===todayStr();}).sort(taskSort);
+  const upcomingWork = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId); if(!p||p.area!=="trabajo"||t.done) return false; return !t.date;}).sort(taskSort);
+
+  async function createCalendarEvent(task, projectName, calTime=null, calDuration=30){
+    if(!task.date || !calTime || !uid) return false;
+    try {
+      const res = await fetch('/api/calendar/create-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: uid,
+          title: task.title,
+          date: task.date,
+          time: calTime,
+          duration_minutes: calDuration,
+          project_name: projectName || '',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { console.error('Calendar error:', data.error); return false; }
+      return true;
+    } catch(e) { console.error('Calendar error:', e); return false; }
+  }
+
+  async function addTask(task){
+    const n={id:"t"+Date.now(),...task,done:false,notes:task.notes||"",responsable:task.responsable||"",sortOrder:tasks.length};
+    setTasks(ts=>[n,...ts]); setAddSheet(null);
+    await safeUpsert("tasks",taskToDb(n,uid));
+    if(n.date && googleToken){
+      const proj = projects.find(p=>p.id===n.projectId);
+      createCalendarEvent(n, proj?.name);
+    }
+  }
+  async function toggleDone(id){
+    const task=tasks.find(t=>t.id===id); if(!task) return;
+    const u={...task,done:!task.done};
+    setTasks(ts=>ts.map(t=>t.id===id?u:t)); setSwipedId(null);
+    if(u.done){
+      u.completed_at = new Date().toISOString();
+      addPoints(500);
+      const cel={type:'task',points:500};
+      console.log('celebrate:', cel);
+      setCelebrate(cel);
+      setTimeout(()=>setCelebrate(null),2200);
+      trackEvent("task_completed",id,"task",{type:task.type||"normal",projectId:task.projectId});
+      // Si es recurrente, crear la siguiente instancia
+      if(task.recurrence_type && task.date){
+        const nextDate = calcNextRecurrence(task.date, task.recurrence_type);
+        const recId = task.recurrence_id || task.id; // grupo de recurrencia
+        const nextTask = {
+          id: 't'+Date.now()+'r',
+          projectId: task.projectId,
+          title: task.title,
+          type: task.type||'normal',
+          date: nextDate,
+          responsable: task.responsable||'',
+          notes: task.notes||'',
+          done: false,
+          sortOrder: 0,
+          snoozed_count: 0,
+          completed_at: null,
+          recurrence_type: task.recurrence_type,
+          recurrence_id: recId,
+        };
+        setTasks(ts=>[nextTask,...ts]);
+        await safeUpsert("tasks", taskToDb(nextTask, uid));
+      }
+    }
+    await safeUpsert("tasks",taskToDb(u,uid));
+  }
+  async function deleteTask(id){
+    setTasks(ts=>ts.filter(t=>t.id!==id)); setSwipedId(null); setSheet(null);
+    await safeDelete("tasks",id);
+  }
+  async function updateTask(u){
+    const prev = tasks.find(t=>t.id===u.id);
+    // Detect rescheduling: date changed to a future date (manual reagend)
+    const wasRescheduled = prev&&prev.date&&u.date&&u.date!==prev.date&&u.date>=todayStr()&&!u.done;
+    if(wasRescheduled){
+      u = {...u, snoozed_count:(u.snoozed_count||0)+1};
+      setRescheduledCount(c=>c+1);
+      trackEvent("task_rescheduled", u.id, "task", {
+        oldDate: prev.date,
+        newDate: u.date,
+        projectId: u.projectId,
+        type: u.type||"normal",
+      });
+    }
+    setTasks(ts=>ts.map(t=>t.id===u.id?u:t)); setSheet(null);
+    await safeUpsert("tasks",taskToDb(u,uid));
+  }
+  async function addProject(area,name){
+    if(!name.trim()) return;
+    const n={id:"p"+Date.now(),area,name:name.trim(),monto:"",importance:"normal",description:"",mainGoal:"",secondaryGoals:[]};
+    setProjects(ps=>[...ps,n]); setNewProjSheet(null);
+    await safeUpsert("projects",projToDb(n,uid));
+  }
+  async function updateProject(u){
+    setProjects(ps=>ps.map(p=>p.id===u.id?u:p)); setPlanSheet(null);
+    await safeUpsert("projects",projToDb(u,uid));
+  }
+  async function completeProject(pid){
+    const proj=projects.find(p=>p.id===pid);
+    if(!proj) return;
+    const imp=proj.importance||"normal";
+    const pts=imp==="estrategica"?10000:imp==="urgente"?7000:5000;
+    addPoints(pts);
+    setCelebrate({type:'project',points:pts,name:proj.name});
+    setTimeout(()=>setCelebrate(null),3000);
+    await supabase.from("projects").update({completed_at:new Date().toISOString()}).eq("id",pid);
+    trackEvent("project_completed",pid,"project",{importance:imp,points:pts,name:proj.name,area:proj.area});
+    setProjects(ps=>ps.filter(p=>p.id!==pid));
+  }
+
+  async function deleteProject(pid){
+    setProjects(ps=>ps.filter(p=>p.id!==pid));
+    setTasks(ts=>ts.filter(t=>t.projectId!==pid));
+    if(activeProjId===pid) setActiveProjId(null);
+    await safeDelete("tasks",pid); // project tasks
+    await safeDelete("projects",pid);
+  }
+  async function reorderTasks(orderedIds){
+    const map=Object.fromEntries(tasks.map(t=>[t.id,t]));
+    const reordered=orderedIds.map((id,i)=>({...map[id],sortOrder:i})).filter(Boolean);
+    setTasks(ts=>{const rest=ts.filter(t=>!orderedIds.includes(t.id));return[...reordered,...rest];});
+    await Promise.all(reordered.map(t=>safeUpsert("tasks",taskToDb(t,uid))));
+  }
+  async function reorderProjects(orderedIds){
+    const map=Object.fromEntries(projects.map(p=>[p.id,p]));
+    const reordered=orderedIds.map((id,i)=>({...map[id],sortOrder:i})).filter(Boolean);
+    setProjects(ps=>{const rest=ps.filter(p=>!orderedIds.includes(p.id));return[...reordered,...rest];});
+    await Promise.all(reordered.map(p=>safeUpsert("projects",{...projToDb(p,uid),sort_order:p.sortOrder||0})));
+  }
+  async function reorderGoals(orderedIds){
+    const map=Object.fromEntries(goals.map(g=>[g.id,g]));
+    const reordered=orderedIds.map((id,i)=>({...map[id],sortOrder:i})).filter(Boolean);
+    setGoals(gs=>{const rest=gs.filter(g=>!orderedIds.includes(g.id));return[...reordered,...rest];});
+    await Promise.all(reordered.map(g=>safeUpsert("goals",{...goalToDb(g,uid),sort_order:g.sortOrder||0})));
+  }
+  async function completeGoal(gid){
+    const goal=goals.find(g=>g.id===gid);
+    if(!goal) return;
+    addPoints(2000);
+    setCelebrate({type:'project',points:2000,name:goal.title});
+    setTimeout(()=>setCelebrate(null),3000);
+    trackEvent("goal_completed", gid, "goal", {horizon:goal.horizon, title:goal.title});
+    setGoals(gs=>gs.filter(g=>g.id!==gid));
+    await safeDelete("goals",gid);
+  }
+
+  async function addGoal(g){
+    addPoints(500);
+    trackEvent("goal_created", g.id, "goal", {horizon:g.horizon});
+    const n={id:"g"+Date.now(),...g};
+    setGoals(gs=>[...gs,n]); setGoalSheet(null);
+    await safeUpsert("goals",goalToDb(n,uid));
+  }
+  async function updateGoal(u){
+    setGoals(gs=>gs.map(g=>g.id===u.id?u:g)); setGoalSheet(null);
+    await safeUpsert("goals",goalToDb(u,uid));
+  }
+  async function deleteGoal(id){
+    setGoals(gs=>gs.filter(g=>g.id!==id)); setGoalSheet(null);
+    await safeDelete("goals",id);
+  }
+
+  async function injectGoals(goalsArray){
+    addPoints(2000);
+    const newGoals = goalsArray.map((g, i) => ({
+      id: "g" + Date.now() + i,
+      title: g.title,
+      description: g.description,
+      horizon: g.horizon,
+      parentId: null
+    }));
+    setGoals(gs => [...gs, ...newGoals]);
+    setAsistenteSheet(false);
+    newGoals.forEach(g => trackEvent("goal_injected", g.id, "goal", {horizon:g.horizon}));
+    await Promise.all(newGoals.map(g => safeUpsert("goals", goalToDb(g, uid))));
+    celebrate();
+  }
+  function switchSection(sectionId) {
+    const sec = SECTIONS.find(s => s.id === sectionId);
+    if (!sec) return;
+    setSection(sectionId);
+    // Leer orden guardado de localStorage para tener el valor más reciente
+    let firstTab = sec.subTabs[0].id;
+    try{
+      const saved = JSON.parse(localStorage.getItem('clarity_subtab_orders')||'{}');
+      const order = saved[sectionId];
+      if(order && order.length>0 && sec.subTabs.find(t=>t.id===order[0])){
+        firstTab = order[0];
+      }
+    }catch{}
+    setSubView(firstTab);
+    setActiveProjId(null);
+  }
+
+  async function signOut(){ await supabase.auth.signOut(); }
+
+  function handleTouchStart(e,id){touchStart.current={x:e.touches[0].clientX,id};}
+  function handleTouchEnd(e,id){
+    if(!touchStart.current||touchStart.current.id!==id) return;
+    const dx=e.changedTouches[0].clientX-touchStart.current.x;
+    if(dx<-50) setSwipedId(id); else if(dx>20) setSwipedId(null);
+    touchStart.current=null;
+  }
+  const sw={swipedId,setSwipedId,onTouchStart:handleTouchStart,onTouchEnd:handleTouchEnd};
+
+  const sheets=(
+    <>
+      {sheet      &&<><div className="sheet-overlay" onClick={()=>setSheet(null)}/><EditSheet task={sheet} projects={projects} onSave={updateTask} onDelete={()=>deleteTask(sheet.id)} isDesktop={isDesktop} onCreateCalEvent={calendarTokenReady?(task,proj,t,d)=>createCalendarEvent(task,proj,t,d):null}/></>}
+      {addSheet   &&<><div className="sheet-overlay" onClick={()=>setAddSheet(null)}/><AddTaskSheet {...addSheet} onAdd={addTask} isDesktop={isDesktop} projects={projects} onCreateCalEvent={calendarTokenReady?(task,proj,t,d)=>createCalendarEvent(task,proj,t,d):null}/></>}
+      {newProjSheet&&<><div className="sheet-overlay" onClick={()=>setNewProjSheet(null)}/><NewProjectSheet area={newProjSheet.area} onAdd={addProject} isDesktop={isDesktop}/></>}
+      {planSheet  &&<><div className="sheet-overlay" onClick={()=>setPlanSheet(null)}/><PlanProjectSheet project={planSheet} onSave={updateProject} isDesktop={isDesktop} goals={goals}/></>}
+      {goalSheet  &&<><div className="sheet-overlay" onClick={()=>setGoalSheet(null)}/><GoalSheet goal={goalSheet} goals={goals} projects={projects} onSave={goalSheet.id?updateGoal:addGoal} onDelete={goalSheet.id?()=>deleteGoal(goalSheet.id):null} isDesktop={isDesktop}/></>}
+      {asistenteSheet &&<><div className="sheet-overlay" onClick={()=>setAsistenteSheet(false)}/><AsistenteMetasSheet onClose={()=>setAsistenteSheet(false)} onInject={injectGoals} isDesktop={isDesktop}/></>}
+    </>
+  );
+
+  const props={tasks,projects,goals,section,subView,setSection:switchSection,setSubView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline,showTour,setShowTour,uid,supabase};
+  if(onboarding) return <OnboardingFlow uid={uid} supabase={supabase} onComplete={(gs,ps)=>{
+    setGoals(gs.map(goalFromDb));
+    setProjects(ps.map(projFromDb));
+    setOnboarding(false);
+    setShowTour(true);
+    switchSection("hoy");
+  }} isDesktop={isDesktop}/>;
+  return <>
+    <AppLayout {...props} desktop={isDesktop}/>
+    <CelebrationToast celebrate={celebrate}/>
+  </>;
+}
+
+function Loader(){
+  return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#F7F5F2",flexDirection:"column",gap:12}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;margin:0;padding:0;}`}</style>
+      <div style={{fontSize:28,color:"#C8C3BB"}}>◈</div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",letterSpacing:".08em"}}>cargando...</div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DESKTOP
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function FocusProject({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask}){
+  const [idx,setIdx]=useState(0);
+  const touchStartX=useRef(0),touchStartY=useRef(0);
+
+  useEffect(()=>{ if(idx>=projects.length) setIdx(Math.max(0,projects.length-1)); },[projects.length]);
+
+  if(projects.length===0) return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"60vh",textAlign:"center",padding:"0 32px"}}>
+      <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#C8C3BB"}}>Sin proyectos en esta área</div>
+    </div>
+  );
+
+  const proj=projects[idx];
+  const tasks=tasksForProject(proj.id).filter(t=>!t.done).sort(taskSort);
+  const imp=IMPORTANCE[proj.importance||"normal"];
+
+  function swipeStart(e){touchStartX.current=e.touches[0].clientX;touchStartY.current=e.touches[0].clientY;}
+  function swipeEnd(e){
+    const dx=e.changedTouches[0].clientX-touchStartX.current;
+    const dy=Math.abs(e.changedTouches[0].clientY-touchStartY.current);
+    if(dy>40) return;
+    if(dx<-50&&idx<projects.length-1) setIdx(i=>i+1);
+    if(dx>50&&idx>0) setIdx(i=>i-1);
+  }
+
+  return(
+    <div style={{display:"flex",flexDirection:"column"}}>
+      {/* Project card - centered, fills space */}
+      <div style={{display:"flex",flexDirection:"column",padding:"8px 20px 16px"}}
+        onTouchStart={swipeStart} onTouchEnd={swipeEnd}>
+        
+        {/* Header */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:imp.color}}/>
+            <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 8px",borderRadius:99}}>{imp.label}</span>
+          </div>
+          {proj.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B8878",fontWeight:500}}>{proj.monto}</span>}
+        </div>
+
+        {/* Project name */}
+        <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:22,fontWeight:300,color:"#2C2825",lineHeight:1.2,marginBottom:16}}>
+          {proj.name}
+        </div>
+
+        {/* Tasks */}
+        <div style={{background:"white",borderRadius:14,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:12}}>
+          {tasks.length===0
+            ?<div style={{padding:"32px 20px",textAlign:"center",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin tareas pendientes</div>
+            :tasks.map((task,i)=>(
+              <div key={task.id} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderTop:i>0?"1px solid #F5F2EE":"none",cursor:"pointer"}}
+                onClick={()=>onOpen(task)}>
+                <button style={{width:24,height:24,borderRadius:"50%",border:"1.5px solid #C8C3BB",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
+                  onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+                </button>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+                  {(task.date||task.responsable)&&<div style={{display:"flex",gap:8,marginTop:2}}>
+                    {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C"}}>{fmtDate(task.date)}</span>}
+                    {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A"}}>→ {task.responsable}</span>}
+                  </div>}
+                </div>
+                <TypeDot type={task.type} done={task.done}/>
+              </div>
+            ))
+          }
+          <div style={{padding:"10px 16px",borderTop:"1px solid #F5F2EE"}}>
+            <button onClick={()=>onAddTask(proj)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:0}}>
+              + agregar tarea
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px 24px"}}>
+        <button onClick={()=>setIdx(i=>i-1)} disabled={idx===0}
+          style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#9B948C"}}>
+          ← Anterior
+        </button>
+        <div style={{display:"flex",alignItems:"center",gap:4}}>
+          {projects.map((_,i)=>(
+            <div key={i} onClick={()=>setIdx(i)} style={{width:i===idx?14:6,height:6,borderRadius:99,background:i===idx?"#6B6258":"#E5E1DB",transition:"width .2s",cursor:"pointer"}}/>
+          ))}
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",marginLeft:4}}>{idx+1}/{projects.length}</span>
+        </div>
+        <button onClick={()=>setIdx(i=>i+1)} disabled={idx===projects.length-1}
+          style={{background:"none",border:"none",cursor:idx===projects.length-1?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===projects.length-1?"#E5E1DB":"#9B948C"}}>
+          Siguiente →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Focus Plan (Proyectos tab) ───────────────────────────────────────────────
+function ProjectFocusView({projects,onEdit,onDelete,onComplete,desktop}){
+  const [idx,setIdx]=useState(0);
+  const [conf,setConf]=useState(false);
+  const touchStartX=useRef(0),touchStartY=useRef(0);
+
+  useEffect(()=>{setConf(false);},[idx]);
+  useEffect(()=>{if(idx>=projects.length)setIdx(Math.max(0,projects.length-1));},[projects.length]);
+
+  if(projects.length===0) return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"60vh",textAlign:"center",padding:"0 32px"}}>
+      <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#C8C3BB"}}>Sin proyectos en esta área</div>
+    </div>
+  );
+
+  const proj=projects[idx];
+  const imp=IMPORTANCE[proj.importance||"normal"];
+
+  function swipeStart(e){touchStartX.current=e.touches[0].clientX;touchStartY.current=e.touches[0].clientY;}
+  function swipeEnd(e){
+    const dx=e.changedTouches[0].clientX-touchStartX.current;
+    const dy=Math.abs(e.changedTouches[0].clientY-touchStartY.current);
+    if(dy>40) return;
+    if(dx<-50&&idx<projects.length-1){setIdx(i=>i+1);setConf(false);}
+    if(dx>50&&idx>0){setIdx(i=>i-1);setConf(false);}
+  }
+
+  const Dots = () => (
+    <div style={{display:"flex",alignItems:"center",gap:4}}>
+      {projects.map((_,i)=>(
+        <div key={i} onClick={()=>{setIdx(i);setConf(false);}}
+          style={{width:i===idx?14:6,height:6,borderRadius:99,background:i===idx?"#6B6258":"#E5E1DB",transition:"width .2s",cursor:"pointer"}}/>
+      ))}
+      <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",marginLeft:4}}>{idx+1}/{projects.length}</span>
+    </div>
+  );
+
+  const CardContent = () => (<>
+    {proj.description&&<p style={{fontFamily:"'DM Sans'",fontSize:14,color:"#6B6258",marginBottom:16,lineHeight:1.6}}>{proj.description}</p>}
+    {proj.mainGoal&&<div style={{marginBottom:proj.secondaryGoals?.length>0?16:0}}>
+      <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:4}}>Objetivo principal</div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:desktop?14:15,color:"#2C2825",fontWeight:500,lineHeight:1.4}}>{proj.mainGoal}</div>
+    </div>}
+    {proj.secondaryGoals?.length>0&&<div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:8}}>Objetivos secundarios</div>
+      {proj.secondaryGoals.map((g,i)=>(
+        <div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:6}}>
+          <div style={{width:4,height:4,borderRadius:"50%",background:"#C8C3BB",flexShrink:0,marginTop:6}}/>
+          <span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258"}}>{g}</span>
+        </div>
+      ))}
+    </div>}
+    {!proj.description&&!proj.mainGoal&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos definidos</div>}
+  </>);
+
+  const Nav = ({compact}) => (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:compact?"12px 0":"12px 20px 24px"}}>
+      <button onClick={()=>{setIdx(i=>Math.max(i-1,0));setConf(false);}} disabled={idx===0}
+        style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#9B948C"}}>← Anterior</button>
+      <Dots/>
+      <button onClick={()=>{setIdx(i=>Math.min(i+1,projects.length-1));setConf(false);}} disabled={idx===projects.length-1}
+        style={{background:"none",border:"none",cursor:idx===projects.length-1?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===projects.length-1?"#E5E1DB":"#9B948C"}}>Siguiente →</button>
+    </div>
+  );
+
+  if(desktop) return(
+    <div style={{padding:"16px 20px"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+        <Dots/>
+        <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F"}}></span>
+      </div>
+      <div onTouchStart={swipeStart} onTouchEnd={swipeEnd}
+        style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",overflow:"hidden",marginBottom:16}}>
+        <div style={{height:3,background:imp?.color||"#E5E1DB"}}/>
+        <div style={{padding:"20px"}}>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16}}>
+            <div>
+              <div style={{fontFamily:"'Lora',serif",fontSize:20,fontWeight:500,color:"#2C2825",marginBottom:4}}>{proj.name}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                {proj.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B8878",fontWeight:500}}>{proj.monto}</span>}
+                {imp&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 8px",borderRadius:99}}>{imp.label}</span>}
+              </div>
+            </div>
+            <button onClick={()=>onEdit(proj)} style={{background:"none",border:"1px solid #E5E1DB",borderRadius:8,padding:"6px 12px",fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",cursor:"pointer",flexShrink:0}}>Editar</button>
+          </div>
+          <CardContent/>
+        </div>
+      </div>
+      <Nav compact/>
+    </div>
+  );
+
+  return(
+    <div style={{display:"flex",flexDirection:"column"}}>
+      <div style={{flex:1,padding:"8px 20px"}} onTouchStart={swipeStart} onTouchEnd={swipeEnd}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"3px 10px",borderRadius:99}}>{imp.label}</span>
+          {proj.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B8878",fontWeight:500}}>{proj.monto}</span>}
+        </div>
+        <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:22,fontWeight:300,color:"#2C2825",lineHeight:1.2,marginBottom:16}}>{proj.name}</div>
+        <div style={{background:"white",borderRadius:14,border:"1px solid #EAE6E0",padding:"20px",marginBottom:12}}>
+          <CardContent/>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>onEdit(proj)} style={{flex:1,background:"none",border:"1px solid #E5E1DB",borderRadius:10,padding:"11px",fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258",cursor:"pointer"}}>Editar</button>
+          {conf
+            ?<><button onClick={()=>onDelete(proj.id)} style={{flex:1,background:"none",border:"1px solid #C4896A",borderRadius:10,padding:"11px",fontFamily:"'DM Sans'",fontSize:13,color:"#C4896A",cursor:"pointer"}}>Confirmar</button>
+              <button onClick={()=>setConf(false)} style={{flex:1,background:"none",border:"1px solid #E5E1DB",borderRadius:10,padding:"11px",fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",cursor:"pointer"}}>✕</button></>
+            :<button onClick={()=>setConf(true)} style={{flex:1,background:"none",border:"1px solid #E5E1DB",borderRadius:10,padding:"11px",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",cursor:"pointer"}}>Eliminar</button>
+          }
+        </div>
+      </div>
+      <Nav/>
+    </div>
+  );
+}
+
+
+
+
+// ─── Focus Project Mode (Tareas) ─────────────────────────────────────────────
+function FocusProjectMode({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,desktop}){
+  const [idx,setIdx]=useState(0);
+  const touchStartX=useRef(0);
+
+  const proj=projects[idx];
+  const tasks=proj?tasksForProject(proj.id).filter(t=>!t.done).sort(taskSort):[];
+  const imp=proj?IMPORTANCE[proj.importance||"normal"]:null;
+
+  function handleSwipeStart(e){touchStartX.current=e.touches[0].clientX;}
+  function handleSwipeEnd(e){
+    const dx=e.changedTouches[0].clientX-touchStartX.current;
+    if(dx<-50&&idx<projects.length-1)setIdx(i=>i+1);
+    if(dx>50&&idx>0)setIdx(i=>i-1);
+  }
+
+  if(projects.length===0) return(
+    <div style={{textAlign:"center",padding:"60px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún</div>
+  );
+
+  return(
+    <div style={{padding:"16px 20px"}}>
+      {/* Progress */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+        <div style={{display:"flex",gap:4}}>
+          {projects.map((_,i)=>(
+            <div key={i} onClick={()=>setIdx(i)} style={{width:i===idx?18:6,height:6,borderRadius:99,background:i===idx?"#6B6258":"#E5E1DB",transition:"width .2s",cursor:"pointer"}}/>
+          ))}
+        </div>
+        <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F"}}>{idx+1}/{projects.length}</span>
+      </div>
+
+      {/* Project card */}
+      <div onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
+        {/* Type + name header outside card */}
+        <div style={{marginBottom:8}}>
+          {imp&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:imp.color,fontWeight:500,marginBottom:2}}>{imp.label}</div>}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:20,fontWeight:400,color:"#2C2825"}}>{proj.name}</div>
+            <button onClick={()=>onAddTask(proj)} style={{background:"none",border:"1px solid #E5E1DB",borderRadius:8,padding:"6px 12px",fontFamily:"'DM Sans'",fontSize:12,color:"#B0AA9F",cursor:"pointer",flexShrink:0,marginLeft:12}}>+ tarea</button>
+          </div>
+          {proj.monto&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B8878",fontWeight:500,marginTop:2}}>{proj.monto}</div>}
+        </div>
+
+        {/* Tasks - adaptive card */}
+        <div style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",marginBottom:16,overflow:"hidden"}}>
+          {tasks.length===0
+            ?<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic",padding:"16px 20px"}}>Sin tareas pendientes</div>
+            :tasks.map((task,i)=>(
+              <div key={task.id} onClick={()=>onOpen(task)}
+                style={{display:"flex",alignItems:"center",gap:12,padding:"13px 20px",borderBottom:i<tasks.length-1?"1px solid #F5F2EE":"none",cursor:"pointer"}}>
+                <button style={{width:22,height:22,borderRadius:"50%",border:"1.5px solid #C8C3BB",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
+                  onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+                </button>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",lineHeight:1.4}}>{task.title}</div>
+                  {(task.date||task.responsable)&&<div style={{display:"flex",gap:6,marginTop:2}}>
+                    {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C"}}>{fmtDate(task.date)}</span>}
+                    {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A"}}>→ {task.responsable}</span>}
+                  </div>}
+                </div>
+                <TypeDot type={task.type} done={task.done}/>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+
+      {/* Nav */}
+      <div style={{display:"flex",justifyContent:"space-between",padding:desktop?"0":"0 20px"}}>
+        <button onClick={()=>setIdx(i=>Math.max(i-1,0))} disabled={idx===0}
+          style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#9B948C"}}>← Anterior</button>
+        <button onClick={()=>setIdx(i=>Math.min(i+1,projects.length-1))} disabled={idx===projects.length-1}
+          style={{background:"none",border:"none",cursor:idx===projects.length-1?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===projects.length-1?"#E5E1DB":"#9B948C"}}>Siguiente →</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Focus Strategy Mode (Proyectos) ─────────────────────────────────────────
+
+// ─── Grouped Projects View ────────────────────────────────────────────────────
+function GroupedProjectsView({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks,sw,desktop,onEditProject,onDeleteProject}){
+  const GROUPS = [
+    {key:"urgente",     label:"Prioritarios", color:"#C49A7A", bg:"#FBF5F0"},
+    {key:"estrategica", label:"Estratégicos",  color:"#5B6BAF", bg:"#F0F1F8"},
+    {key:"normal",      label:"Normales",      color:"#9B948C", bg:"#F5F3F1"},
+  ];
+  const [open,setOpen]=useState({urgente:true,estrategica:true,normal:false});
+
+  const ProjCard = ({proj}) => desktop
+    ?<DProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
+        onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} onComplete={onComplete}
+        onAddTask={()=>onAddTask(proj)} reorderTasks={reorderTasks}
+        onEdit={onEditProject} onDeleteProject={onDeleteProject}
+        sw={{swipedId:null,setSwipedId:()=>{}}}/>
+    :<ProjBlock key={proj.id} project={proj} area={proj.area} tasks={tasksForProject(proj.id)}
+        onToggle={onToggle} onDelete={onDelete} onOpen={onOpen}
+        onAddTask={()=>onAddTask(proj)} reorderTasks={reorderTasks} {...(sw||{})}/>;
+
+  if(desktop){
+    const prioritarios = projects.filter(p=>(p.importance||"normal")==="urgente");
+    const estrategicos = projects.filter(p=>(p.importance||"normal")==="estrategica");
+    const normales     = projects.filter(p=>(p.importance||"normal")==="normal");
+    const GroupHeader  = ({label,color}) => (
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0 8px",borderBottom:"1px solid #EAE6E0",marginBottom:4}}>
+        <div style={{width:7,height:7,borderRadius:"50%",background:color}}/>
+        <span style={{fontFamily:"'DM Sans'",fontSize:11,fontWeight:500,letterSpacing:".1em",textTransform:"uppercase",color}}>{label}</span>
+      </div>
+    );
+    return(
+      <div>
+        <div style={{display:"flex",gap:40,alignItems:"flex-start",marginBottom:normales.length>0?32:0}}>
+          <div style={{flex:1,minWidth:0}}>
+            {prioritarios.length>0?<><GroupHeader label="Prioritarios" color="#C49A7A"/>{prioritarios.map(p=><ProjCard key={p.id} proj={p}/>)}</>
+              :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin proyectos prioritarios</div>}
+          </div>
+          <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
+          <div style={{flex:1,minWidth:0}}>
+            {estrategicos.length>0?<><GroupHeader label="Estratégicos" color="#5B6BAF"/>{estrategicos.map(p=><ProjCard key={p.id} proj={p}/>)}</>
+              :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"20px 0"}}>Sin proyectos estratégicos</div>}
+          </div>
+        </div>
+        {normales.length>0&&<>
+          <div style={{height:1,background:"#EAE6E0",marginBottom:16}}/>
+          <GroupHeader label="Normales" color="#9B948C"/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            {normales.map(p=><ProjCard key={p.id} proj={p}/>)}
+          </div>
+        </>}
+      </div>
+    );
+  }
+
+  return(
+    <div>
+      {GROUPS.map(g=>{
+        const gprojects=projects.filter(p=>(p.importance||"normal")===g.key);
+        if(gprojects.length===0) return null;
+        const isOpen=open[g.key];
+        const totalPending=gprojects.reduce((sum,p)=>sum+tasksForProject(p.id).filter(t=>!t.done).length,0);
+        return(
+          <div key={g.key} style={{marginBottom:4}}>
+            <div onClick={()=>setOpen(o=>({...o,[g.key]:!o[g.key]}))}
+              style={{display:"flex",alignItems:"center",gap:10,padding:"12px 20px",cursor:"pointer",userSelect:"none",borderBottom:"1px solid #EAE6E0"}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:g.color,flexShrink:0}}/>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:g.color,flex:1}}>{g.label}</span>
+              {totalPending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:g.color,background:g.bg,padding:"2px 8px",borderRadius:99}}>{totalPending}</span>}
+              <span style={{fontFamily:"'DM Sans'",fontSize:14,color:"#C8C3BB",marginLeft:4}}>{isOpen?"▾":"›"}</span>
+            </div>
+            {isOpen&&gprojects.map(proj=><ProjCard key={proj.id} proj={proj}/>)}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
+
+
+
+
+// ─── Analitica View ───────────────────────────────────────────────────────────
+function AlignmentHeader({status, label}){
+  const [showInfo, setShowInfo] = useState(false);
+  return(<>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+      <div style={{display:'flex',alignItems:'center',gap:6}}>
+        <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825'}}>Alineación estratégica</div>
+        <button onClick={()=>setShowInfo(s=>!s)} style={{background:'none',border:'1px solid #EAE6E0',borderRadius:'50%',width:16,height:16,fontSize:9,color:'#B0AA9F',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>?</button>
+      </div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:11,fontWeight:500,color:status==='green'?'#8FAF8A':status==='yellow'?'#C4A882':'#C4896A'}}>{label}</div>
+    </div>
+    {showInfo&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#9B8878',background:'#F5F1ED',borderRadius:10,padding:'10px 12px',marginBottom:12,lineHeight:1.7}}>
+      Mide qué % del peso de tus tareas pendientes va a proyectos estratégicos. Tareas vinculadas a metas pesan más. Por encima del 50% estás bien alineado.
+    </div>}
+    <div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F',marginBottom:16}}>¿Cuánto del esfuerzo pendiente mueve objetivos reales?</div>
+  </>);
+}
+
+function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onDiaDificil, onFoco}){
+  const today = todayStr();
+
+  // ── Week data ──
+  const weekDays = [];
+  for(let i=6;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    weekDays.push(d.toISOString().slice(0,10));
+  }
+  const DAY_LABELS = ['L','M','X','J','V','S','D'];
+
+  const completedByDay = weekDays.map(d=>
+    tasks.filter(t=>(t.completed_at&&t.completed_at.slice(0,10)===d)).length
+  );
+  const maxDay = Math.max(...completedByDay, 1);
+
+  // ── Peak hour ──
+  const hourCounts = Array(24).fill(0);
+  tasks.filter(t=>t.completed_at).forEach(t=>{
+    const h = new Date(t.completed_at).getHours();
+    hourCounts[h]++;
+  });
+  const maxHour = Math.max(...hourCounts, 1);
+  const peakHour = hourCounts.indexOf(Math.max(...hourCounts));
+  const peakLabel = peakHour===0?'12am':peakHour<12?`${peakHour}am`:peakHour===12?'12pm':`${peakHour-12}pm`;
+  const hasHourData = tasks.some(t=>t.completed_at);
+
+  // ── Tareas a tiempo ── only counts tasks never rescheduled AND completed by due date
+  const completedWithDate = tasks.filter(t=>t.done&&t.date);
+  const onTime = completedWithDate.filter(t=>
+    (t.snoozed_count||0)===0 && (!t.completed_at || t.completed_at.slice(0,10)<=t.date)
+  ).length;
+  const onTimePct = completedWithDate.length>0 ? Math.round((onTime/completedWithDate.length)*100) : null;
+
+  // ── Tasa postergación ── uses snoozed_count which includes manual date changes
+  const tasksWithDate = tasks.filter(t=>t.date);
+  const totalSnoozedFromTasks = tasks.reduce((acc,t)=>acc+(t.snoozed_count||0),0);
+  const totalWithDate = tasksWithDate.length;
+  const snoozeRate = totalWithDate>0 ? Math.round((totalSnoozedFromTasks/(totalWithDate+totalSnoozedFromTasks))*100) : null;
+
+  // ── CEO indicator ──
+  const completedThisWeek = tasks.filter(t=>t.done&&(
+    (t.completed_at&&t.completed_at.slice(0,10)>=weekDays[0]) || (!t.completed_at)
+  ));
+  const getImportance = t => {
+    const p = projects.find(x=>x.id===t.projectId);
+    return p ? (p.importance||'normal') : 'normal';
+  };
+  const estrategicas = completedThisWeek.filter(t=>getImportance(t)==='estrategica').length;
+  const prioritarias = completedThisWeek.filter(t=>getImportance(t)==='urgente').length;
+  const normales = completedThisWeek.filter(t=>getImportance(t)==='normal').length;
+  const totalCEO = estrategicas+prioritarias+normales||1;
+  const estrategicasPct = Math.round((estrategicas/totalCEO)*100);
+  const prioritariasPct = Math.round((prioritarias/totalCEO)*100);
+  const normalesPct = Math.round((normales/totalCEO)*100);
+
+  // ── Alineación estratégica ──
+  function calcAlignment(){
+    let strategicWeight = 0;
+    let operationalWeight = 0;
+    let orphaned = 0;
+    tasks.filter(t=>!t.done).forEach(t=>{
+      const p = projects.find(x=>x.id===t.projectId);
+      const hasGoal = (p?.goal_ids&&p.goal_ids.length>0) || p?.goal_id ? true : false;
+      const taskValue = t.type==='urgente'?25:t.type==='estrategica'?50:10;
+      if(p?.importance==='estrategica'){
+        strategicWeight += taskValue * (hasGoal ? 1.5 : 1.1);
+      } else if(p?.importance==='urgente'){
+        strategicWeight += taskValue * 0.7;
+        operationalWeight += taskValue * 0.3;
+      } else {
+        operationalWeight += taskValue;
+        if(!p) orphaned++;
+      }
+    });
+    const total = strategicWeight + operationalWeight;
+    if(total===0) return null;
+    const rawScore = Math.round((strategicWeight/total)*100);
+
+    // Diversification factor — penalize concentration in a single goal
+    const tasksByGoal = {};
+    tasks.filter(t=>!t.done).forEach(t=>{
+      const p = projects.find(x=>x.id===t.projectId);
+      const goalIds = (p?.goal_ids&&p.goal_ids.length>0) ? p.goal_ids : (p?.goal_id ? [p.goal_id] : ['none']);
+      goalIds.forEach(goalId => {
+        tasksByGoal[goalId] = (tasksByGoal[goalId]||0) + 1;
+      });
+    });
+    const goalKeys = Object.keys(tasksByGoal).filter(k=>k!=='none');
+    const totalWithGoal = goalKeys.reduce((s,k)=>s+tasksByGoal[k],0);
+    const maxConcentration = goalKeys.length>0 ? Math.max(...goalKeys.map(k=>tasksByGoal[k]))/totalWithGoal : 0;
+    // If >70% of tasks go to a single goal, penalize up to 20 points
+    const concentrationPenalty = goalKeys.length>1 ? Math.round(Math.max(0, maxConcentration-0.5)*40) : 0;
+    const score = Math.max(0, rawScore - concentrationPenalty);
+    const isConcentrated = goalKeys.length>1 && maxConcentration>0.7;
+
+    return {
+      score,
+      orphaned,
+      isConcentrated,
+      concentrationPenalty,
+      status: score>=50?'green':score>=30?'yellow':'red',
+      label: score>=50?'Alineado':score>=30?'Parcialmente alineado':'Trampa operativa',
+      advice: isConcentrated
+        ?`Buen nivel estratégico, pero el ${Math.round(maxConcentration*100)}% de tus tareas atienden una sola meta. Considerá avanzar en tus otras metas también.`
+        :score>=50
+        ?'Tu tiempo está donde importa. Seguí construyendo lo estratégico.'
+        :score>=30
+        ?'Hay balance, pero el operativo está ganando terreno. Revisá qué podés delegar.'
+        :'La mayoría de tu energía va a tareas operativas. Buscá qué proyectos estratégicos podés avanzar esta semana.',
+    };
+  }
+  const alignment = calcAlignment();
+
+  // ── Algoritmo de Presión Total (tres dimensiones) ──
+  function calcCogLoad(){
+    const pendientes = tasks.filter(t=>!t.done);
+    const ahora = Date.now();
+
+    // ── 1. PRESIÓN DE EJECUCIÓN ──
+    const vencidas   = pendientes.filter(t=>t.date && new Date(t.date+'T23:59:59').getTime()<ahora).length;
+    const paraHoy    = pendientes.filter(t=>t.date===today).length;
+    const promedioSnooze = pendientes.length>0
+      ? pendientes.reduce((acc,t)=>acc+(t.snoozed_count||0),0)/pendientes.length
+      : 0;
+    const proyectosActivos = new Set(pendientes.filter(t=>t.projectId).map(t=>t.projectId)).size;
+
+    const scoreEjecucion = (vencidas*10) + (paraHoy*3) + (promedioSnooze*5) + (proyectosActivos*7);
+
+    // ── 2. PRESIÓN DE LATENCIA (proyectos sin tareas pendientes) ──
+    const hace15d = Date.now() - 15*24*60*60*1000;
+    const proyectosSinTareas = projects.filter(p=>{
+      const tienePendiente = pendientes.some(t=>t.projectId===p.id);
+      const tieneReciente  = tasks.some(t=>t.done&&t.projectId===p.id&&t.completed_at&&new Date(t.completed_at).getTime()>hace15d);
+      return !tienePendiente && !tieneReciente;
+    });
+    const latenciaPersonal = proyectosSinTareas.filter(p=>p.area==='personal').length;
+    const latenciaLaboral  = proyectosSinTareas.filter(p=>p.area==='trabajo').length;
+    const scoreLatencia = (latenciaPersonal*4) + (latenciaLaboral*8);
+
+    // ── Score total normalizado 0-100 ──
+    const score = Math.min(100, Math.round(scoreEjecucion + scoreLatencia));
+    if(score===0 && pendientes.length===0 && projects.length===0) return null;
+
+    // ── Diagnóstico: la fuente que MÁS contribuye al score ──
+    // Calculamos la contribución real de cada componente
+    const contrib = {
+      deuda:            vencidas * 10,
+      friccion:         promedioSnooze * 5,
+      dispersion:       proyectosActivos * 7,
+      demanda:          paraHoy * 3,
+      latencia_laboral: latenciaLaboral * 8,
+      latencia_personal:latenciaPersonal * 4,
+    };
+
+    // Solo diagnosticamos latencia si realmente domina el score
+    // (contribuye más que la ejecución entera)
+    const contribEjecucion = contrib.deuda + contrib.friccion + contrib.dispersion + contrib.demanda;
+    const contribLatencia  = contrib.latencia_laboral + contrib.latencia_personal;
+
+    let dominante;
+    if(score < 40){
+      dominante = 'ok';
+    } else if(contribEjecucion >= contribLatencia) {
+      // La presión viene de lo que hacés (o no hacés)
+      const maxEjecucion = Math.max(contrib.deuda, contrib.friccion, contrib.dispersion);
+      if(maxEjecucion === contrib.deuda && vencidas >= 3)      dominante = 'deuda';
+      else if(maxEjecucion === contrib.dispersion && proyectosActivos >= 4) dominante = 'dispersion';
+      else if(maxEjecucion === contrib.friccion && promedioSnooze >= 2)     dominante = 'friccion';
+      else                                                                    dominante = 'alta_general';
+    } else {
+      // La presión viene de lo que no atendés
+      if(latenciaLaboral > 0 && latenciaPersonal > 0)  dominante = 'latencia_mixta';
+      else if(latenciaLaboral > 0)                       dominante = 'latencia_laboral';
+      else                                               dominante = 'latencia_personal';
+    }
+
+    // Banco de diagnósticos: 3 tonos por caso (green/yellow/red)
+    const statusLocal = score>=70?'red':score>=40?'yellow':'green';
+    const banco = {
+      deuda: {
+        green:  { validacion: null, titulo: 'Algunas tareas vencidas, pero bajo control.', consejo: 'Resolé las más simples o reagendalas antes de que se acumulen.', accion: null, accionLabel: null },
+        yellow: { validacion: null, titulo: 'La deuda está creciendo.', consejo: 'Elegí las dos más importantes y reagendá el resto. Actuar ahora evita que se convierta en carga real.', accion: 'dia_dificil', accionLabel: 'Abrir modo Día Difícil' },
+        red:    { validacion: null, titulo: 'La deuda acumulada te está pesando.', consejo: 'La culpa de lo vencido agota más que el trabajo mismo. Elegí una sola tarea para hoy y usá Día Difícil para reagendar el resto.', accion: 'dia_dificil', accionLabel: 'Abrir modo Día Difícil' },
+      },
+      friccion: {
+        green:  { validacion: null, titulo: 'Algunas tareas las estás pateando.', consejo: 'Atacá la más pequeña — la resistencia suele desaparecer apenas empezás.', accion: null, accionLabel: null },
+        yellow: { validacion: null, titulo: 'Estás evitando tareas y eso suma presión.', consejo: 'El obstáculo suele ser empezar, no terminar. Elegí una esta semana y arrancá.', accion: null, accionLabel: null },
+        red:    { validacion: null, titulo: 'Venís pateando cosas — no es flojera, es fricción real.', consejo: 'Intentá la más pequeña primero. Si genuinamente no podés, delegar o eliminar también es válido.', accion: null, accionLabel: null },
+      },
+      dispersion: {
+        green:  { validacion: null, titulo: `${proyectosActivos} proyectos activos — manejable.`, consejo: 'Definí un orden de prioridad y trabajá de a uno. El foco rinde más que la multitarea.', accion: 'foco', accionLabel: 'Activar modo foco' },
+        yellow: { validacion: null, titulo: `${proyectosActivos} frentes abiertos — riesgo de dispersión.`, consejo: 'Asigná bloques de tiempo por proyecto. Tu cerebro rinde mejor cuando cada cosa tiene su momento.', accion: 'foco', accionLabel: 'Activar modo foco' },
+        red:    { validacion: null, titulo: `${proyectosActivos} frentes abiertos. Saltar de contexto en contexto agota.`, consejo: 'Asigná 90 minutos a un solo proyecto y bloqueá el resto. El foco es tu ventaja cuando la carga es alta.', accion: 'foco', accionLabel: 'Activar modo foco' },
+      },
+      latencia_laboral: {
+        green:  { validacion: null, titulo: `${latenciaLaboral} proyecto${latenciaLaboral!==1?'s':''} de trabajo sin actividad reciente.`, consejo: 'Poneles una fecha antes de que se olviden. Lo que tiene lugar en el calendario existe.', accion: null, accionLabel: null },
+        yellow: { validacion: null, titulo: 'Frentes de trabajo sin atención que pueden escalar.', consejo: 'No tenés que resolverlos ya, pero sí definir cuándo. Convertirlos en plan los saca de la zona de amenaza.', accion: null, accionLabel: null },
+        red:    { validacion: null, titulo: `${latenciaLaboral} proyecto${latenciaLaboral!==1?'s':''} de trabajo sin actividad. Tu cabeza lo registra.`, consejo: 'Esa incertidumbre pesa más que la tarea misma. Asignales una fecha — eso solo ya baja la presión.', accion: null, accionLabel: null },
+      },
+      latencia_personal: {
+        green:  { validacion: null, titulo: 'Tus proyectos personales están en pausa.', consejo: 'Si hay algo de ocio, hacele un pequeño lugar esta semana. 15 minutos de algo tuyo recarga más de lo que parece.', accion: null, accionLabel: null },
+        yellow: { validacion: null, titulo: 'Lo personal lleva tiempo sin atención.', consejo: 'Separá lo que es exigencia de lo que es descanso. Al ocio — hacele lugar. Descansar bien es parte de rendir bien.', accion: null, accionLabel: null },
+        red:    { validacion: null, titulo: 'Tus proyectos personales llevan demasiado tiempo esperando.', consejo: 'Postergar lo tuyo drena energía. Date permiso para avanzar algo hoy, aunque sean 15 minutos.', accion: null, accionLabel: null },
+      },
+      latencia_mixta: {
+        green:  { validacion: null, titulo: 'Varios proyectos sin actividad reciente.', consejo: 'A los laborales poneles fecha. A los personales, si hay ocio, hacele espacio.', accion: null, accionLabel: null },
+        yellow: { validacion: null, titulo: 'Muchos proyectos sin actividad — presión silenciosa.', consejo: 'Tu cabeza los registra aunque no los pienses. Laborales: agendá cuándo. Personales: hacele lugar al ocio.', accion: null, accionLabel: null },
+        red:    { validacion: null, titulo: 'Demasiadas promesas abiertas sin actividad.', consejo: 'Laborales: una fecha los convierte en plan. Personales: el ocio te repone. Las exigencias que no son urgentes podés evaluarlas después.', accion: null, accionLabel: null },
+      },
+      alta_general: {
+        green:  { validacion: null, titulo: 'La carga está distribuida y manejable.', consejo: 'Definí qué es lo más importante esta semana y avanzá en eso primero.', accion: null, accionLabel: null },
+        yellow: { validacion: null, titulo: 'La presión viene de varios lados.', consejo: 'Definí bloques: urgente, estratégico, y uno para vos. No trabajar más — distribuir mejor la energía.', accion: null, accionLabel: null },
+        red:    { validacion: null, titulo: 'La presión viene de varios frentes a la vez.', consejo: 'Es normal. Elegí una sola cosa para hacer bien hoy. Avanzar en algo pequeño cambia el estado mental.', accion: null, accionLabel: null },
+      },
+      ok: {
+        green:  { validacion: null, titulo: 'Tu carga mental está en buen nivel.', consejo: 'Exigido pero bajo control. Aprovechá para algo estratégico o para descansar bien.', accion: null, accionLabel: null },
+        yellow: { validacion: null, titulo: 'Tu carga mental está en buen nivel.', consejo: 'Bajo control. Aprovechá el momento.', accion: null, accionLabel: null },
+        red:    { validacion: null, titulo: 'Tu carga mental está en buen nivel.', consejo: 'Bajo control. Aprovechá.', accion: null, accionLabel: null },
+      },
+    };
+    const diag = banco[dominante][statusLocal];
+
+    return {
+      score,
+      dominante,
+      breakdown: {vencidas, paraHoy, promedioSnooze:Math.round(promedioSnooze*10)/10, proyectosActivos, latenciaPersonal, latenciaLaboral},
+      status: statusLocal,
+      validacion: diag.validacion,
+      titulo: diag.titulo,
+      consejo: diag.consejo,
+      accion: diag.accion,
+      accionLabel: diag.accionLabel,
+    };
+  }
+  const cogLoad = calcCogLoad();
+
+  // ── Salud ──
+  const overdueCount = tasks.filter(t=>!t.done&&t.date&&t.date<today).length;
+  const openTotal = projects.filter(p=>!p.completed_at).length;
+  const portfolioStatus = openTotal>15?'red':openTotal>10?'yellow':'green';
+  // Keep simple cogLoad for portfolio display
+  const openPriority = projects.filter(p=>!p.completed_at&&(p.importance==='urgente'||p.importance==='estrategica')).length;
+
+  const pad = '0';
+
+  const SectionLabel = ({children, mt}) => (
+    <div style={{fontFamily:"'DM Sans'",fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#B0AA9F',marginBottom:14,marginTop:mt||28}}>
+      {children}
+    </div>
+  );
+
+  const noData = <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#D5CFC8',fontStyle:'italic'}}>Acumulando datos...</span>;
+
+  // ── Sub-tab state ──
+  const [tab, setTab] = useState('rendimiento');
+
+  const Toggle = () => (
+    <div style={{display:'flex',alignItems:'center',gap:0,padding:desktop?'0 0 20px':'0 20px 16px'}}>
+      {[
+        {id:'rendimiento', label:'Rendimiento'},
+        {id:'salud',       label:'Salud'},
+        {id:'direccion',   label:'Dirección'},
+      ].map((t,i,arr)=>(
+        <span key={t.id} style={{display:'contents'}}>
+          <button onClick={()=>setTab(t.id)}
+            style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:tab===t.id?'#2C2825':'#D5CFC8',fontWeight:tab===t.id?500:300,padding:'4px 0',minHeight:44}}>
+            {t.label}
+          </button>
+          {i<arr.length-1&&<span style={{fontSize:13,color:'#EAE6E0',padding:'0 8px'}}>·</span>}
+        </span>
+      ))}
+    </div>
+  );
+
+  const Card = ({children,mb=12}) => (
+    <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:'18px 16px',marginBottom:mb}}>
+      {children}
+    </div>
+  );
+
+  const MetricRow = ({label,value,sub,color='#2C2825'}) => (
+    <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid #F5F2EE'}}>
+      <div>
+        <div style={{fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825'}}>{label}</div>
+        {sub&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F',marginTop:2}}>{sub}</div>}
+      </div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:16,fontWeight:500,color,marginLeft:16,flexShrink:0}}>{value}</div>
+    </div>
+  );
+
+  const StatusBadge = ({status,label}) => {
+    const colors = {green:{bg:'#EAF3DE',text:'#3B6D11'},yellow:{bg:'#FDF8E4',text:'#8B6914'},red:{bg:'#FDECEA',text:'#C4312A'}};
+    const c = colors[status]||colors.green;
+    return <span style={{fontFamily:"'DM Sans'",fontSize:11,background:c.bg,color:c.text,padding:'3px 9px',borderRadius:99}}>{label}</span>;
+  };
+
+  return(
+    <div style={{paddingBottom:48,padding:desktop?'0 0 48px':'0 20px 48px',fontFamily:"'DM Sans',sans-serif"}}>
+
+      <Toggle/>
+
+      {/* ── RENDIMIENTO ── */}
+      {tab==='rendimiento'&&(
+        <div>
+
+          {/* Barras semanales — altura en px, no en % */}
+          <Card>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:20}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Tareas completadas</div>
+                <div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>Últimos 7 días</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:22,fontWeight:300,color:'#2C2825',lineHeight:1}}>{completedByDay.reduce((a,b)=>a+b,0)}</div>
+                <div style={{fontSize:10,color:'#B0AA9F',marginTop:2}}>esta semana</div>
+              </div>
+            </div>
+            <div style={{display:'flex',alignItems:'flex-end',gap:6,marginBottom:8}}>
+              {completedByDay.map((count,i)=>{
+                const BAR_MAX = 80; // px
+                const barH = maxDay>0 ? Math.max(Math.round((count/maxDay)*BAR_MAX), count>0?6:3) : 3;
+                const isToday = weekDays[i]===today;
+                return(
+                  <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:5}}>
+                    <div style={{position:'relative',width:'100%',display:'flex',justifyContent:'center'}}>
+                      {count>0&&<span style={{position:'absolute',top:-16,fontSize:10,color:isToday?'#2C2825':'#9B8878',fontWeight:500}}>{count}</span>}
+                      <div style={{width:'100%',height:barH+'px',borderRadius:'5px 5px 0 0',background:isToday?'#2C2825':count>0?'#C4B5A5':'#EAE6E0',transition:'height .4s'}}/>
+                    </div>
+                    <span style={{fontSize:9,color:isToday?'#2C2825':'#C8C3BB',fontWeight:isToday?500:400,letterSpacing:'.04em'}}>{DAY_LABELS[i]}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* Mapa de calor de horas — grilla de celdas */}
+          {hasHourData&&(
+            <Card>
+              <div style={{fontSize:13,fontWeight:500,color:'#2C2825',marginBottom:4}}>Ventanas de claridad</div>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:14}}>Horas del día donde más completás — tu pico es <strong style={{color:'#9B8878',fontWeight:500}}>{peakLabel}</strong></div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(24,1fr)',gap:3,marginBottom:8}}>
+                {hourCounts.map((count,h)=>{
+                  const pct = count/maxHour;
+                  const isPeak = h===peakHour;
+                  const bg = isPeak?'#2C2825':pct>=0.7?'#9B8878':pct>=0.4?'#C4B5A5':pct>=0.1?'#E5E0DA':'#F5F2EE';
+                  return(
+                    <div key={h} title={`${h}:00 — ${count} tarea${count!==1?'s':''}`}
+                      style={{height:28,borderRadius:4,background:bg,transition:'background .3s',cursor:'default'}}/>
+                  );
+                })}
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between'}}>
+                {['12am','6am','12pm','6pm','11pm'].map(l=>(
+                  <span key={l} style={{fontSize:9,color:'#D5CFC8'}}>{l}</span>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Dos métricas clave lado a lado */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+            <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 14px'}}>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:6}}>A tiempo</div>
+              <div style={{fontSize:28,fontWeight:300,color:onTimePct===null?'#C8C3BB':onTimePct>=70?'#3B6D11':onTimePct>=40?'#8B6914':'#C4312A',lineHeight:1,marginBottom:4}}>
+                {onTimePct===null?'—':`${onTimePct}%`}
+              </div>
+              <div style={{fontSize:10,color:'#C8C3BB',lineHeight:1.4}}>Completadas sin reagendar</div>
+            </div>
+            <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:'16px 14px'}}>
+              <div style={{fontSize:11,color:'#B0AA9F',marginBottom:6}}>Postergadas</div>
+              <div style={{fontSize:28,fontWeight:300,color:snoozeRate===null?'#C8C3BB':snoozeRate<=20?'#3B6D11':snoozeRate<=40?'#8B6914':'#C4312A',lineHeight:1,marginBottom:4}}>
+                {snoozeRate===null?'—':`${snoozeRate}%`}
+              </div>
+              <div style={{fontSize:10,color:'#C8C3BB',lineHeight:1.4}}>Del total con fecha</div>
+            </div>
+          </div>
+
+          {/* Total histórico */}
+          <Card>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Total completadas</div>
+                <div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>Desde que usás la app</div>
+              </div>
+              <div style={{fontSize:32,fontWeight:300,color:'#2C2825'}}>{tasks.filter(t=>t.done).length}</div>
+            </div>
+          </Card>
+
+        </div>
+      )}
+
+      {/* ── SALUD ── */}
+      {tab==='salud'&&(
+        <div>
+          {/* Indicador de presión total */}
+          <Card>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Presión actual</div>
+                <div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>Análisis de carga cognitiva</div>
+              </div>
+              {cogLoad&&<StatusBadge status={cogLoad.status} label={cogLoad.status==='green'?'Saludable':cogLoad.status==='yellow'?'Elevada':'Crítica'}/>}
+            </div>
+            {cogLoad?(
+              <>
+                <div style={{height:8,background:'#EAE6E0',borderRadius:99,marginBottom:20,overflow:'hidden'}}>
+                  <div style={{height:'100%',width:cogLoad.score+'%',background:cogLoad.status==='green'?'#8FAF8A':cogLoad.status==='yellow'?'#C4A882':'#C4312A',borderRadius:99,transition:'width .6s cubic-bezier(.34,1,.64,1)'}}/>
+                </div>
+                {/* Validación emocional — solo si la presión es elevada o crítica */}
+                {cogLoad.validacion&&cogLoad.status!=='green'&&(
+                  <div style={{fontSize:12,color:'#9B8878',lineHeight:1.6,marginBottom:12,fontStyle:'italic'}}>{cogLoad.validacion}</div>
+                )}
+                {/* Diagnóstico */}
+                <div style={{fontSize:14,fontWeight:500,color:'#2C2825',lineHeight:1.4,marginBottom:12}}>{cogLoad.titulo}</div>
+                {/* Consejo */}
+                <div style={{background:'#FAFAF8',borderRadius:10,padding:'12px 14px',border:'1px solid #EAE6E0',marginBottom:cogLoad.accion?12:0}}>
+                  <div style={{fontSize:11,fontWeight:500,letterSpacing:'.06em',textTransform:'uppercase',color:'#C4A882',marginBottom:6}}>Qué hacer</div>
+                  <div style={{fontSize:13,color:'#2C2825',lineHeight:1.65}}>{cogLoad.consejo}</div>
+                </div>
+                {/* Botón de acción directa */}
+                {cogLoad.accion==='dia_dificil'&&(
+                  <button onClick={()=>onDiaDificil&&onDiaDificil()}
+                    style={{width:'100%',background:'#2C2825',color:'white',border:'none',borderRadius:10,padding:'11px 0',fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,cursor:'pointer'}}>
+                    {cogLoad.accionLabel}
+                  </button>
+                )}
+                {cogLoad.accion==='foco'&&(
+                  <button onClick={()=>onFoco&&onFoco()}
+                    style={{width:'100%',background:'none',border:'1px solid #2C2825',color:'#2C2825',borderRadius:10,padding:'11px 0',fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,cursor:'pointer'}}>
+                    {cogLoad.accionLabel}
+                  </button>
+                )}
+              </>
+            ):(
+              <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'20px 0'}}>Sin datos suficientes para analizar</div>
+            )}
+          </Card>
+
+          {/* Tareas que resistís */}
+          {(()=>{
+            const muyReagendadas = tasks.filter(t=>!t.done&&(t.snoozed_count||0)>=3);
+            if(muyReagendadas.length===0) return null;
+            return(
+              <div style={{background:'#FBF8F2',borderRadius:14,border:'1px solid #EDE9E3',padding:'16px 18px',marginBottom:12}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+                  <div style={{width:6,height:6,borderRadius:'50%',background:'#C4A882',flexShrink:0}}/>
+                  <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Tareas que resistís</div>
+                  <span style={{fontSize:10,color:'#C4A882',background:'#F5EFE6',padding:'2px 7px',borderRadius:99,marginLeft:'auto'}}>{muyReagendadas.length}</span>
+                </div>
+                {muyReagendadas.slice(0,5).map((t,i)=>{
+                  const proj=projects.find(p=>p.id===t.projectId);
+                  return(
+                    <div key={t.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:i<Math.min(muyReagendadas.length,5)-1?'1px solid #EDE9E3':'none'}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12,color:'#2C2825'}}>{t.title}</div>
+                        {proj&&<div style={{fontSize:10,color:'#C4A882',marginTop:1}}>{proj.name}</div>}
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                        {Array.from({length:Math.min(t.snoozed_count,5)}).map((_,i)=>(
+                          <div key={i} style={{width:5,height:5,borderRadius:'50%',background:i<3?'#C4A882':'#C4312A'}}/>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{fontSize:11,color:'#9B8878',marginTop:12,paddingTop:10,borderTop:'1px solid #EDE9E3'}}>
+                  Elegí una y terminala, o eliminala.
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Proyectos sin actividad */}
+          {(()=>{
+            const hace15dias = Date.now() - 15*24*60*60*1000;
+            const sinActividad = projects.filter(p=>{
+              const tienePendiente = tasks.some(t=>!t.done&&t.projectId===p.id);
+              const tieneReciente  = tasks.some(t=>t.done&&t.projectId===p.id&&t.completed_at&&new Date(t.completed_at).getTime()>hace15dias);
+              return !tienePendiente && !tieneReciente;
+            });
+            const laborales  = sinActividad.filter(p=>p.area==='trabajo');
+            const personales = sinActividad.filter(p=>p.area==='personal');
+            if(sinActividad.length===0) return null;
+            return(
+              <div style={{borderRadius:14,border:'1px solid #EAE6E0',overflow:'hidden',marginBottom:12}}>
+                {/* Header */}
+                <div style={{background:'#F5F2EE',padding:'12px 18px',borderBottom:'1px solid #EAE6E0',display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{width:6,height:6,borderRadius:'50%',background:'#9B8878',flexShrink:0}}/>
+                  <div style={{fontSize:13,fontWeight:500,color:'#2C2825',flex:1}}>Sin actividad reciente</div>
+                  <span style={{fontSize:10,color:'#9B8878',background:'#EDE9E3',padding:'2px 7px',borderRadius:99}}>{sinActividad.length} proyecto{sinActividad.length!==1?'s':''}</span>
+                </div>
+                {/* Trabajo */}
+                {laborales.length>0&&(
+                  <div style={{background:'white',padding:'12px 18px',borderBottom:personales.length>0?'1px solid #EAE6E0':'none'}}>
+                    <div style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878',marginBottom:8}}>Trabajo</div>
+                    {laborales.map((p,i)=>(
+                      <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:i<laborales.length-1?'1px solid #F5F2EE':'none'}}>
+                        <div style={{width:3,height:20,borderRadius:99,background:'#C4A882',flexShrink:0}}/>
+                        <span style={{fontSize:12,color:'#2C2825'}}>{p.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Personal */}
+                {personales.length>0&&(
+                  <div style={{background:'white',padding:'12px 18px'}}>
+                    <div style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#8A9E8A',marginBottom:8}}>Personal</div>
+                    {personales.map((p,i)=>(
+                      <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:i<personales.length-1?'1px solid #F5F2EE':'none'}}>
+                        <div style={{width:3,height:20,borderRadius:99,background:'#8A9E8A',flexShrink:0}}/>
+                        <span style={{fontSize:12,color:'#2C2825'}}>{p.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ── DIRECCIÓN ── */}
+      {tab==='direccion'&&(()=>{
+        // ── Helpers ──
+        const metasAnio  = goals.filter(g=>g.horizon==='anio');
+        const metasMedio = goals.filter(g=>g.horizon==='medio');
+        const metasLargo = goals.filter(g=>g.horizon==='largo');
+
+        // Actividad directa de una meta (proyectos con tareas pendientes)
+        const actividadDirecta = (goalId) => {
+          const projs = projects.filter(p=>(p.goal_ids||[]).includes(goalId)||p.goal_id===goalId);
+          return projs.filter(p=>tasks.some(t=>!t.done&&t.projectId===p.id));
+        };
+
+        // Última tarea completada vinculada a una meta
+        const ultimaActividad = (goalId) => {
+          const projs = projects.filter(p=>(p.goal_ids||[]).includes(goalId)||p.goal_id===goalId);
+          const completadas = tasks.filter(t=>t.done&&projs.some(p=>p.id===t.projectId)&&t.completed_at);
+          if(!completadas.length) return null;
+          return completadas.sort((a,b)=>b.completed_at.localeCompare(a.completed_at))[0].completed_at.slice(0,10);
+        };
+
+        const diasDesde = (dateStr) => {
+          if(!dateStr) return null;
+          return Math.round((new Date(todayStr())-new Date(dateStr))/(1000*60*60*24));
+        };
+
+        // Conexión entre horizontes
+        const anioSinConexion  = metasAnio.filter(g=>!g.parentId);
+        const medioSinConexion = metasMedio.filter(g=>!g.parentId);
+
+        // Ruido operativo: tareas sin proyecto vinculado a meta
+        const tareasConMeta = tasks.filter(t=>!t.done&&(()=>{
+          const p=projects.find(x=>x.id===t.projectId);
+          return p&&((p.goal_ids&&p.goal_ids.length>0)||p.goal_id);
+        })());
+        const totalPendientes = tasks.filter(t=>!t.done).length;
+        const pctConMeta = totalPendientes>0?Math.round((tareasConMeta.length/totalPendientes)*100):null;
+
+        return(
+          <div>
+
+            {/* 1. Balance estratégico */}
+            <Card>
+              <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:14}}>
+                <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Balance</div>
+                <div style={{fontSize:11,color:'#B0AA9F'}}>Esta semana</div>
+              </div>
+              {completedThisWeek.length>0?(
+                <>
+                  {/* Barra proporcional grande */}
+                  <div style={{display:'flex',height:16,borderRadius:99,overflow:'hidden',marginBottom:12}}>
+                    {estrategicasPct>0&&<div style={{width:estrategicasPct+'%',background:'#5B6BAF'}}/>}
+                    {prioritariasPct>0&&<div style={{width:prioritariasPct+'%',background:'#C4A882'}}/>}
+                    {normalesPct>0&&<div style={{width:normalesPct+'%',background:'#EAE6E0'}}/>}
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                    {[
+                      {label:'Estratégicas',pct:estrategicasPct,n:estrategicas,color:'#5B6BAF'},
+                      {label:'Prioritarias',pct:prioritariasPct,n:prioritarias,color:'#C4A882'},
+                      {label:'Operativas',pct:normalesPct,n:normales,color:'#C8C3BB'},
+                    ].map(row=>(
+                      <div key={row.label} style={{display:'flex',alignItems:'center',gap:8}}>
+                        <div style={{width:8,height:8,borderRadius:'50%',background:row.color,flexShrink:0}}/>
+                        <span style={{fontSize:12,color:'#2C2825',flex:1}}>{row.label}</span>
+                        <span style={{fontSize:12,color:'#C8C3BB'}}>{row.n}</span>
+                        <span style={{fontSize:13,color:row.color,fontWeight:500,minWidth:32,textAlign:'right'}}>{row.pct}%</span>
+                      </div>
+                    ))}
+                  </div>
+                  {estrategicasPct<20&&completedThisWeek.length>0&&(
+                    <div style={{fontSize:11,color:'#B0AA9F',marginTop:10}}>
+                      {estrategicasPct===0?'Todo operativo esta semana. ¿Hay algo estratégico que puedas avanzar?':'Poco estratégico esta semana. Revisá si hay algo importante que avanzar.'}
+                    </div>
+                  )}
+                </>
+              ):(
+                <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'20px 0'}}>Sin tareas completadas esta semana</div>
+              )}
+            </Card>
+
+            {/* 2. Pirámide de coherencia */}
+            <Card>
+              <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:16}}>
+                <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Coherencia</div>
+                <div style={{fontSize:11,color:'#B0AA9F'}}>Tareas → Metas → Visión</div>
+              </div>
+              {(()=>{
+                const totalAnio  = metasAnio.length;
+                const totalMedio = metasMedio.length;
+                const totalLargo = metasLargo.length;
+                const anioConectadas  = metasAnio.filter(g=>g.parentId).length;
+                const medioConectadas = metasMedio.filter(g=>g.parentId).length;
+                const niveles = [
+                  { label:'Tareas con propósito',
+                    pct: pctConMeta,
+                    desc:`${tareasConMeta.length} de ${totalPendientes} tareas apuntan a una meta`,
+                    show: totalPendientes>0, desconectadas:[] },
+                  { label:'Metas de este año',
+                    pct: totalAnio>0?Math.round((anioConectadas/totalAnio)*100):null,
+                    desc: totalAnio>0?`${anioConectadas} de ${totalAnio} conectadas al mediano plazo`:null,
+                    show: totalAnio>0, desconectadas: anioSinConexion },
+                  { label:'Mediano plazo',
+                    pct: totalMedio>0?Math.round((medioConectadas/totalMedio)*100):null,
+                    desc: totalMedio>0?`${medioConectadas} de ${totalMedio} conectadas al largo plazo`:null,
+                    show: totalMedio>0, desconectadas: medioSinConexion },
+                  { label:'Visión de largo plazo',
+                    pct: null,
+                    desc: totalLargo>0?`${totalLargo} meta${totalLargo!==1?'s':''} definida${totalLargo!==1?'s':''}`:null,
+                    show: totalLargo>0, desconectadas:[] },
+                ].filter(n=>n.show);
+                if(niveles.length===0) return(
+                  <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'16px 0'}}>Definí metas y asociá tareas para ver la pirámide</div>
+                );
+                return(
+                  <div>
+                    {niveles.map((n,i)=>{
+                      const color = n.pct===null?'#B0AA9F':n.pct>=80?'#8FAF8A':n.pct>=50?'#C4A882':'#C4312A';
+                      return(
+                        <div key={n.label}>
+                          <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+                            {/* Ícono + conector */}
+                            <div style={{display:'flex',flexDirection:'column',alignItems:'center',flexShrink:0,width:14}}>
+                              <div style={{width:8,height:8,borderRadius:'50%',background:color==='#B0AA9F'?'#D5CFC8':color,marginTop:4}}/>
+                              {i<niveles.length-1&&<div style={{width:1,flex:1,background:'#EAE6E0',margin:'4px 0'}}/>}
+                            </div>
+                            {/* Contenido */}
+                            <div style={{flex:1,minWidth:0,paddingBottom:i<niveles.length-1?14:0}}>
+                              <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:n.pct!==null?5:2}}>
+                                <span style={{fontSize:12,color:'#2C2825'}}>{n.label}</span>
+                                {n.pct!==null
+                                  ?<span style={{fontSize:12,fontWeight:500,color,flexShrink:0,marginLeft:8}}>{n.pct}%</span>
+                                  :<span style={{fontSize:10,color:'#C8C3BB',flexShrink:0,marginLeft:8}}>{n.desc}</span>
+                                }
+                              </div>
+                              {n.pct!==null&&(
+                                <div style={{display:'flex',height:5,borderRadius:99,overflow:'hidden',marginBottom:4}}>
+                                  <div style={{width:n.pct+'%',background:color,transition:'width .5s'}}/>
+                                  <div style={{flex:1,background:'#EAE6E0'}}/>
+                                </div>
+                              )}
+                              {n.pct!==null&&n.desc&&<div style={{fontSize:10,color:'#B0AA9F',marginBottom:n.desconectadas?.length>0?6:0}}>{n.desc}</div>}
+                              {n.desconectadas?.length>0&&(
+                                <div style={{background:'#FBF8F2',borderRadius:8,padding:'6px 10px',marginTop:4}}>
+                                  <div style={{fontSize:10,color:'#C4A882',marginBottom:3}}>Sin conectar:</div>
+                                  {n.desconectadas.map(g=>(
+                                    <div key={g.id} style={{fontSize:11,color:'#9B8878',padding:'1px 0'}}>· {g.title}</div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </Card>
+
+            {/* 4. Actividad por meta de corto plazo */}
+            <Card>
+              <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:14}}>
+                <div style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>Pulso</div>
+                <div style={{fontSize:11,color:'#B0AA9F'}}>Metas de este año</div>
+              </div>
+              {metasAnio.length===0?(
+                <div style={{fontSize:13,color:'#D5CFC8',textAlign:'center',padding:'16px 0'}}>No tenés metas de este año definidas</div>
+              ):(()=>{
+                // Completadas en los últimos 30 días por meta
+                const ahora = Date.now();
+                const MS_DIA = 1000*60*60*24;
+                const completadasPorMeta = metasAnio.map(g=>{
+                  const projs = projects.filter(p=>(p.goal_ids||[]).includes(g.id)||p.goal_id===g.id);
+                  // Incluir tareas done aunque no tengan completed_at (usar fecha de hoy como fallback)
+                  const completadas = tasks.filter(t=>t.done&&projs.some(p=>p.id===t.projectId));
+                  if(completadas.length===0) return {g, ultima:null, diasUltima:null, ult7:0, ult30:0, totalCompletadas:0};
+                  // Ordenar por fecha de completado más reciente
+                  const sorted = [...completadas].sort((a,b)=>{
+                    const ta = a.completed_at?new Date(a.completed_at).getTime():0;
+                    const tb = b.completed_at?new Date(b.completed_at).getTime():0;
+                    return tb-ta;
+                  });
+                  const ultima = sorted[0].completed_at?new Date(sorted[0].completed_at).getTime():ahora;
+                  const diasUltima = Math.floor((ahora-ultima)/MS_DIA);
+                  // Contar por ms para evitar problemas de zona horaria
+                  const ult7  = completadas.filter(t=>{
+                    if(!t.completed_at) return false;
+                    return (ahora-new Date(t.completed_at).getTime()) <= 7*MS_DIA;
+                  }).length;
+                  const ult30 = completadas.filter(t=>{
+                    if(!t.completed_at) return false;
+                    return (ahora-new Date(t.completed_at).getTime()) <= 30*MS_DIA;
+                  }).length;
+                  return {g, ultima, diasUltima, ult7, ult30, totalCompletadas:completadas.length};
+                });
+                const maxUlt30 = Math.max(...completadasPorMeta.map(m=>m.ult30), 1);
+
+                return completadasPorMeta.map(({g,ultima,diasUltima,ult7,ult30,totalCompletadas})=>{
+                  // ── Momentum score multivariable ──
+                  const proyectosDeMeta = projects.filter(p=>(p.goal_ids||[]).includes(g.id)||p.goal_id===g.id);
+                  const tieneRecencia = diasUltima!==null && diasUltima<=3;
+
+                  // Volumen: tareas últimos 7d valen más (ritmo reciente)
+                  const scoreVolumen = Math.min((ult7 * 8) + ((ult30-ult7) * 2), 70);
+                  // Recencia: completó algo en últimas 72hs
+                  const scoreRecencia = tieneRecencia ? 15 : 0;
+                  // Estructura: proyectos vinculados (peso bajo)
+                  const scoreEstructura = Math.min(proyectosDeMeta.length * 2, 6);
+                  // Penalidad por inercia — solo aplica si no hay actividad reciente
+                  const diasInercia = diasUltima===null ? 30 : diasUltima;
+                  const penalidadInercia = tieneRecencia ? 0 : Math.min(diasInercia * 1.5, 40);
+                  // Score final 0-100
+                  const momentumScore = Math.max(0, Math.min(100, scoreVolumen + scoreRecencia + scoreEstructura - penalidadInercia));
+                  const barPct = Math.round(momentumScore);
+
+                  // Color: verde>=50, naranja>=25, rojo<25, gris=sin datos
+                  const semaforo = diasUltima===null?'#EAE6E0':momentumScore>=50?'#8FAF8A':momentumScore>=25?'#C4A882':'#C4312A';
+
+                  // Diagnóstico — coherente con el color
+                  const diagnostico = diasUltima===null
+                    ? 'No hay tareas completadas vinculadas a esta meta aún.'
+                    : momentumScore>=50
+                      ? (ult7>=5?'Excelente ritmo esta semana. Estás avanzando fuerte.':ult7>0?`${ult7} tarea${ult7!==1?'s':''} esta semana. Buen ritmo, seguí así.`:'Buen historial del mes, aunque esta semana estuvo tranquila.')
+                      : momentumScore>=25
+                        ? (diasInercia>7?`Hace ${diasInercia} días sin completar algo. El ritmo se está frenando.`:ult30<5?'Pocas tareas completadas en el mes. Intentá avanzar algo esta semana.':'Ritmo moderado. Podés acelerar.')
+                        : proyectosDeMeta.length>0&&ult30===0
+                          ? 'Tenés proyectos asignados pero ninguna tarea completada. La estructura está, falta ejecución.'
+                          : diasInercia>14
+                            ? `${diasInercia} días sin actividad. Esta meta se está enfriando — ¿podés completar algo hoy?`
+                            : 'Ritmo bajo. Completar aunque sea una tarea esta semana hace la diferencia.';
+
+                  const semaforoLabel = diasUltima===null?'sin datos':diasUltima===0?'hoy':diasUltima===1?'ayer':`hace ${diasUltima}d`;
+                  return(
+                    <div key={g.id} style={{marginBottom:14,paddingBottom:14,borderBottom:'1px solid #F5F2EE'}}>
+                      {/* nombre + score momentum + última actividad */}
+                      <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:6}}>
+                        <span style={{fontSize:12,color:'#2C2825',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.title}</span>
+                        <span style={{fontSize:10,color:'#B0AA9F',flexShrink:0}}>{semaforoLabel}</span>
+                        <span style={{fontSize:15,fontWeight:300,color:semaforo==='#EAE6E0'?'#C8C3BB':semaforo,flexShrink:0}}>{Math.round(momentumScore)}</span>
+                        <span style={{fontSize:10,color:'#C8C3BB',flexShrink:0}}>/100</span>
+                      </div>
+                      {/* Barra con gradiente */}
+                      <div style={{height:7,background:'#F5F2EE',borderRadius:99,overflow:'hidden',marginBottom:6}}>
+                        <div style={{height:'100%',width:Math.max(barPct,ult30>0?3:0)+'%',background:semaforo==='#EAE6E0'?'#EAE6E0':`linear-gradient(to right,${semaforo},${semaforo}CC)`,borderRadius:99,transition:'width .6s cubic-bezier(.34,1,.64,1)'}}/>
+                      </div>
+                      {/* Diagnóstico */}
+                      <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.5}}>{diagnostico}</div>
+                    </div>
+                  );
+                });
+              })()}
+            </Card>
+
+          </div>
+        );
+      })()}
+
+    </div>
+  );
+}
+
+
+// ─── Onboarding Flow ──────────────────────────────────────────────────────────
+function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
+  const [step, setStep] = useState(0);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [data, setData] = useState({largo:[], medio:[], anio:[], proyectos:[]});
+  const [input, setInput] = useState('');
+  const [selectedMetaId, setSelectedMetaId] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const COLORS = {largo:'#5B6BAF', medio:'#8A8EA8', anio:'#9B8878', proyecto:'#8FAF8A'};
+
+  const STEPS = [
+    {type:'terms'},
+    {type:'intro'},
+    {type:'done'},
+  ];
+
+  async function finish(){
+    setSaving(true);
+    await supabase.from('user_profiles').upsert({id:uid, terms_accepted:true, terms_accepted_at:new Date().toISOString()});
+    onComplete([], []);
+  }
+
+  function addItem(horizon){
+    if(!input.trim()) return;
+    setData(d=>({...d, [horizon]:[...d[horizon], input.trim()]}));
+    setInput('');
+  }
+
+  function removeItem(horizon, i){
+    setData(d=>({...d, [horizon]:d[horizon].filter((_,j)=>j!==i)}));
+  }
+
+  function addProyecto(){
+    if(!input.trim()) return;
+    const metaTitle = selectedMetaId!==null && data.anio[selectedMetaId] ? data.anio[selectedMetaId] : null;
+    setData(d=>({...d, proyectos:[...d.proyectos, {name:input.trim(), metaId:selectedMetaId, metaTitle}]}));
+    setInput('');
+  }
+
+  function removeProyecto(i){
+    setData(d=>({...d, proyectos:d.proyectos.filter((_,j)=>j!==i)}));
+  }
+
+  const s = STEPS[step];
+  const bg = '#F5F2EE';
+  const pct = step<=1?0:step===STEPS.length-1?100:Math.round(((step-1)/totalSteps)*100);
+
+  // ── TERMS ──
+  if(s.type==='terms') return(
+    <div style={{minHeight:'100vh',background:'#EAE6E0',display:'flex',alignItems:isDesktop?'center':'flex-start',justifyContent:'center',fontFamily:"'DM Sans',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#EAE6E0!important;overflow:auto!important;}`}</style>
+      <div style={{width:'100%',maxWidth:420,background:bg,borderRadius:isDesktop?20:0,minHeight:isDesktop?'auto':'100vh',display:'flex',flexDirection:'column',boxShadow:isDesktop?'0 8px 40px rgba(0,0,0,.12)':'none',padding:isDesktop?'0 0 8px':'0'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+        <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+      </div>
+      <div style={{flex:1,padding:'32px 24px 0'}}>
+        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+          <div style={{width:7,height:7,borderRadius:'50%',background:'#9B8878'}}/>
+          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#9B8878'}}>Antes de empezar</span>
+        </div>
+        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Términos de uso</div>
+        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:20}}>Clarity es una herramienta de gestión personal. Al continuar aceptás las siguientes condiciones.</div>
+        <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:20,marginBottom:16,maxHeight:200,overflowY:'auto'}}>
+          {[
+            {title:'Propiedad intelectual', text:'Clarity, su diseño, nombre, sistema de niveles y toda la propiedad intelectual asociada pertenecen exclusivamente a su creador. Está prohibida su reproducción, copia o distribución sin autorización expresa.'},
+            {title:'Tus datos', text:'Tus metas, proyectos y tareas son privados. Nunca los compartiremos con terceros ni los utilizaremos con fines comerciales.'},
+            {title:'Versión Beta', text:'Clarity está en desarrollo activo. Podés encontrar bugs o cambios. Agradecemos tu feedback para mejorar la app.'},
+            {title:'Uso personal', text:'Esta versión beta es de uso personal y no comercial. El acceso puede ser revocado en cualquier momento durante el período beta.'},
+          ].map(({title,text})=>(
+            <div key={title} style={{marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:500,color:'#9B8878',marginBottom:6}}>{title}</div>
+              <div style={{fontSize:12,color:'#B0AA9F',lineHeight:1.7}}>{text}</div>
+            </div>
+          ))}
+        </div>
+        <div onClick={()=>setTermsAccepted(a=>!a)}
+          style={{display:'flex',alignItems:'flex-start',gap:12,cursor:'pointer',padding:16,background:'white',borderRadius:12,border:`1px solid ${termsAccepted?'#9B8878':'#EAE6E0'}`,marginBottom:12,transition:'border-color .2s'}}>
+          <div style={{width:20,height:20,borderRadius:6,border:`1.5px solid ${termsAccepted?'#2C2825':'#C8C3BB'}`,background:termsAccepted?'#2C2825':'transparent',flexShrink:0,marginTop:1,display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s'}}>
+            {termsAccepted&&<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+          </div>
+          <span style={{fontSize:13,color:'#2C2825',lineHeight:1.5}}>Leí y acepto los Términos de Uso de Clarity</span>
+        </div>
+        <button onClick={()=>termsAccepted&&setStep(1)} disabled={!termsAccepted}
+          style={{width:'100%',background:termsAccepted?'#2C2825':'#C8C3BB',color:'white',border:'none',borderRadius:12,padding:14,fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:termsAccepted?'pointer':'not-allowed',transition:'all .3s'}}>
+          Continuar →
+        </button>
+      </div>
+      <div style={{height:80}}/>
+    </div>
+    </div>
+  );
+
+  // ── INTRO ──
+  if(s.type==='intro') return(
+    <div style={{minHeight:'100vh',background:'#EAE6E0',display:'flex',alignItems:isDesktop?'center':'flex-start',justifyContent:'center',fontFamily:"'DM Sans',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#EAE6E0!important;overflow:auto!important;}`}</style>
+      <div style={{width:'100%',maxWidth:420,background:bg,borderRadius:isDesktop?20:0,minHeight:isDesktop?'auto':'100vh',display:'flex',flexDirection:'column',boxShadow:isDesktop?'0 8px 40px rgba(0,0,0,.12)':'none'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+        <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+      </div>
+      <div style={{flex:1,padding:'32px 24px 0'}}>
+        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+          <div style={{width:7,height:7,borderRadius:'50%',background:'#C4A882'}}/>
+          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#C4A882'}}>Bienvenido</span>
+        </div>
+        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Clarity funciona en capas</div>
+        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:24}}>Todo se conecta. Tus tareas diarias existen para avanzar proyectos, que a su vez existen para lograr metas. Vamos a construir ese árbol juntos.</div>
+        <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:20,marginBottom:24}}>
+          {[
+            {icon:'🎯', color:'#EEF0F8', titleColor:'#5B6BAF', title:'Metas de vida', desc:'Tu visión a largo, mediano y corto plazo'},
+            {icon:'📁', color:'#EEF6EE', titleColor:'#8FAF8A', title:'Proyectos', desc:'Iniciativas concretas que avanzás semana a semana'},
+            {icon:'✓', color:'#F5F1ED', titleColor:'#9B8878', title:'Tareas', desc:'Las acciones concretas de tu día a día'},
+          ].map(({icon,color,titleColor,title,desc},i,arr)=>(
+            <div key={title}>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <div style={{width:32,height:32,borderRadius:8,background:color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>{icon}</div>
+                <div>
+                  <div style={{fontSize:12,fontWeight:500,color:titleColor,marginBottom:1}}>{title}</div>
+                  <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.4}}>{desc}</div>
+                </div>
+              </div>
+              {i<arr.length-1&&(
+                <div style={{display:'flex',alignItems:'center',gap:8,margin:'10px 0',padding:'0 4px'}}>
+                  <div style={{width:32,display:'flex',justifyContent:'center'}}><div style={{width:1,height:14,background:'#EAE6E0'}}/></div>
+                  <div style={{flex:1,display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{flex:1,height:1,background:'#EAE6E0'}}/>
+                    <span style={{fontSize:10,color:'#C8C3BB'}}>{i===0?'impulsan':'se ejecutan en'}</span>
+                    <div style={{flex:1,height:1,background:'#EAE6E0'}}/>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{fontSize:12,color:'#C8C3BB',textAlign:'center',lineHeight:1.6}}>Cada tarea que completás hace avanzar un proyecto.<br/>Cada proyecto completado acerca una meta.</div>
+      </div>
+      <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'16px 24px 32px',background:'linear-gradient(to top, #F5F2EE 70%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <button onClick={()=>setStep(0)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+        <button onClick={finish} style={{background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>{saving?'Guardando...':'Empezar →'}</button>
+      </div>
+      <div style={{height:80}}/>
+    </div>
+    </div>
+  );
+
+  // ── METAS ──
+  if(s.type==='metas'){
+    const items = data[s.horizon]||[];
+    const selectedSet = new Set(items);
+    const SUGERENCIAS = {
+      largo: {
+        dinero: ["Vivir de mis rentas / Ser financieramente libre","Ser dueño de mi propio negocio o estudio","Tener mi casa propia pagada"],
+        salud:  ["Tener un cuerpo ágil y sano para toda la vida","Vivir con paz mental, sin ansiedad ni estrés","Ser experto en mi hobby — música, deporte, arte"],
+        amor:   ["Formar mi propia familia / Criar a mis hijos","Ayudar siempre a mis viejos","Tener amigos que sean como hermanos"],
+      },
+      medio: {
+        dinero: ["Cambiar de trabajo por uno que me guste más","Aprender una habilidad que me dé más plata","Saldar todas mis deudas y estar tranquilo"],
+        salud:  ["Hacer un viaje largo a ese lugar que siempre soñé","Entrenar seguido y comer mejor para verme bien","Dedicarle al menos 3 horas por semana a lo que me apasiona"],
+        amor:   ["Encontrar una pareja con la que proyectar a futuro","Pasar más tiempo de calidad con mi familia","Mudarnos a un lugar que nos haga felices a todos"],
+      },
+      anio: {
+        dinero: ["Armar mi fondo de emergencia para estar cubierto","Hacer un curso o certificación para mejorar mi perfil","Organizar mis gastos y empezar a ahorrar mes a mes"],
+        salud:  ["Entrenar al menos 3 veces por semana de forma fija","Hacerme todos los chequeos médicos pendientes","Dormir 7-8 horas diarias para rendir mejor"],
+        amor:   ["Organizar una salida semanal con gente que quiero","Llamar o visitar más seguido a mis viejos o abuelos","Hacer un viaje corto con amigos o pareja"],
+      },
+    };
+    const cats = [
+      { key:'dinero', label:'Dinero', emoji:'💰', selColor:'#5B6BAF', selBg:'#F0F1F8', selBorder:'#5B6BAF' },
+      { key:'salud',  label:'Salud',  emoji:'🍎', selColor:'#3B6D11', selBg:'#EAF3DE', selBorder:'#8FAF8A' },
+      { key:'amor',   label:'Amor',   emoji:'❤️', selColor:'#9B4A6A', selBg:'#FBF0F4', selBorder:'#C49A7A' },
+    ];
+    const sugs = SUGERENCIAS[s.horizon] || {};
+    const allSugTexts = Object.values(sugs).flat();
+    function toggleSugerencia(text){
+      if(selectedSet.has(text)) removeItem(s.horizon, items.indexOf(text));
+      else setData(d=>({...d,[s.horizon]:[...d[s.horizon],text]}));
+    }
+    return(
+      <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+          <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+          <span style={{fontSize:11,color:'#C8C3BB'}}>{stepNum} de {totalSteps}</span>
+        </div>
+        <div style={{margin:'16px 24px 0',height:2,background:'#EAE6E0',borderRadius:99,overflow:'hidden'}}>
+          <div style={{height:'100%',width:pct+'%',background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .5s cubic-bezier(.34,1,.64,1)'}}/>
+        </div>
+        <div style={{padding:'24px 24px 0'}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:10}}>
+            <div style={{width:7,height:7,borderRadius:'50%',background:s.color}}/>
+            <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:s.color}}>{s.label}</span>
+            <span style={{fontSize:10,color:'#C8C3BB'}}>{s.sub}</span>
+          </div>
+          <div style={{fontSize:24,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:4}}>{s.title}</div>
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.6}}>Elegí una o más. No hace falta elegir en todas las categorías.</div>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'14px 24px 0'}}>
+          {cats.map(cat=>(
+            <div key={cat.key} style={{marginBottom:16}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:7}}>
+                <span style={{fontSize:13}}>{cat.emoji}</span>
+                <span style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#B0AA9F'}}>{cat.label}</span>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                {(sugs[cat.key]||[]).map(text=>{
+                  const sel = selectedSet.has(text);
+                  return(
+                    <div key={text} onClick={()=>toggleSugerencia(text)}
+                      style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'9px 13px',borderRadius:11,border:`1px solid ${sel?cat.selBorder:'#EAE6E0'}`,background:sel?cat.selBg:'white',fontSize:13,color:sel?cat.selColor:'#2C2825',cursor:'pointer',lineHeight:1.4,transition:'all .15s',userSelect:'none'}}>
+                      <span style={{flex:1}}>{text}</span>
+                      {sel&&<span style={{fontSize:12,flexShrink:0}}>✓</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <div style={{marginBottom:8}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:7}}>
+              <span style={{fontSize:13}}>✏️</span>
+              <span style={{fontSize:10,fontWeight:500,letterSpacing:'.08em',textTransform:'uppercase',color:'#B0AA9F'}}>Algo tuyo</span>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <input value={input} onChange={e=>setInput(e.target.value)}
+                onKeyDown={e=>e.key==='Enter'&&addItem(s.horizon)}
+                style={{flex:1,padding:'10px 13px',borderRadius:11,border:'1px solid #E5E1DB',background:'white',fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825',outline:'none'}}
+                placeholder="Escribí una meta propia..."/>
+              <button onClick={()=>addItem(s.horizon)} disabled={!input.trim()}
+                style={{width:42,borderRadius:11,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
+            </div>
+          </div>
+          {items.filter(item=>!allSugTexts.includes(item)).map((item,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 13px',background:'white',borderRadius:11,border:'1px solid #EAE6E0',marginBottom:5}}>
+              <div style={{width:5,height:5,borderRadius:'50%',background:s.color,flexShrink:0}}/>
+              <span style={{flex:1,fontSize:13,color:'#2C2825'}}>{item}</span>
+              <button onClick={()=>removeItem(s.horizon,items.indexOf(item))} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:17,lineHeight:1}}>×</button>
+            </div>
+          ))}
+          <div style={{height:100}}/>
+        </div>
+        <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'14px 24px 32px',background:'linear-gradient(to top, #F5F2EE 75%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <button onClick={()=>setStep(step-1)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+          {items.length>0&&<span style={{fontSize:11,color:'#9B8878',background:'#F5F1ED',padding:'3px 10px',borderRadius:99}}>{items.length} elegida{items.length!==1?'s':''}</span>}
+          <button onClick={()=>setStep(step+1)}
+            style={{background:items.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'12px 24px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
+            {items.length===0?'Saltar →':'Siguiente →'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── PROYECTOS ──
+  if(s.type==='proyectos'){
+    const metasAnio = data.anio||[];
+    return(
+      <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',fontFamily:"'DM Sans',sans-serif"}}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;overflow:auto!important;}`}</style>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+          <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+          <span style={{fontSize:11,color:'#C8C3BB'}}>{stepNum} de {totalSteps}</span>
+        </div>
+        <div style={{margin:'16px 24px 0',height:2,background:'#EAE6E0',borderRadius:99,overflow:'hidden'}}>
+          <div style={{height:'100%',width:'100%',background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .5s'}}/>
+        </div>
+        <div style={{flex:1,padding:'32px 24px 0'}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
+            <div style={{width:7,height:7,borderRadius:'50%',background:s.color}}/>
+            <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:s.color}}>Proyectos</span>
+          </div>
+          <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>{s.title}</div>
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:20}}>
+            {metasAnio.length>0?'Relacioná cada proyecto con la meta de este año que impulsa.':s.q}
+          </div>
+          <div style={{display:'flex',gap:8,marginBottom:14}}>
+            <input value={input} onChange={e=>setInput(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&addProyecto()}
+              style={{flex:1,padding:'13px 16px',borderRadius:12,border:'1px solid #E5E1DB',background:'white',fontFamily:"'DM Sans'",fontSize:14,color:'#2C2825',outline:'none'}}
+              placeholder="Nombre del proyecto..." autoFocus/>
+            <button onClick={addProyecto} disabled={!input.trim()}
+              style={{width:46,borderRadius:12,border:'none',background:'#2C2825',color:'white',fontSize:18,cursor:input.trim()?'pointer':'not-allowed',opacity:input.trim()?1:.25,flexShrink:0}}>+</button>
+          </div>
+          {metasAnio.length>0&&(
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,fontWeight:500,letterSpacing:'.1em',textTransform:'uppercase',color:'#B0AA9F',marginBottom:8}}>Relacionar con meta de este año</div>
+              <div style={{background:'white',borderRadius:12,border:'1px solid #EAE6E0',overflow:'hidden'}}>
+                {[{id:null,title:'Sin relacionar'},...metasAnio.map((m,i)=>({id:i,title:m}))].map(({id,title})=>(
+                  <div key={id??'none'} onClick={()=>setSelectedMetaId(id)}
+                    style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:'1px solid #F5F2EE',cursor:'pointer',background:selectedMetaId===id?'#F5F1ED':'transparent',transition:'background .15s'}}>
+                    <div style={{width:16,height:16,borderRadius:'50%',border:`1.5px solid ${selectedMetaId===id?'#9B8878':'#C8C3BB'}`,background:selectedMetaId===id?'#9B8878':'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all .2s',flexShrink:0}}>
+                      {selectedMetaId===id&&<div style={{width:6,height:6,borderRadius:'50%',background:'white'}}/>}
+                    </div>
+                    <span style={{fontSize:13,color:id===null?'#B0AA9F':'#2C2825'}}>{title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {data.proyectos.length>0&&(
+            <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',overflow:'hidden',marginBottom:20}}>
+              {data.proyectos.map((p,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'flex-start',gap:12,padding:'13px 16px',borderBottom:i<data.proyectos.length-1?'1px solid #F5F2EE':'none'}}>
+                  <div style={{width:6,height:6,borderRadius:'50%',background:s.color,flexShrink:0,marginTop:5}}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:14,color:'#2C2825'}}>{p.name}</div>
+                    {p.metaTitle?<div style={{fontSize:11,color:'#B0AA9F',marginTop:2}}>→ {p.metaTitle}</div>:<div style={{fontSize:11,color:'#EAE6E0',marginTop:2}}>Sin meta asignada</div>}
+                  </div>
+                  <button onClick={()=>removeProyecto(i)} style={{background:'none',border:'none',cursor:'pointer',color:'#D5CFC8',fontSize:18,lineHeight:1}}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'16px 24px 32px',background:'linear-gradient(to top, #F5F2EE 70%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <button onClick={()=>setStep(step-1)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
+          <button onClick={()=>setStep(step+1)}
+            style={{background:data.proyectos.length===0?'#9B8878':'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
+            {data.proyectos.length===0?'Saltar →':'Empezar →'}
+          </button>
+        </div>
+        <div style={{height:80}}/>
+        <div style={{textAlign:'center',paddingBottom:24}}>
+          <button onClick={()=>onComplete([],[])} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:12,color:'#C8C3BB',textDecoration:'underline',textUnderlineOffset:2}}>
+            Prefiero empezar desde cero
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── DONE ──
+  if(s.type!=='done') return null;
+  const totalMetas = (data.largo||[]).length + (data.medio||[]).length + (data.anio||[]).length;
+  const totalProyectos = (data.proyectos||[]).length;
+  const relacionados = (data.proyectos||[]).filter(p=>p.metaId!==null).length;
+
+  return(
+    <div style={{minHeight:'100vh',background:bg,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',fontFamily:"'DM Sans',sans-serif",padding:32,textAlign:'center'}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;}`}</style>
+      <div style={{fontSize:40,marginBottom:20}}>🌱</div>
+      <div style={{fontSize:28,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Tu árbol está listo</div>
+      <div style={{fontSize:14,color:'#B0AA9F',lineHeight:1.7,marginBottom:8,maxWidth:280}}>
+        {totalMetas} meta{totalMetas!==1?'s':''} · {totalProyectos} proyecto{totalProyectos!==1?'s':''}
+        {relacionados>0?` · ${relacionados} relacion${relacionados!==1?'es':''}`:''}.
+      </div>
+      <div style={{fontSize:12,color:'#C8C3BB',lineHeight:1.7,maxWidth:260,marginBottom:32}}>
+        Ahora podés agregar tareas desde la tab Tareas y asignarlas a cada proyecto. Cada tarea completada suma puntos y hace crecer tu cerezo.
+      </div>
+      {saving
+        ?<div style={{fontSize:14,color:'#B0AA9F'}}>Guardando...</div>
+        :<button onClick={finish} style={{background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'14px 36px',fontFamily:"'DM Sans'",fontSize:15,fontWeight:500,cursor:'pointer'}}>
+          Entrar a Clarity →
+        </button>
+      }
+    </div>
+  );
+}
+function CelebrationToast({celebrate}){
+  if(!celebrate) return null;
+  const isProject = celebrate.type==='project';
+  return(
+    <div style={{
+      position:"fixed",
+      bottom:96,
+      left:"50%",
+      transform:"translateX(-50%)",
+      background:isProject?"#2C2825":"#FFFFFF",
+      color:isProject?"#FFFFFF":"#2C2825",
+      borderRadius:14,
+      padding:"12px 20px",
+      boxShadow:"0 4px 20px rgba(0,0,0,0.15)",
+      fontFamily:"'DM Sans',sans-serif",
+      fontSize:14,
+      fontWeight:500,
+      zIndex:99999,
+      pointerEvents:"none",
+      whiteSpace:"nowrap",
+      border:isProject?"none":"1px solid #EAE6E0",
+    }}>
+      {isProject?"🌸 ":"✓ "}{isProject?celebrate.name:"Tarea completada"} · <span style={{fontWeight:300,opacity:.7}}>+{celebrate.points.toLocaleString()} pts</span>
+    </div>
+  );
+}
+
+
+// ─── Particle Burst ───────────────────────────────────────────────────────────
+const BURST_COLORS = ['#E8B4C0','#9B8878','#8FAF8A','#C49A7A','#5B6BAF','#D4896A','#B0AA9F'];
+// Inject particle CSS once into document head
+function particleBurst(x, y, count=11){
+  for(let i=0;i<count;i++){
+    const p = document.createElement('div');
+    const angle = (Math.PI*2/count)*i + Math.random()*.5;
+    const dist = 28 + Math.random()*36;
+    const tx = Math.round(Math.cos(angle)*dist);
+    const ty = Math.round(Math.sin(angle)*dist - 14);
+    const size = Math.round(5 + Math.random()*5);
+    const color = BURST_COLORS[i%BURST_COLORS.length];
+    const delay = Math.round(Math.random()*60);
+    p.style.position = 'fixed';
+    p.style.left = (x - size/2) + 'px';
+    p.style.top = (y - size/2) + 'px';
+    p.style.width = size + 'px';
+    p.style.height = size + 'px';
+    p.style.background = color;
+    p.style.borderRadius = '50%';
+    p.style.pointerEvents = 'none';
+    p.style.zIndex = '999999';
+    p.style.transition = `transform ${550+delay}ms cubic-bezier(.25,.46,.45,.94), opacity ${550+delay}ms ease`;
+    p.style.transform = 'translate(0,0) scale(1)';
+    p.style.opacity = '1';
+    document.body.appendChild(p);
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        p.style.transform = `translate(${tx}px,${ty}px) scale(0)`;
+        p.style.opacity = '0';
+      });
+    });
+    setTimeout(()=>{ if(p.parentNode) p.remove(); }, 650);
+  }
+}
+
+// ─── Cerezo View ──────────────────────────────────────────────────────────────
+const TREE_SVGS = [
+  `<svg viewBox="0 0 80 90" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="40" cy="76" rx="18" ry="4" fill="#C4B5A5" opacity="0.3"/>
+    <path d="M40 50 C47 48 53 58 51 70 C49 78 45 82 40 82 C35 82 31 78 29 70 C27 58 33 48 40 50Z" fill="#8B6F5E" opacity="0.82"/>
+    <path d="M38 68 C36 72 38 76 40 74 C42 76 44 72 42 68" stroke="#7A5C4A" stroke-width="1" fill="none" opacity="0.4"/>
+    <path d="M40 50 C41 42 38 36 40 30" stroke="#8B7355" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    <path d="M40 34 C35 30 32 26 34 22 C37 24 39 30 40 34Z" fill="#8FAF8A" opacity="0.72"/>
+  </svg>`,
+  `<svg viewBox="0 0 80 100" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="40" cy="82" rx="20" ry="5" fill="#C4B5A5" opacity="0.3"/>
+    <path d="M40 82 C41 70 39 58 42 44 C43 36 41 28 40 20" stroke="#8B7355" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M41 42 C36 38 27 32 25 24 C29 22 35 28 39 36Z" fill="#8FAF8A" opacity="0.72"/>
+    <path d="M41 48 C47 42 56 38 57 30 C53 29 47 34 43 40Z" fill="#9BBF9B" opacity="0.68"/>
+    <path d="M40 20 C38 16 36 12 38 8 C40 10 41 14 40 20Z" fill="#ECC0C8" opacity="0.8"/>
+    <path d="M40 20 C42 16 44 12 42 8 C40 10 39 14 40 20Z" fill="#F2D0D8" opacity="0.75"/>
+    <circle cx="40" cy="7" r="3" fill="#E8B4C0" opacity="0.88"/>
+  </svg>`,
+  `<svg viewBox="0 0 100 110" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="50" cy="90" rx="28" ry="6" fill="#C4B5A5" opacity="0.3"/>
+    <path d="M49 90 C48 76 49 62 51 48 C52 40 50 32 49 20" stroke="#8B7355" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M50 46 C43 40 34 34 28 24" stroke="#9B8060" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M50 38 C58 32 67 28 70 18" stroke="#9B8060" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path d="M50 62 C43 58 35 54 31 44" stroke="#9B8060" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <path d="M28 24 C22 18 20 10 24 6 C28 8 30 16 30 24Z" fill="#8FAF8A" opacity="0.56"/>
+    <path d="M28 24 C22 20 16 16 16 8 C20 6 26 12 28 20Z" fill="#9BBF9B" opacity="0.5"/>
+    <path d="M70 18 C74 12 72 4 66 2 C64 6 66 12 68 18Z" fill="#8FAF8A" opacity="0.56"/>
+    <path d="M31 44 C25 40 20 32 22 24 C28 22 32 32 32 40Z" fill="#9BBF9B" opacity="0.5"/>
+    <circle cx="20" cy="6" r="3.5" fill="#E8B4C0" opacity="0.88"/>
+    <circle cx="28" cy="2" r="3" fill="#F2D0D8" opacity="0.82"/>
+    <circle cx="66" cy="2" r="3.5" fill="#E8B4C0" opacity="0.88"/>
+    <circle cx="49" cy="16" r="3" fill="#F2D0D8" opacity="0.82"/>
+  </svg>`,
+  `<svg viewBox="0 0 140 140" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="68" cy="116" rx="42" ry="8" fill="#C4B5A5" opacity="0.28"/>
+    <path d="M65 116 C63 100 64 82 66 66 C67 54 66 42 64 28" stroke="#7A6248" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+    <path d="M65 60 C53 52 38 44 26 30" stroke="#8B7355" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+    <path d="M66 52 C79 44 93 38 102 24" stroke="#8B7355" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+    <path d="M65 74 C55 68 42 64 34 52" stroke="#9B8060" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M66 70 C77 64 90 60 97 48" stroke="#9B8060" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M64 28 C60 18 60 8 64 2 C68 6 68 16 66 26Z" fill="#8FAF8A" opacity="0.46"/>
+    <path d="M26 30 C18 22 16 10 22 6 C28 8 30 18 30 28Z" fill="#8FAF8A" opacity="0.5"/>
+    <path d="M26 30 C16 24 10 14 12 4 C18 0 26 10 26 22Z" fill="#9BBF9B" opacity="0.44"/>
+    <path d="M102 24 C110 16 112 4 106 0 C100 2 98 12 98 22Z" fill="#8FAF8A" opacity="0.5"/>
+    <path d="M34 52 C26 46 20 34 24 24 C30 22 36 32 36 44Z" fill="#9BBF9B" opacity="0.44"/>
+    <path d="M97 48 C105 42 109 30 105 20 C99 20 95 30 94 42Z" fill="#9BBF9B" opacity="0.44"/>
+    <circle cx="18" cy="4" r="4.5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="28" cy="0" r="4" fill="#F2D0D8" opacity="0.9"/>
+    <circle cx="36" cy="4" r="4" fill="#ECC0C8" opacity="0.88"/>
+    <circle cx="104" cy="0" r="4.5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="112" cy="6" r="4" fill="#F2D0D8" opacity="0.9"/>
+    <circle cx="96" cy="2" r="4" fill="#ECC0C8" opacity="0.88"/>
+    <circle cx="58" cy="2" r="4.5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="70" cy="0" r="4" fill="#F2D0D8" opacity="0.9"/>
+    <circle cx="22" cy="24" r="4" fill="#ECC0C8" opacity="0.84"/>
+    <circle cx="100" cy="18" r="4" fill="#E8B4C0" opacity="0.84"/>
+    <path d="M46 100 C48 96 52 98 50 102 C48 106 44 104 46 100Z" fill="#E8B4C0" opacity="0.42" transform="rotate(-14,48,100)"/>
+    <path d="M84 104 C86 100 90 102 88 106 C86 110 82 108 84 104Z" fill="#F2D0D8" opacity="0.38" transform="rotate(10,86,104)"/>
+  </svg>`,
+  `<svg viewBox="0 0 160 150" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <path d="M72 136 C58 130 42 136 30 132" stroke="#5C4433" stroke-width="1.5" fill="none" opacity="0.3" stroke-linecap="round"/>
+    <path d="M86 136 C100 130 116 136 128 132" stroke="#5C4433" stroke-width="1.5" fill="none" opacity="0.3" stroke-linecap="round"/>
+    <ellipse cx="80" cy="138" rx="52" ry="9" fill="#C4B5A5" opacity="0.26"/>
+    <path d="M76 138 C74 122 75 104 77 86 C78 74 76 62 74 44" stroke="#5C4433" stroke-width="8.5" fill="none" stroke-linecap="round"/>
+    <path d="M85 138 C87 122 86 106 85 88 C84 76 82 64 80 48" stroke="#6B5240" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.34"/>
+    <path d="M75 54 C60 44 42 36 28 18" stroke="#6B5240" stroke-width="4.2" fill="none" stroke-linecap="round"/>
+    <path d="M77 46 C94 36 112 28 126 12" stroke="#6B5240" stroke-width="4.2" fill="none" stroke-linecap="round"/>
+    <path d="M75 70 C62 62 46 56 34 44" stroke="#7A6248" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+    <path d="M77 64 C92 56 108 50 118 38" stroke="#7A6248" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+    <path d="M75 88 C64 82 50 76 40 64" stroke="#8B7355" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    <path d="M77 84 C90 78 104 72 112 60" stroke="#8B7355" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    <path d="M28 18 C18 6 14 -8 20 -14 C28 -10 32 4 32 18Z" fill="#6B9B6B" opacity="0.44"/>
+    <path d="M28 18 C16 12 8 2 10 -10 C18 -14 26 -2 28 12Z" fill="#7A9E7A" opacity="0.4"/>
+    <path d="M126 12 C136 0 140 -14 134 -20 C126 -16 122 -2 122 12Z" fill="#6B9B6B" opacity="0.44"/>
+    <path d="M34 44 C22 36 14 22 18 10 C26 6 34 20 36 36Z" fill="#7A9E7A" opacity="0.42"/>
+    <path d="M118 38 C130 30 136 16 132 4 C124 2 118 16 116 32Z" fill="#7A9E7A" opacity="0.42"/>
+    <path d="M74 44 C66 28 66 10 76 2 C84 6 84 24 80 42Z" fill="#8FAF8A" opacity="0.4"/>
+    <circle cx="18" cy="-14" r="5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="28" cy="-18" r="4.5" fill="#F2D0D8" opacity="0.9"/>
+    <circle cx="10" cy="-2" r="4.5" fill="#ECC0C8" opacity="0.88"/>
+    <circle cx="134" cy="-18" r="5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="124" cy="-22" r="4.5" fill="#F2D0D8" opacity="0.9"/>
+    <circle cx="142" cy="-8" r="4.5" fill="#ECC0C8" opacity="0.88"/>
+    <circle cx="72" cy="0" r="5" fill="#F2D0D8" opacity="0.92"/>
+    <circle cx="82" cy="-4" r="4.5" fill="#ECC0C8" opacity="0.9"/>
+    <circle cx="36" cy="10" r="4.2" fill="#E8B4C0" opacity="0.84"/>
+    <circle cx="116" cy="4" r="4.2" fill="#F2D0D8" opacity="0.84"/>
+    <circle cx="40" cy="34" r="4.2" fill="#ECC0C8" opacity="0.82"/>
+    <circle cx="112" cy="28" r="4.2" fill="#E8B4C0" opacity="0.82"/>
+    <path d="M48 118 C50 114 54 116 52 120 C50 124 46 122 48 118Z" fill="#E8B4C0" opacity="0.44" transform="rotate(-18,50,118)"/>
+    <path d="M80 122 C82 118 86 120 84 124 C82 128 78 126 80 122Z" fill="#F2D0D8" opacity="0.4" transform="rotate(12,82,122)"/>
+    <path d="M110 118 C112 114 116 116 114 120 C112 124 108 122 110 118Z" fill="#ECC0C8" opacity="0.4" transform="rotate(-10,112,118)"/>
+  </svg>`,
+  `<svg viewBox="20 0 160 230" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <path d="M88 210 C78 206 62 210 50 206" stroke="#4A3428" stroke-width="1.8" fill="none" opacity="0.35" stroke-linecap="round"/>
+    <path d="M112 210 C122 206 138 210 150 206" stroke="#4A3428" stroke-width="1.8" fill="none" opacity="0.35" stroke-linecap="round"/>
+    <path d="M96 214 C92 220 96 228 100 225 C104 228 108 220 104 214" stroke="#5C4433" stroke-width="1.4" fill="none" opacity="0.28" stroke-linecap="round"/>
+    <ellipse cx="100" cy="212" rx="55" ry="8" fill="#C4B5A5" opacity="0.22"/>
+    <path d="M92 212 C89 192 90 170 92 150 C93 134 91 120 90 100" stroke="#4A3428" stroke-width="11" fill="none" stroke-linecap="round"/>
+    <path d="M106 212 C108 192 107 172 106 152 C105 136 104 122 102 102" stroke="#5C4433" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.35"/>
+    <path d="M93 167 C91 171 93 176 95 174" stroke="#3A2818" stroke-width="1.3" fill="none" opacity="0.18" stroke-linecap="round"/>
+    <path d="M91 110 C76 100 58 88 42 68" stroke="#5C4433" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M93 102 C110 90 128 80 144 60" stroke="#5C4433" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <path d="M91 124 C74 116 56 110 44 96" stroke="#6B5240" stroke-width="3.8" fill="none" stroke-linecap="round"/>
+    <path d="M93 118 C110 110 128 104 138 90" stroke="#6B5240" stroke-width="3.8" fill="none" stroke-linecap="round"/>
+    <path d="M91 142 C76 136 62 128 52 116" stroke="#7A6248" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+    <path d="M93 136 C108 130 122 122 130 110" stroke="#7A6248" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+    <path d="M92 100 C90 88 88 76 86 62" stroke="#6B5240" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <path d="M42 68 C34 58 28 46 24 34" stroke="#8B7355" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M42 68 C36 64 28 60 20 52" stroke="#8B7355" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M144 60 C150 50 154 38 156 26" stroke="#8B7355" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M144 60 C152 56 158 52 164 44" stroke="#8B7355" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M44 96 C34 90 24 82 18 70" stroke="#8B7355" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M138 90 C148 84 156 76 160 64" stroke="#8B7355" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M86 62 C80 50 76 38 74 24" stroke="#8B7355" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M86 62 C94 52 100 42 104 28" stroke="#8B7355" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M24 34 C18 26 16 16 18 8" stroke="#A89070" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <path d="M156 26 C160 16 158 6 154 0" stroke="#A89070" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <path d="M74 24 C70 14 72 4 76 -2" stroke="#A89070" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+    <path d="M104 28 C108 18 108 8 104 0" stroke="#A89070" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+    <circle cx="76" cy="0" r="5.5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="88" cy="-4" r="5" fill="#F2D0D8" opacity="0.92"/>
+    <circle cx="100" cy="-6" r="5.5" fill="#ECC0C8" opacity="0.94"/>
+    <circle cx="112" cy="-4" r="5" fill="#F5D8E0" opacity="0.92"/>
+    <circle cx="122" cy="0" r="5" fill="#E8B4C0" opacity="0.9"/>
+    <circle cx="70" cy="8" r="4.8" fill="#F2D0D8" opacity="0.9"/>
+    <circle cx="84" cy="4" r="4.5" fill="#ECC0C8" opacity="0.9"/>
+    <circle cx="100" cy="2" r="5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="116" cy="4" r="4.5" fill="#F5D8E0" opacity="0.9"/>
+    <circle cx="128" cy="10" r="4.8" fill="#ECC0C8" opacity="0.9"/>
+    <circle cx="20" cy="6" r="5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="14" cy="16" r="4.8" fill="#F2D0D8" opacity="0.9"/>
+    <circle cx="22" cy="20" r="5" fill="#ECC0C8" opacity="0.9"/>
+    <circle cx="152" cy="0" r="5" fill="#E8B4C0" opacity="0.92"/>
+    <circle cx="162" cy="8" r="4.8" fill="#F2D0D8" opacity="0.9"/>
+    <circle cx="154" cy="14" r="5" fill="#ECC0C8" opacity="0.9"/>
+    <circle cx="10" cy="28" r="4.5" fill="#E8B4C0" opacity="0.88"/>
+    <circle cx="20" cy="32" r="4.8" fill="#F5D8E0" opacity="0.88"/>
+    <circle cx="168" cy="18" r="4.5" fill="#E8B4C0" opacity="0.88"/>
+    <circle cx="158" cy="24" r="4.8" fill="#F5D8E0" opacity="0.88"/>
+    <circle cx="12" cy="42" r="4.5" fill="#ECC0C8" opacity="0.86"/>
+    <circle cx="22" cy="46" r="4.8" fill="#E8B4C0" opacity="0.86"/>
+    <circle cx="168" cy="34" r="4.5" fill="#ECC0C8" opacity="0.86"/>
+    <circle cx="158" cy="38" r="4.8" fill="#E8B4C0" opacity="0.86"/>
+    <circle cx="16" cy="60" r="4.8" fill="#F2D0D8" opacity="0.86"/>
+    <circle cx="52" cy="36" r="4.5" fill="#E8B4C0" opacity="0.84"/>
+    <circle cx="64" cy="28" r="4.5" fill="#F2D0D8" opacity="0.84"/>
+    <circle cx="130" cy="28" r="4.5" fill="#E8B4C0" opacity="0.84"/>
+    <circle cx="120" cy="20" r="4.5" fill="#F5D8E0" opacity="0.84"/>
+    <circle cx="28" cy="92" r="4.5" fill="#E8B4C0" opacity="0.83"/>
+    <circle cx="40" cy="84" r="4.5" fill="#F2D0D8" opacity="0.83"/>
+    <circle cx="152" cy="90" r="4.5" fill="#E8B4C0" opacity="0.83"/>
+    <circle cx="142" cy="98" r="4.5" fill="#F2D0D8" opacity="0.83"/>
+    <path d="M46 186 C48 182 52 184 50 188 C48 192 44 190 46 186Z" fill="#E8B4C0" opacity="0.5" transform="rotate(-15,48,187)"/>
+    <path d="M68 194 C70 190 74 192 72 196 C70 200 66 198 68 194Z" fill="#F2D0D8" opacity="0.46" transform="rotate(10,70,194)"/>
+    <path d="M90 188 C92 184 96 186 94 190 C92 194 88 192 90 188Z" fill="#ECC0C8" opacity="0.46" transform="rotate(-8,92,188)"/>
+    <path d="M112 192 C114 188 118 190 116 194 C114 198 110 196 112 192Z" fill="#E8B4C0" opacity="0.46" transform="rotate(12,114,192)"/>
+    <path d="M134 186 C136 182 140 184 138 188 C136 192 132 190 134 186Z" fill="#F5D8E0" opacity="0.48" transform="rotate(-20,136,186)"/>
+    <path d="M156 194 C158 190 162 192 160 196 C158 200 154 198 156 194Z" fill="#ECC0C8" opacity="0.44" transform="rotate(8,158,194)"/>
+  </svg>`,
+
+  `<svg viewBox="0 0 280 300" width="100%" xmlns="http://www.w3.org/2000/svg">
+<ellipse cx="130" cy="272" rx="95" ry="12" fill="#D8CDBF" opacity="0.22"/>
+  <ellipse cx="120" cy="278" rx="70" ry="7" fill="#CABFB0" opacity="0.16"/>
+
+  <!-- ROOTS -->
+  <path d="M108 270 C94 260 72 264 52 256 C36 250 20 254 4 246" stroke="#2E1608" stroke-width="5" fill="none" opacity="0.36" stroke-linecap="round"/>
+  <path d="M140 272 C156 262 176 266 196 258 C212 252 228 256 244 248" stroke="#2E1608" stroke-width="5" fill="none" opacity="0.36" stroke-linecap="round"/>
+  <path d="M118 274 C108 284 112 294 124 290 C136 294 140 284 130 274" stroke="#3C2010" stroke-width="3.5" fill="none" opacity="0.24" stroke-linecap="round"/>
+  <path d="M96 268 C78 258 56 264 36 254" stroke="#2E1608" stroke-width="3" fill="none" opacity="0.22" stroke-linecap="round"/>
+  <path d="M152 268 C170 258 192 264 212 254" stroke="#2E1608" stroke-width="3" fill="none" opacity="0.22" stroke-linecap="round"/>
+
+  <!-- TRUNK - leans left, massive base -->
+  <path d="M100 272 C90 240 84 204 80 168 C76 136 72 104 66 72 C62 48 56 26 50 4" stroke="#200C04" stroke-width="46" fill="none" stroke-linecap="round" opacity="0.12"/>
+  <path d="M100 272 C90 240 84 204 80 168 C76 136 72 104 66 72 C62 48 56 26 50 4" stroke="#2A1408" stroke-width="38" fill="none" stroke-linecap="round"/>
+  <path d="M132 272 C126 240 122 206 120 170 C118 138 116 106 114 74 C112 50 110 28 108 6" stroke="#3C2010" stroke-width="22" fill="none" stroke-linecap="round" opacity="0.46"/>
+  <path d="M112 272 C106 242 102 208 100 172 C98 140 96 108 94 76 C92 52 90 30 88 8" stroke="#4E2C18" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.28"/>
+  <path d="M118 272 C114 244 110 212 108 176 C106 144 104 114 102 82" stroke="#5E3C24" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.16"/>
+
+  <!-- BARK fissures -->
+  <path d="M86 232 C81 240 84 249 90 246" stroke="#180804" stroke-width="3" fill="none" opacity="0.2" stroke-linecap="round"/>
+  <path d="M84 198 C79 206 82 214 88 211" stroke="#180804" stroke-width="2.8" fill="none" opacity="0.18" stroke-linecap="round"/>
+  <path d="M82 166 C77 173 80 180 86 177" stroke="#180804" stroke-width="2.5" fill="none" opacity="0.17" stroke-linecap="round"/>
+  <path d="M80 136 C75 142 78 149 84 146" stroke="#180804" stroke-width="2.3" fill="none" opacity="0.16" stroke-linecap="round"/>
+  <path d="M78 108 C73 114 76 120 82 117" stroke="#180804" stroke-width="2" fill="none" opacity="0.15" stroke-linecap="round"/>
+  <path d="M76 82 C71 88 74 93 80 90" stroke="#180804" stroke-width="1.8" fill="none" opacity="0.14" stroke-linecap="round"/>
+  <path d="M112 218 C117 226 115 234 109 231" stroke="#180804" stroke-width="2.8" fill="none" opacity="0.18" stroke-linecap="round"/>
+  <path d="M114 186 C119 193 117 200 111 197" stroke="#180804" stroke-width="2.5" fill="none" opacity="0.17" stroke-linecap="round"/>
+  <path d="M115 156 C120 162 118 169 112 166" stroke="#180804" stroke-width="2.3" fill="none" opacity="0.16" stroke-linecap="round"/>
+  <path d="M116 128 C121 134 119 140 113 137" stroke="#180804" stroke-width="2" fill="none" opacity="0.15" stroke-linecap="round"/>
+
+  <!-- SUPPORT STAKE - the real Jindai Zakura is held up -->
+  <path d="M90 270 C88 240 86 210 84 180 C80 150 78 120 80 90" stroke="#9B8060" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.45"/>
+  <path d="M84 180 C92 176 100 174 108 172" stroke="#9B8060" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.35"/>
+
+  <!-- BRANCHES - heavy, drooping, wise -->
+  <path d="M66 100 C44 110 16 116 -12 122 C-28 126 -42 130 -52 136" stroke="#3C2010" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <path d="M-52 136 C-60 144 -64 154 -62 164" stroke="#4E2C18" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M108 80 C136 76 164 72 190 68 C206 66 220 64 234 62" stroke="#3C2010" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <path d="M234 62 C246 60 256 62 262 70" stroke="#4E2C18" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+  <path d="M60 60 C40 48 18 36 -2 24 C-16 14 -28 4 -36 -8" stroke="#4E2C18" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M-36 -8 C-44 -20 -48 -34 -44 -46" stroke="#5C3820" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M100 40 C124 30 150 18 174 6 C190 -2 204 -12 216 -22" stroke="#4E2C18" stroke-width="6.5" fill="none" stroke-linecap="round"/>
+  <path d="M216 -22 C226 -32 232 -44 228 -56" stroke="#5C3820" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+  <path d="M72 148 C52 156 28 162 4 168 C-12 172 -26 176 -38 182" stroke="#5C3820" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M-38 182 C-48 188 -54 196 -52 206" stroke="#6B4E36" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+  <path d="M118 130 C144 124 170 118 194 112 C212 108 226 106 238 104" stroke="#5C3820" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+  <path d="M78 192 C58 198 34 204 10 210 C-4 214 -16 218 -24 224" stroke="#6B4E36" stroke-width="5" fill="none" stroke-linecap="round"/>
+
+  <!-- Secondary branches -->
+  <path d="M-52 136 C-62 130 -70 122 -72 110" stroke="#6B4E36" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+  <path d="M-52 136 C-64 140 -72 148 -70 160" stroke="#6B4E36" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M234 62 C244 54 252 44 250 32" stroke="#6B4E36" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+  <path d="M-44 -46 C-50 -58 -50 -72 -44 -82" stroke="#7A6248" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M-44 -46 C-54 -54 -58 -66 -54 -76" stroke="#7A6248" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M228 -56 C234 -68 232 -82 226 -90" stroke="#7A6248" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M228 -56 C238 -64 242 -76 238 -86" stroke="#7A6248" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M-72 110 C-80 100 -84 88 -80 76" stroke="#7A6248" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M-38 182 C-50 188 -56 200 -52 212" stroke="#7A6248" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M-24 224 C-32 230 -38 240 -34 250" stroke="#8B7355" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M238 104 C250 100 260 96 266 86" stroke="#7A6248" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Fine terminal branches -->
+  <path d="M-44 -82 C-50 -92 -48 -104 -42 -110" stroke="#9B8878" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M-54 -76 C-62 -86 -62 -98 -56 -104" stroke="#9B8878" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M226 -90 C230 -102 228 -114 222 -120" stroke="#9B8878" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M238 -86 C244 -98 244 -110 238 -116" stroke="#9B8878" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M-80 76 C-86 64 -84 52 -78 44" stroke="#9B8878" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M250 32 C258 22 260 10 256 0" stroke="#9B8878" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M266 86 C274 76 276 64 272 54" stroke="#9B8878" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M-52 212 C-60 220 -60 232 -54 240" stroke="#9B8878" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M-34 250 C-40 258 -38 268 -32 274" stroke="#A89878" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+  <!-- BLOSSOMS - sparse, concentrated at tips, white-pink, ancient -->
+  <!-- Left far drooping tip -->
+  <circle cx="-62" cy="162" r="5.5" fill="#F8EDF4" opacity="0.92"/>
+  <circle cx="-56" cy="170" r="5" fill="#F2E2EC" opacity="0.9"/>
+  <circle cx="-68" cy="168" r="5" fill="#FAF4F8" opacity="0.9"/>
+  <circle cx="-62" cy="176" r="4.5" fill="#F8EDF4" opacity="0.88"/>
+  <circle cx="-52" cy="162" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="-72" cy="156" r="4.5" fill="#FAF4F8" opacity="0.86"/>
+  <circle cx="-58" cy="156" r="4" fill="#F8EDF4" opacity="0.85"/>
+
+  <!-- Left upper tip -->
+  <circle cx="-44" cy="-82" r="5.5" fill="#F8EDF4" opacity="0.92"/>
+  <circle cx="-52" cy="-90" r="5" fill="#F2E2EC" opacity="0.9"/>
+  <circle cx="-36" cy="-88" r="5" fill="#FAF4F8" opacity="0.9"/>
+  <circle cx="-48" cy="-96" r="4.5" fill="#F8EDF4" opacity="0.88"/>
+  <circle cx="-38" cy="-78" r="4.5" fill="#F2E2EC" opacity="0.86"/>
+  <circle cx="-56" cy="-78" r="4" fill="#FAF4F8" opacity="0.85"/>
+  <circle cx="-44" cy="-70" r="4" fill="#F8EDF4" opacity="0.84"/>
+  <circle cx="-62" cy="-104" r="4.5" fill="#F2E2EC" opacity="0.86"/>
+  <circle cx="-54" cy="-108" r="4" fill="#FAF4F8" opacity="0.84"/>
+
+  <!-- Left mid tip -->
+  <circle cx="-80" cy="74" r="5" fill="#F8EDF4" opacity="0.9"/>
+  <circle cx="-86" cy="82" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="-74" cy="80" r="4.5" fill="#FAF4F8" opacity="0.88"/>
+  <circle cx="-82" cy="90" r="4" fill="#F8EDF4" opacity="0.86"/>
+  <circle cx="-72" cy="68" r="4" fill="#F2E2EC" opacity="0.85"/>
+
+  <!-- Left very low droop -->
+  <circle cx="-52" cy="210" r="5" fill="#F8EDF4" opacity="0.9"/>
+  <circle cx="-46" cy="218" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="-58" cy="216" r="4.5" fill="#FAF4F8" opacity="0.88"/>
+  <circle cx="-52" cy="224" r="4" fill="#F8EDF4" opacity="0.86"/>
+  <circle cx="-40" cy="210" r="4" fill="#F2E2EC" opacity="0.85"/>
+  <circle cx="-34" cy="250" r="4.5" fill="#F8EDF4" opacity="0.86"/>
+  <circle cx="-28" cy="258" r="4" fill="#F2E2EC" opacity="0.84"/>
+  <circle cx="-40" cy="256" r="4" fill="#FAF4F8" opacity="0.84"/>
+
+  <!-- Right far tip -->
+  <circle cx="262" cy="70" r="5.5" fill="#F8EDF4" opacity="0.92"/>
+  <circle cx="256" cy="62" r="5" fill="#F2E2EC" opacity="0.9"/>
+  <circle cx="268" cy="64" r="5" fill="#FAF4F8" opacity="0.9"/>
+  <circle cx="260" cy="56" r="4.5" fill="#F8EDF4" opacity="0.88"/>
+  <circle cx="270" cy="74" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="252" cy="70" r="4" fill="#FAF4F8" opacity="0.86"/>
+
+  <!-- Right upper tip -->
+  <circle cx="226" cy="-90" r="5.5" fill="#F8EDF4" opacity="0.92"/>
+  <circle cx="218" cy="-82" r="5" fill="#F2E2EC" opacity="0.9"/>
+  <circle cx="234" cy="-86" r="5" fill="#FAF4F8" opacity="0.9"/>
+  <circle cx="222" cy="-96" r="4.5" fill="#F8EDF4" opacity="0.88"/>
+  <circle cx="238" cy="-94" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="220" cy="-106" r="4.5" fill="#FAF4F8" opacity="0.86"/>
+  <circle cx="230" cy="-110" r="4" fill="#F8EDF4" opacity="0.85"/>
+
+  <!-- Right low tip -->
+  <circle cx="266" cy="54" r="5" fill="#F8EDF4" opacity="0.9"/>
+  <circle cx="274" cy="62" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="272" cy="48" r="4.5" fill="#FAF4F8" opacity="0.88"/>
+  <circle cx="256" cy="0" r="5" fill="#F8EDF4" opacity="0.9"/>
+  <circle cx="262" cy="-8" r="4.5" fill="#F2E2EC" opacity="0.88"/>
+  <circle cx="250" cy="-4" r="4.5" fill="#FAF4F8" opacity="0.88"/>
+  <circle cx="258" cy="-14" r="4" fill="#F8EDF4" opacity="0.86"/>
+
+  <!-- Sparse mid branch flowers -->
+  <circle cx="-12" cy="122" r="4.5" fill="#F8EDF4" opacity="0.86"/>
+  <circle cx="-20" cy="130" r="4" fill="#F2E2EC" opacity="0.84"/>
+  <circle cx="-4" cy="128" r="4" fill="#FAF4F8" opacity="0.84"/>
+  <circle cx="-62" cy="110" r="4.5" fill="#F8EDF4" opacity="0.85"/>
+  <circle cx="-70" cy="120" r="4" fill="#F2E2EC" opacity="0.83"/>
+  <circle cx="238" cy="100" r="4.5" fill="#F8EDF4" opacity="0.85"/>
+  <circle cx="246" cy="108" r="4" fill="#F2E2EC" opacity="0.83"/>
+  <circle cx="-16" cy="168" r="4.5" fill="#FAF4F8" opacity="0.84"/>
+  <circle cx="-8" cy="174" r="4" fill="#F8EDF4" opacity="0.82"/>
+  <circle cx="4" cy="168" r="4" fill="#F2E2EC" opacity="0.82"/>
+  <circle cx="50" cy="-4" r="4.5" fill="#F8EDF4" opacity="0.86"/>
+  <circle cx="42" cy="-12" r="4" fill="#F2E2EC" opacity="0.84"/>
+  <circle cx="174" cy="6" r="4.5" fill="#F8EDF4" opacity="0.86"/>
+  <circle cx="166" cy="-2" r="4" fill="#F2E2EC" opacity="0.84"/>
+
+  <!-- FALLING PETALS - few, unhurried, each one matters -->
+  <path d="M30 262 C32 258 36 260 34 264 C32 268 28 266 30 262Z" fill="#F8EDF4" opacity="0.52" transform="rotate(-22,32,262)"/>
+  <path d="M62 268 C64 264 68 266 66 270 C64 274 60 272 62 268Z" fill="#F2E2EC" opacity="0.48" transform="rotate(14,64,268)"/>
+  <path d="M98 262 C100 258 104 260 102 264 C100 268 96 266 98 262Z" fill="#FAF4F8" opacity="0.48" transform="rotate(-8,100,262)"/>
+  <path d="M136 266 C138 262 142 264 140 268 C138 272 134 270 136 266Z" fill="#F8EDF4" opacity="0.48" transform="rotate(18,138,266)"/>
+  <path d="M172 262 C174 258 178 260 176 264 C174 268 170 266 172 262Z" fill="#F2E2EC" opacity="0.48" transform="rotate(-12,174,262)"/>
+  <path d="M208 266 C210 262 214 264 212 268 C210 272 206 270 208 266Z" fill="#FAF4F8" opacity="0.5" transform="rotate(10,210,266)"/>
+  <path d="M18 238 C20 234 24 236 22 240 C20 244 16 242 18 238Z" fill="#F2E2EC" opacity="0.42" transform="rotate(-26,20,238)"/>
+  <path d="M96 238 C98 234 102 236 100 240 C98 244 94 242 96 238Z" fill="#F8EDF4" opacity="0.4" transform="rotate(-8,98,238)"/>
+  <path d="M180 238 C182 234 186 236 184 240 C182 244 178 242 180 238Z" fill="#FAF4F8" opacity="0.4" transform="rotate(-14,182,238)"/>
+  <path d="M40 208 C42 205 45 207 43 210 C41 213 38 211 40 208Z" fill="#FAF4F8" opacity="0.34" transform="rotate(-24,42,208)"/>
+  <path d="M146 208 C148 205 151 207 149 210 C147 213 144 211 146 208Z" fill="#F2E2EC" opacity="0.32" transform="rotate(-8,148,208)"/>
+  <path d="M70 178 C72 176 74 177 73 179 C72 181 70 180 70 178Z" fill="#F8EDF4" opacity="0.26" transform="rotate(-20,72,178)"/>
+  <path d="M160 174 C162 172 164 173 163 175 C162 177 160 176 160 174Z" fill="#F2E2EC" opacity="0.24" transform="rotate(14,162,174)"/>
+  </svg>`,
+];
+
+function CerezoView({points, treeLevel, TREE_LEVELS, desktop}){
+  const levelIdx = TREE_LEVELS.findIndex(l=>l.name===treeLevel?.name);
+  const nextLevel = TREE_LEVELS[levelIdx+1];
+  const progress = nextLevel
+    ? Math.min(100, ((points - treeLevel.min) / (nextLevel.min - treeLevel.min)) * 100)
+    : 100;
+
+  return(
+    <div style={{
+      padding: desktop ? "0" : "24px 20px",
+      maxWidth: desktop ? 560 : undefined,
+      display:"flex", flexDirection:"column", alignItems:"center",
+      textAlign:"center"
+    }}>
+      {/* Tree illustration */}
+      <div
+        style={{width: desktop?220:180, height: desktop?220:180, marginBottom:16}}
+        dangerouslySetInnerHTML={{__html: TREE_SVGS[Math.max(0,Math.min(5,levelIdx))]}}
+      />
+
+      {/* Level name */}
+      <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",letterSpacing:".14em",textTransform:"uppercase",marginBottom:6}}>
+        {treeLevel?.name}
+      </div>
+
+      {/* Points */}
+      <div style={{fontFamily:"'DM Sans'",fontSize:28,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:4}}>
+        {points.toLocaleString()}
+      </div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",marginBottom:20}}>puntos</div>
+
+      {/* Progress to next level */}
+      {nextLevel&&(
+        <div style={{width:"100%",maxWidth:220,marginBottom:8}}>
+          <div style={{height:3,background:"#EAE6E0",borderRadius:99,overflow:"hidden",marginBottom:8}}>
+            <div style={{height:"100%",width:`${progress}%`,background:"linear-gradient(to right,#C4A882,#8FAF8A)",borderRadius:99,transition:"width .4s ease"}}/>
+          </div>
+          <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>
+            {(nextLevel.min - points).toLocaleString()} puntos para {nextLevel.name}
+          </div>
+        </div>
+      )}
+      {!nextLevel&&(
+        <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontStyle:"italic"}}>
+          Has alcanzado el nivel más alto
+        </div>
+      )}
+
+      {/* All levels */}
+      <div style={{width:"100%",maxWidth:280,marginTop:28}}>
+        {TREE_LEVELS.map((l,i)=>(
+          <div key={l.name} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:"1px solid #F5F2EE",opacity:i<=levelIdx?1:0.4}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:i<=levelIdx?"#9B8878":"#E5E1DB",flexShrink:0}}/>
+            <div style={{fontFamily:"'DM Sans'",fontSize:12,color:i===levelIdx?"#2C2825":"#B0AA9F",fontWeight:i===levelIdx?500:400,flex:1,textAlign:"left"}}>{l.name}</div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>{l.min.toLocaleString()}</div>
+          </div>
+        ))}
+      </div>
+
+
+    </div>
+  );
+}
+
+
+// ─── Desktop Hoy - Two Column ─────────────────────────────────────────────────
+
+// ─── Desktop Tareas - Two Column ──────────────────────────────────────────────
+
+// ─── Focus Mode ───────────────────────────────────────────────────────────────
+function FocusMode({overdueWork,todayWork,upcomingWork,tasks,projects,onToggle,onDelete,onOpen,desktop}){
+  const typeOrder = t => (t.type||"normal")==="urgente"?0:(t.type||"normal")==="estrategica"?1:2;
+  const allTasks = [
+    // 1. Vencidas - más antigua primero
+    ...overdueWork.filter(t=>!t.done).sort((a,b)=>{
+      if(a.date!==b.date) return a.date<b.date?-1:1;
+      return typeOrder(a)-typeOrder(b);
+    }),
+    // 2. Próximas a vencer (con fecha >= hoy) - más próxima primero
+    ...tasks.filter(t=>{
+      const p=projects.find(x=>x.id===t.projectId);
+      return p&&!t.done&&t.date&&t.date>=todayStr()&&!overdueWork.find(o=>o.id===t.id);
+    }).sort((a,b)=>{
+      if(a.date!==b.date) return a.date<b.date?-1:1;
+      return typeOrder(a)-typeOrder(b);
+    }),
+    // 3. Sin fecha (lo antes posible): prioritario > estratégico > normal
+    ...upcomingWork.filter(t=>!t.done).sort((a,b)=>typeOrder(a)-typeOrder(b)),
+  ];
+
+  const [idx,setIdx] = useState(0);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+
+  useEffect(()=>{
+    if(idx>=allTasks.length) setIdx(Math.max(0,allTasks.length-1));
+  },[allTasks.length]);
+
+  function handleSwipeStart(e){
+    touchStartX.current=e.touches[0].clientX;
+    touchStartY.current=e.touches[0].clientY;
+  }
+  function handleSwipeEnd(e){
+    const dx=e.changedTouches[0].clientX-touchStartX.current;
+    const dy=Math.abs(e.changedTouches[0].clientY-touchStartY.current);
+    if(dy>40) return; // vertical scroll, ignore
+    if(dx<-50&&idx<allTasks.length-1) setIdx(i=>i+1); // swipe left = next
+    if(dx>50&&idx>0) setIdx(i=>i-1); // swipe right = prev
+  }
+
+  const task = allTasks[idx];
+  const proj = task ? projects.find(p=>p.id===task.projectId) : null;
+  const isOverdue = task ? (task.date && task.date < todayStr()) : false;
+  const isToday = task ? task.date===todayStr() : false;
+
+  function handleDone(e){
+    const btn = e ? e.currentTarget : null;
+    if(btn){ const r=btn.getBoundingClientRect(); particleBurst(r.left+r.width/2,r.top+r.height/2,13); }
+    const card = btn ? btn.closest('[data-focus-card]') : null;
+    if(card){
+      card.style.animation='flyUp .38s cubic-bezier(.4,0,.2,1) forwards';
+      setTimeout(()=>{
+        onToggle(task.id);
+        setIdx(i=>i<allTasks.length-1?i+1:0);
+        card.style.animation='slideInCard .32s cubic-bezier(.34,1.56,.64,1) forwards';
+        setTimeout(()=>{ if(card) card.style.animation=''; },350);
+      },370);
+    } else {
+      onToggle(task.id);
+      setIdx(i=>i<allTasks.length-1?i+1:0);
+    }
+  }
+  function handleNext(){ setIdx(i=>Math.min(i+1,allTasks.length-1)); }
+  function handlePrev(){ setIdx(i=>Math.max(i-1,0)); }
+  function handleSkip(){
+    // Move task to end of list by going next
+    setIdx(i=>i<allTasks.length-1?i+1:0);
+  }
+
+  if(allTasks.length===0) return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 32px",textAlign:"center"}}>
+      <div style={{fontSize:24,marginBottom:12,color:"#C8C3BB"}}>◈</div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:15,color:"#9B948C",marginBottom:4}}>Todo al día</div>
+      <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB"}}>No hay tareas pendientes para hoy</div>
+    </div>
+  );
+
+  return(
+    <div style={{padding:desktop?"0":"0",maxWidth:desktop?560:undefined}}>
+      <div style={{marginBottom:12}} onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
+        <span style={{fontFamily:"'DM Sans'",fontSize:10,color:(task.type||"normal")==="urgente"?"#C49A7A":(task.type||"normal")==="estrategica"?"#5B6BAF":"#B0AA9F",fontWeight:500,letterSpacing:".12em",textTransform:"uppercase"}}>{proj?.name}</span>
+        {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:isOverdue?"#C4896A":"#C8C3BB",marginLeft:10}}>{fmtDate(task.date)}</span>}
+        {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C8C3BB",marginLeft:8}}>→ {task.responsable}</span>}
+      </div>
+      <div style={{background:"white",borderRadius:16,border:"1px solid #EAE6E0",padding:"22px 20px 18px",marginBottom:14}} onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
+        <div style={{fontFamily:"'DM Sans'",fontSize:17,fontWeight:400,color:"#2C2825",lineHeight:1.55,marginBottom:task.notes?14:20}}>{task.title}</div>
+        {task.notes&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#9B948C",lineHeight:1.6,marginBottom:16,padding:"10px 12px",background:"#F7F5F2",borderRadius:10}}>{task.notes}</div>}
+        <div style={{display:"flex",gap:10,marginBottom:8}}>
+          <button onClick={(e)=>handleDone(e)} style={{flex:1,background:"#2C2825",color:"white",border:"1px solid #2C2825",borderRadius:12,padding:"13px",fontFamily:"'DM Sans'",fontSize:14,fontWeight:400,cursor:"pointer"}}>✓ Hecho</button>
+          <button onClick={handleSkip} style={{flex:1,background:"none",color:"#9B948C",border:"1px solid #E5E1DB",borderRadius:12,padding:"13px",fontFamily:"'DM Sans'",fontSize:14,cursor:"pointer"}}>Más tarde</button>
+        </div>
+        <button onClick={()=>onOpen(task)} style={{width:"100%",background:"none",border:"none",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:11,padding:"2px 0",cursor:"pointer"}}>Editar tarea</button>
+      </div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <button onClick={handlePrev} disabled={idx===0} style={{background:"none",border:"none",cursor:idx===0?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===0?"#E5E1DB":"#C8C3BB",padding:"4px 0"}}>←</button>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <div style={{display:"flex",gap:3}}>
+            {allTasks.slice(0,Math.min(allTasks.length,10)).map((_,i)=>(
+              <div key={i} onClick={()=>setIdx(i)} style={{width:i===idx?18:5,height:4,borderRadius:99,background:i===idx?"#9B8878":"#E5E1DB",transition:"width .2s",cursor:"pointer"}}/>
+            ))}
+            {allTasks.length>10&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#D5CFC8",marginLeft:2}}>+{allTasks.length-10}</span>}
+          </div>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>{idx+1}/{allTasks.length}</span>
+        </div>
+        <button onClick={handleNext} disabled={idx===allTasks.length-1} style={{background:"none",border:"none",cursor:idx===allTasks.length-1?"default":"pointer",fontFamily:"'DM Sans'",fontSize:13,color:idx===allTasks.length-1?"#E5E1DB":"#C8C3BB",padding:"4px 0"}}>→</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Grouped Tasks View ───────────────────────────────────────────────────────
+function GroupedTasksView({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTask,reorderTasks,sw,desktop}){
+  const groups = [
+    {key:"estrategica", label:"Estratégicas", color:"#5B6BAF", bg:"#F0F1F8"},
+    {key:"urgente",     label:"Prioritarias", color:"#C49A7A", bg:"#FBF5F0"},
+    {key:"normal",      label:"Normales",     color:"#9B948C", bg:"#F5F3F1"},
+  ];
+  const [open,setOpen]=useState({estrategica:true,urgente:true,normal:false});
+
+  // Collect all tasks across all projects, grouped by type
+  const allTasks = projects.flatMap(proj=>
+    tasksForProject(proj.id).filter(t=>!t.done).map(t=>({...t,_proj:proj}))
+  );
+
+  return(
+    <div>
+      {groups.map(g=>{
+        const gtasks=allTasks.filter(t=>(t.type||"normal")===g.key).sort(taskSort);
+        if(gtasks.length===0) return null;
+        const isOpen=open[g.key];
+        return(
+          <div key={g.key} style={{marginBottom:4}}>
+            {/* Group header */}
+            <div onClick={()=>setOpen(o=>({...o,[g.key]:!o[g.key]}))}
+              style={{display:"flex",alignItems:"center",gap:10,padding:desktop?"12px 0":"12px 20px",cursor:"pointer",userSelect:"none",borderBottom:"1px solid #EAE6E0"}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:g.color,flexShrink:0}}/>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:g.color,flex:1}}>{g.label}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",background:g.bg,padding:"2px 8px",borderRadius:99}}>{gtasks.length}</span>
+              <span style={{fontFamily:"'DM Sans'",fontSize:14,color:"#C8C3BB",marginLeft:4}}>{isOpen?"▾":"›"}</span>
+            </div>
+            {/* Tasks */}
+            {isOpen&&(
+              <div>
+                {gtasks.map(task=>{
+                  const proj=task._proj;
+                  return(
+                    <div key={task.id}
+                      style={{display:"flex",alignItems:"center",gap:12,padding:desktop?"12px 0 12px 20px":"12px 20px",borderBottom:"1px solid #F5F2EE",cursor:"pointer"}}
+                      onClick={()=>onOpen(task)}>
+                      <button style={{width:22,height:22,borderRadius:"50%",border:`1.5px solid ${task.done?"#B5A99A":"#C8C3BB"}`,background:task.done?"#B5A99A":"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
+                        onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+                        {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
+                      </button>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+                        <div style={{display:"flex",gap:8,marginTop:2}}>
+                          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C",fontWeight:500}}>{proj.name}</span>
+                          {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C"}}>{fmtDate(task.date)}</span>}
+                          {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A"}}>→ {task.responsable}</span>}
+                        </div>
+                      </div>
+                      <TypeDot type={task.type} done={task.done}/>
+                    </div>
+                  );
+                })}
+                {/* Add task buttons per project */}
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",padding:desktop?"8px 0 4px 20px":"8px 20px 4px"}}>
+                  {projects.map(proj=>(
+                    <button key={proj.id} onClick={()=>onAddTask(proj)}
+                      style={{background:"none",border:"1px dashed #D5CFC8",borderRadius:99,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",padding:"3px 10px"}}>
+                      + {proj.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ProjBlock({project,area,tasks,onToggle,onDelete,onOpen,onAddTask,reorderTasks,swipedId,setSwipedId,onTouchStart,onTouchEnd}){
+  const [exp,setExp]=useState(false);
+  const imp=IMPORTANCE[project.importance||"normal"];
+  const pending=tasks.filter(t=>!t.done).length;
+  return(
+    <div style={{borderBottom:"1px solid #EAE6E0"}}>
+      <div style={{padding:"14px 20px 8px"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flex:1,cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:AREAS[area].color,opacity:.6,flexShrink:0}}/>
+            <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,color:"#3A3530"}}>{project.name}</span>
+            {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
+            {pending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F"}}>{pending}</span>}
+          </div>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 8px",borderRadius:99}}>{imp.label}</span>
+        </div>
+        <button className="m-ib" onClick={onAddTask}>+ tarea</button>
+      </div>
+      {exp&&(tasks.length>0
+        ?<TaskRows tasks={tasks} projects={[]} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} area={area} reorderTasks={reorderTasks} swipedId={swipedId} setSwipedId={setSwipedId} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}/>
+        :<div style={{padding:"4px 20px 12px",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin tareas aún</div>
+      )}
+    </div>
+  );
+}
+
+function PlanBlock({project,onEdit,onDelete,onComplete}){
+  const [conf,setConf]=useState(false);
+  const [exp,setExp]=useState(false);
+  const imp=IMPORTANCE[project.importance||"normal"];
+  const has=project.description||project.mainGoal||(project.secondaryGoals?.length>0);
+  return(
+    <div style={{margin:"10px 20px",background:"white",borderRadius:12,border:"1px solid #EAE6E0"}}>
+      <div style={{padding:"14px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10}}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1,minWidth:0}}>
+          <div onClick={()=>{if(window.confirm("¿Completar proyecto?"))onComplete&&onComplete(project.id);}} style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid #C8C3BB",flexShrink:0,marginTop:2,cursor:"pointer"}} />
+          <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:has&&!exp?3:0}}>
+            <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:600,color:"#3A3530"}}>{project.name}</span>
+            {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
+            <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 7px",borderRadius:99}}>{imp.label}</span>
+          </div>
+          {!exp&&project.mainGoal&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B948C",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{project.mainGoal}</div>}
+          {!has&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos · tap en Editar</div>}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
+          <button className="m-ib" onClick={onEdit}>Editar</button>
+          {conf?<><button className="m-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={onDelete}>Confirmar</button><button className="m-ib" onClick={()=>setConf(false)}>✕</button></>:<button className="m-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>Eliminar</button>}
+        </div>
+      </div>
+      {exp&&has&&<div style={{padding:"0 16px 14px",borderTop:"1px solid #F5F2EE"}}>
+        {project.description&&<p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258",marginBottom:10,marginTop:10,lineHeight:1.6}}>{project.description}</p>}
+        {project.mainGoal&&<div style={{marginBottom:8}}><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:3}}>Objetivo principal</div><div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#3A3530",fontWeight:500}}>{project.mainGoal}</div></div>}
+        {project.secondaryGoals?.length>0&&<div><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:6}}>Objetivos secundarios</div>{project.secondaryGoals.map((g,i)=><div key={i} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:4}}><div style={{width:4,height:4,borderRadius:"50%",background:"#C8C3BB",flexShrink:0,marginTop:6}}/><span style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258"}}>{g}</span></div>)}</div>}
+      </div>}
+    </div>
+  );
+}
+
+function TaskRows({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorderTasks,swipedId,setSwipedId,onTouchStart,onTouchEnd}){
+  const [order,setOrder]=useState(null);
+  const [dragIdx,setDragIdx]=useState(null);
+  const [overIdx,setOverIdx]=useState(null);
+  const longPressTimer=useRef(null);
+  const touchMoved=useRef(false);
+  const touchStartY=useRef(0),touchStartX=useRef(0);
+  const rowRefs=useRef([]);
+  const sorted=order?order.map(id=>tasks.find(t=>t.id===id)).filter(Boolean):[...tasks].sort(taskSort);
+
+  function handleRowTouchStart(e,idx,taskId){
+    touchStartX.current=e.touches[0].clientX;touchStartY.current=e.touches[0].clientY;touchMoved.current=false;
+    longPressTimer.current=setTimeout(()=>setDragIdx(idx),400);
+    onTouchStart(e,taskId);
+  }
+  function handleRowTouchMove(e){
+    const dx=Math.abs(e.touches[0].clientX-touchStartX.current),dy=Math.abs(e.touches[0].clientY-touchStartY.current);
+    if(dx>6||dy>6){touchMoved.current=true;clearTimeout(longPressTimer.current);}
+    if(dragIdx===null) return;
+    e.preventDefault();
+    const y=e.touches[0].clientY;let found=null;
+    rowRefs.current.forEach((el,i)=>{if(!el)return;const r=el.getBoundingClientRect();if(y>=r.top&&y<=r.bottom)found=i;});
+    if(found!==null&&found!==dragIdx) setOverIdx(found);
+  }
+  function handleRowTouchEnd(e,idx,taskId){
+    clearTimeout(longPressTimer.current);
+    if(dragIdx!==null){
+      if(overIdx!==null&&overIdx!==dragIdx){
+        const r=[...sorted];const[m]=r.splice(dragIdx,1);r.splice(overIdx,0,m);
+        const ids=r.map(t=>t.id);setOrder(ids);reorderTasks&&reorderTasks(ids);
+      }
+      setDragIdx(null);setOverIdx(null);return;
+    }
+    onTouchEnd(e,taskId);
+  }
+
+  return(
+    <div>
+      {sorted.map((task,idx)=>{
+        const proj=projects.find(p=>p.id===task.projectId);
+        const swiped=swipedId===task.id,isDragging=dragIdx===idx,isOver=overIdx===idx&&dragIdx!==null&&dragIdx!==idx;
+        return(
+          <div key={task.id} ref={el=>rowRefs.current[idx]=el}
+            style={{position:"relative",overflow:"visible",opacity:isDragging?.35:1,borderTop:isOver?"2px solid #9B8878":"none"}}
+            onTouchStart={e=>handleRowTouchStart(e,idx,task.id)}
+            onTouchMove={handleRowTouchMove}
+            onTouchEnd={e=>handleRowTouchEnd(e,idx,task.id)}>
+            <div style={{position:"absolute",right:0,top:0,height:"100%",display:"flex",alignItems:"stretch",zIndex:0}}>
+              <button style={{border:"none",cursor:"pointer",fontSize:12,fontWeight:500,width:54,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:3,background:"#8FAF8A",color:"white"}} onClick={(e)=>{const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}><span style={{fontSize:15}}>✓</span><span>{task.done?"Reabrir":"Listo"}</span></button>
+              <button style={{border:"none",cursor:"pointer",fontSize:12,fontWeight:500,width:54,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:3,background:"#C4997A",color:"white"}} onClick={()=>onDelete(task.id)}><span style={{fontSize:15}}>✕</span><span>Borrar</span></button>
+            </div>
+            <div style={{background:isDragging?"#EDE9E4":overdue?"#FBF8F4":"#F7F5F2",position:"relative",zIndex:1,transform:swiped?"translateX(-108px)":"translateX(0)",transition:"transform .25s cubic-bezier(.4,0,.2,1)",padding:"13px 20px",borderBottom:"1px solid #EAE6E0",display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}
+              onClick={()=>{if(swiped){setSwipedId(null);return;}if(!touchMoved.current)onOpen(task);}}>
+              <button style={{width:24,height:24,borderRadius:"50%",border:`1.5px solid ${task.done?"#B5A99A":"#C8C3BB"}`,background:task.done?"#B5A99A":"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
+                onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+                {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
+              </button>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontFamily:"'DM Sans'",fontSize:14,color:task.done?"#C8C3BB":overdue?"#9B8878":"#2C2825",textDecoration:task.done?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+                <div style={{display:"flex",gap:8,marginTop:2,flexWrap:"wrap"}}>
+                  {proj&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C",fontWeight:500}}>{proj.name}</span>}
+                  {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:overdue?"#C4896A":"#9B948C"}}>{fmtDate(task.date)}</span>}
+                  {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A",fontWeight:500}}>→ {task.responsable}</span>}
+                  <RecurrenceBadge type={task.recurrence_type}/>
+                </div>
+              </div>
+              <TypeDot type={task.type} done={task.done}/>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AppStyles(){return(<style>{`
+  @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}body{background:#F7F5F2;}
+  .m-np{cursor:pointer;border:none;font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;border-radius:99px;transition:all .2s;}
+  .m-at{cursor:pointer;border:none;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 12px;border-radius:99px;transition:all .2s;white-space:nowrap;}
+  .m-ib{background:none;border:1px solid #E5E1DB;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11px;color:#B0AA9F;padding:5px 10px;white-space:nowrap;}
+  .m-newp{display:flex;align-items:center;gap:8px;background:none;border:1px dashed #D5CFC8;border-radius:10px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;color:#C8C3BB;padding:12px 20px;margin:12px 20px;width:calc(100% - 40px);}
+  .sheet-overlay{position:fixed;inset:0;background:rgba(44,40,37,.45);z-index:100;animation:fadeIn .2s;}
+  .sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#F7F5F2;border-radius:20px 20px 0 0;padding:20px 20px 44px;z-index:101;animation:slideUp .28s cubic-bezier(.4,0,.2,1);max-height:92vh;overflow-y:auto;}
+  .d-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;background:#F7F5F2;border-radius:16px;padding:28px;z-index:101;animation:fadeIn .2s;box-shadow:0 20px 60px rgba(0,0,0,.15);max-height:90vh;overflow-y:auto;}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .si{width:100%;background:white;border:1px solid #E5E1DB;border-radius:10px;padding:10px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#3A3530;}.si:focus{border-color:#B5A99A;}
+  .sl{font-family:'DM Sans';font-size:10px;color:#B0AA9F;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:block;}
+  .sv{width:100%;background:#6B6258;color:white;border:none;border-radius:12px;padding:13px;font-size:15px;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;margin-top:16px;}
+  .hd{width:36px;height:4px;background:#D5CFC8;border-radius:99px;margin:0 auto 20px;}
+  .dc{cursor:pointer;border:1px solid #E5E1DB;border-radius:99px;padding:4px 11px;font-size:11px;font-family:'DM Sans';color:#8C877F;background:white;transition:all .2s;white-space:nowrap;}.dc.on{background:#6B6258;border-color:#6B6258;color:white;}
+  .impb{cursor:pointer;border-radius:8px;padding:8px 12px;font-family:'DM Sans';font-size:13px;border:1px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;}
+  .typb{cursor:pointer;border-radius:10px;padding:10px 14px;font-family:'DM Sans';font-size:13px;border:1.5px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
+
+
+  @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}body{background:#F5F2EE;overflow:auto;}
+  @keyframes fadeSlideUp{from{opacity:0;transform:translateX(-50%) translateY(16px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+  @keyframes particle{0%{transform:translate(0,0) scale(1);opacity:1;}100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0;}}
+  @keyframes flyUp{0%{transform:translateY(0) scale(1);opacity:1;}100%{transform:translateY(-110px) scale(.94);opacity:0;}}
+  @keyframes slideInCard{0%{transform:translateY(28px);opacity:0;}100%{transform:translateY(0);opacity:1;}}
+  .clarity-particle{position:fixed;border-radius:50%;pointer-events:none;z-index:99999;animation:particle .55s cubic-bezier(.25,.46,.45,.94) forwards;}
+  .d-nav{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 10px;border-radius:8px;text-align:left;transition:all .15s;}
+  .d-nav:hover{background:#E8E3DC;color:#3A3530!important;}
+  .d-proj{display:flex;align-items:center;justify-content:space-between;width:100%;border:none;background:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;border-radius:6px;transition:all .15s;gap:6px;}
+  .d-proj:hover{background:#E8E3DC;}
+  .d-apill{cursor:pointer;border-radius:99px;padding:6px 14px;font-size:12px;font-family:'DM Sans',sans-serif;transition:all .2s;white-space:nowrap;}
+  .d-tr{transition:background .12s;cursor:grab;}.d-tr:hover{background:#F5F2EE!important;}
+  .d-ci{width:22px;height:22px;border-radius:50%;border:1.5px solid #C8C3BB;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+  .d-ci:hover{border-color:#9B8878;}.d-ci.done{background:#B5A99A;border-color:#B5A99A;}
+  .d-ib{background:none;border:1px solid #E5E1DB;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:11px;color:#B0AA9F;padding:4px 9px;transition:all .15s;white-space:nowrap;}
+  .d-ib:hover{border-color:#B5A99A;color:#6B6258;}
+  .d-newp{display:flex;align-items:center;gap:8px;background:none;border:1px dashed #D5CFC8;border-radius:10px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;color:#C8C3BB;padding:12px 18px;margin-top:8px;transition:all .2s;width:100%;}
+  .d-newp:hover{border-color:#B5A99A;color:#9B8878;}
+  .sheet-overlay{position:fixed;inset:0;background:rgba(44,40,37,.45);z-index:100;animation:fadeIn .2s;}
+  .sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:#F7F5F2;border-radius:20px 20px 0 0;padding:20px 20px 44px;z-index:101;animation:slideUp .28s cubic-bezier(.4,0,.2,1);max-height:92vh;overflow-y:auto;}
+  .d-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;background:#F7F5F2;border-radius:16px;padding:28px;z-index:101;animation:fadeIn .2s;box-shadow:0 20px 60px rgba(0,0,0,.15);max-height:90vh;overflow-y:auto;}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
+  .si{width:100%;background:white;border:1px solid #E5E1DB;border-radius:10px;padding:10px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;color:#3A3530;}.si:focus{border-color:#B5A99A;}
+  .sl{font-family:'DM Sans';font-size:10px;color:#B0AA9F;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;display:block;}
+  .sv{width:100%;background:#6B6258;color:white;border:none;border-radius:12px;padding:13px;font-size:15px;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;margin-top:16px;transition:background .15s;}.sv:hover{background:#4A433C;}
+  .hd{width:36px;height:4px;background:#D5CFC8;border-radius:99px;margin:0 auto 20px;}
+  .dc{cursor:pointer;border:1px solid #E5E1DB;border-radius:99px;padding:4px 11px;font-size:11px;font-family:'DM Sans';color:#8C877F;background:white;transition:all .2s;white-space:nowrap;}.dc.on{background:#6B6258;border-color:#6B6258;color:white;}
+  .impb{cursor:pointer;border-radius:8px;padding:8px 12px;font-family:'DM Sans';font-size:13px;border:1px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;}
+  .typb{cursor:pointer;border-radius:10px;padding:10px 14px;font-family:'DM Sans';font-size:13px;border:1.5px solid #E5E1DB;background:white;transition:all .2s;flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:rgba(245,242,238,.97);backdrop-filter:blur(10px);border-top:1px solid #EAE6E0;display:flex;align-items:center;justify-content:space-around;z-index:50;padding:12px 0 calc(env(safe-area-inset-bottom,0px) + 16px);}
+  .bottom-nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex:1;padding:8px 0;}
+  .bottom-nav-icon{font-size:22px;color:#B0AA9F;line-height:1;}
+  .bottom-nav-icon.active{color:#2C2825;}
+  .bottom-nav-label{font-family:'DM Sans',sans-serif;font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#B0AA9F;}
+  .bottom-nav-label.active{color:#2C2825;}
+  .d-sidebar{background:#EDEAE4;border-right:1px solid rgba(0,0,0,.05);display:flex;flex-direction:column;padding:24px 10px;flex-shrink:0;transition:width .25s cubic-bezier(.4,0,.2,1);overflow:hidden;}
+  .d-sidebar.open{width:200px;}
+  .d-sidebar.collapsed{width:52px;}
+  .d-sidebar-logo{font-family:'DM Sans',sans-serif;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#C8C3BB;white-space:nowrap;overflow:hidden;transition:opacity .15s;}
+  .d-sidebar.collapsed .d-sidebar-logo{opacity:0;pointer-events:none;}
+  .d-sidebar-item{display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:10px;cursor:pointer;margin-bottom:4px;transition:all .15s;white-space:nowrap;}
+  .d-sidebar.collapsed .d-sidebar-item{justify-content:center;padding:10px 0;}
+  .d-sidebar-item.active{background:white;box-shadow:0 2px 8px rgba(0,0,0,.04);}
+  .d-sidebar-item:hover:not(.active){background:rgba(0,0,0,.04);}
+  .d-sidebar-icon{font-size:18px;color:#B0AA9F;flex-shrink:0;width:20px;text-align:center;}
+  .d-sidebar-icon.active{color:#2C2825;}
+  .d-sidebar-text{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:#B0AA9F;transition:opacity .1s;white-space:nowrap;}
+  .d-sidebar.collapsed .d-sidebar-text{opacity:0;width:0;overflow:hidden;}
+  .d-sidebar-text.active{color:#2C2825;}
+  .d-sidebar-toggle{width:28px;height:28px;border-radius:8px;border:none;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#B0AA9F;transition:background .15s;flex-shrink:0;}
+  .d-sidebar-toggle:hover{background:rgba(0,0,0,.06);}
+`}</style>);}
+
+function TypeSelector({value,onChange}){
+  return(<div style={{marginBottom:14}}>
+    <span className="sl">Tipo de tarea</span>
+    <div style={{display:"flex",gap:8}}>
+      {Object.entries(TASK_TYPE).map(([k,v])=>(
+        <button key={k} className="typb" onClick={()=>onChange(k)}
+          style={{borderColor:value===k?(v.color||"#6B6258"):"#E5E1DB",background:value===k?(k==="estrategica"?"#F0F1F8":k==="urgente"?"#FBF3EE":"#F5F3F1"):"white",color:value===k?(v.color||"#6B6258"):"#B0AA9F",fontWeight:value===k?500:400}}>
+          {v.color&&<div style={{width:v.size,height:v.size,borderRadius:"50%",background:v.color,flexShrink:0,boxShadow:v.ring?`0 0 0 2px white, 0 0 0 3px ${v.color}`:"none"}}/>}
+          {v.label}
+        </button>
+      ))}
+    </div>
+  </div>);
+}
+
+function EditSheet({task,projects,onSave,onDelete,isDesktop,onCreateCalEvent=null}){
+  const [form,setForm]=useState({...task,type:task.type||"normal"});
+  const [projOpen,setProjOpen]=useState(false);
+  const [agendarCal,setAgendarCal]=useState(false);
+  const [calHora,setCalHora]=useState('09:00');
+  const [calDuracion,setCalDuracion]=useState(30);
+  const selProj=projects.find(p=>p.id===form.projectId);
+  const cls=isDesktop?"d-modal":"sheet";
+  return(<div className={cls}>
+    {!isDesktop&&<div className="hd"/>}
+    {isDesktop&&<span className="sl">Editar tarea</span>}
+    <input className="si" value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} autoFocus
+      style={{fontSize:16,fontWeight:500,marginBottom:16,border:"none",background:"transparent",padding:"4px 0",borderBottom:"1px solid #E5E1DB",borderRadius:0}}/>
+    <TypeSelector value={form.type} onChange={v=>setForm(f=>({...f,type:v}))}/>
+    {/* Selector de proyecto */}
+    <div style={{marginBottom:14}}>
+      <span className="sl">Proyecto</span>
+      <div style={{position:"relative"}}>
+        <div onClick={()=>setProjOpen(o=>!o)}
+          style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"white",borderRadius:projOpen?"10px 10px 0 0":"10px",border:"1px solid #E5E1DB",cursor:"pointer"}}>
+          <span style={{fontFamily:"'DM Sans'",fontSize:13,color:selProj?"#2C2825":"#B0AA9F",fontStyle:selProj?"normal":"italic"}}>{selProj?.name||"Sin proyecto"}</span>
+          <span style={{fontSize:10,color:"#C8C3BB"}}>{projOpen?"▴":"▾"}</span>
+        </div>
+        {projOpen&&<div style={{background:"white",borderRadius:"0 0 10px 10px",border:"1px solid #E5E1DB",borderTop:"none",overflow:"hidden",maxHeight:180,overflowY:"auto"}}>
+          <div onClick={()=>{setForm(f=>({...f,projectId:null}));setProjOpen(false);}}
+            style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",cursor:"pointer",borderTop:"1px solid #F5F2EE",background:!form.projectId?"#F5F1ED":"white"}}>
+            <span style={{fontFamily:"'DM Sans'",fontSize:13,color:!form.projectId?"#9B8878":"#B0AA9F",fontStyle:!form.projectId?"normal":"italic"}}>Sin proyecto</span>
+            {!form.projectId&&<span style={{fontSize:12,color:"#9B8878"}}>✓</span>}
+          </div>
+          {projects.map((p,i)=>(
+            <div key={p.id} onClick={()=>{setForm(f=>({...f,projectId:p.id}));setProjOpen(false);}}
+              style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",cursor:"pointer",borderTop:"1px solid #F5F2EE",background:form.projectId===p.id?"#F5F1ED":"white"}}>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,color:form.projectId===p.id?"#9B8878":"#2C2825"}}>{p.name}</span>
+              {form.projectId===p.id&&<span style={{fontSize:12,color:"#9B8878"}}>✓</span>}
+            </div>
+          ))}
+        </div>}
+      </div>
+    </div>
+    <div style={{marginBottom:14}}>
+      <span className="sl">Responsable (opcional)</span>
+      <input className="si" value={form.responsable||""} onChange={e=>setForm(f=>({...f,responsable:e.target.value}))} placeholder="Nombre de quien lo ejecuta..."/>
+    </div>
+    <div style={{marginBottom:12}}>
+      <span className="sl">Fecha (opcional)</span>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[{l:"Hoy",v:todayStr()},{l:"Mañana",v:tomorrow()}].map(q=>(
+          <button key={q.l} className={`dc${form.date===q.v?" on":""}`} onClick={()=>setForm(f=>({...f,date:q.v}))}>{q.l}</button>
+        ))}
+        <button className={`dc${form.date===""?" on":""}`} onClick={()=>setForm(f=>({...f,date:""}))}>Lo antes posible</button>
+        <input type="date" value={form.date||""} onChange={e=>setForm(f=>({...f,date:e.target.value}))}
+          style={{border:"1px solid #E5E1DB",borderRadius:99,padding:"4px 11px",fontSize:11,fontFamily:"'DM Sans'",outline:"none",color:"#8C877F",background:"white"}}/>
+      </div>
+    </div>
+    <textarea className="si" rows={3} placeholder="Notas..." value={form.notes||""} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{resize:"none",fontFamily:"'DM Sans'",fontSize:14}}/>
+    {/* Toggle repetición en edición */}
+    <div style={{marginBottom:14}}>
+      <span className="sl">Repetir</span>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[{l:"No",v:null},{l:"Cada día",v:"daily"},{l:"Cada semana",v:"weekly"},{l:"Cada mes",v:"monthly"}].map(op=>(
+          <button key={String(op.v)} onClick={()=>setForm(f=>({...f,recurrence_type:op.v||null}))}
+            className={`dc${(form.recurrence_type||null)===op.v?" on":""}`}>{op.l}</button>
+        ))}
+      </div>
+      {form.recurrence_type&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",marginTop:6}}>Al completar, la siguiente aparecerá automáticamente.</div>}
+    </div>
+    {/* Agendar en Google Calendar */}
+    {onCreateCalEvent&&(
+      <div style={{marginBottom:14}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:agendarCal?10:0}}>
+          <span className="sl" style={{marginBottom:0}}>Agendar en Google Calendar</span>
+          <button onClick={()=>setAgendarCal(v=>!v)} style={{
+            width:36,height:20,borderRadius:99,border:'none',cursor:'pointer',
+            background:agendarCal?'#2C2825':'#D5CFC8',
+            position:'relative',transition:'background .2s',flexShrink:0,
+          }}>
+            <div style={{
+              width:16,height:16,borderRadius:'50%',background:'white',
+              position:'absolute',top:2,left:agendarCal?18:2,transition:'left .2s',
+            }}/>
+          </button>
+        </div>
+        {agendarCal&&(
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
+            <input type="time" value={calHora} onChange={e=>setCalHora(e.target.value)}
+              style={{border:'1px solid #E5E1DB',borderRadius:8,padding:'6px 10px',fontSize:13,fontFamily:"'DM Sans'",outline:'none',color:'#2C2825',background:'white'}}/>
+            {[15,30,60].map(d=>(
+              <button key={d} onClick={()=>setCalDuracion(d)}
+                className={`dc${calDuracion===d?' on':''}`}>{d} min</button>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+    <button className="sv" onClick={()=>{
+      onSave(form);
+      if(agendarCal && onCreateCalEvent && form.date){
+        const proj = projects.find(p=>p.id===form.projectId);
+        onCreateCalEvent(form, proj?.name||'', calHora, calDuracion);
+      }
+    }}>Guardar</button>
+    <button onClick={onDelete} style={{width:"100%",background:"none",border:"none",color:"#C4A89A",fontFamily:"'DM Sans'",fontSize:14,padding:"14px 0 0",cursor:"pointer"}}>Eliminar tarea</button>
+  </div>);
+}
+
+function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[],showProjectSelector=false,date:initialDate="",onCreateCalEvent=null}){
+  const [title,setTitle]=useState("");
+  const [type,setType]=useState("normal");
+  const [date,setDate]=useState(initialDate||"");
+  const [responsable,setResponsable]=useState("");
+  const [recurrence,setRecurrence]=useState(null); // null | 'daily' | 'weekly' | 'monthly'
+  const [agendarCal,setAgendarCal]=useState(false);
+  const [calHora,setCalHora]=useState('09:00');
+  const [calDuracion,setCalDuracion]=useState(30);
+  const [selProjId,setSelProjId]=useState(projectId||null);
+  const [projOpen,setProjOpen]=useState(false);
+  const cls=isDesktop?"d-modal":"sheet";
+  const areaProjects = projects.filter(p=>p.area===area);
+  const selProj = areaProjects.find(p=>p.id===selProjId);
+  function go(){
+    if(!title.trim())return;
+    const task={projectId:selProjId,title:title.trim(),type,date,responsable,recurrence_type:recurrence};
+    onAdd(task);
+    if(agendarCal && onCreateCalEvent && date){
+      const proj = projects.find(p=>p.id===selProjId);
+      onCreateCalEvent(task, proj?.name||'', calHora, calDuracion);
+    }
+  }
+  return(<div className={cls}>
+    {!isDesktop&&<div className="hd"/>}
+    <span className="sl">{selProj?selProj.name:projectName||"Nueva tarea"}</span>
+    <input className="si" value={title} onChange={e=>setTitle(e.target.value)} autoFocus
+      placeholder="¿Qué hay que hacer?" onKeyDown={e=>e.key==="Enter"&&go()} style={{marginBottom:16}}/>
+    <TypeSelector value={type} onChange={setType}/>
+    <div style={{marginBottom:14}}>
+      <span className="sl">Proyecto</span>
+      <div onClick={()=>setProjOpen(o=>!o)}
+        style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"white",borderRadius:projOpen?"10px 10px 0 0":"10px",border:"1px solid #E5E1DB",borderBottom:projOpen?"1px solid #F5F2EE":"1px solid #E5E1DB",cursor:"pointer"}}>
+        <span style={{fontFamily:"'DM Sans'",fontSize:13,color:selProj?"#2C2825":"#B0AA9F",fontStyle:selProj?"normal":"italic"}}>{selProj?.name||"Sin proyecto"}</span>
+        <span style={{fontSize:10,color:"#C8C3BB"}}>{projOpen?"▴":"▾"}</span>
+      </div>
+      {projOpen&&<div style={{background:"white",borderRadius:"0 0 10px 10px",border:"1px solid #E5E1DB",borderTop:"none",overflow:"hidden",maxHeight:150,overflowY:"auto"}}>
+        <div onClick={()=>{setSelProjId(null);setProjOpen(false);}}
+          style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",cursor:"pointer",borderTop:"1px solid #F5F2EE",background:!selProjId?"#F5F1ED":"white"}}>
+          <span style={{fontFamily:"'DM Sans'",fontSize:13,color:!selProjId?"#9B8878":"#B0AA9F",fontStyle:"italic"}}>Sin proyecto</span>
+          {!selProjId&&<span style={{fontSize:12,color:"#9B8878"}}>✓</span>}
+        </div>
+        {areaProjects.map((p)=>(
+          <div key={p.id} onClick={()=>{setSelProjId(p.id);setProjOpen(false);}}
+            style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",cursor:"pointer",borderTop:"1px solid #F5F2EE",background:selProjId===p.id?"#F5F1ED":"white",transition:"background .15s"}}>
+            <span style={{fontFamily:"'DM Sans'",fontSize:13,color:selProjId===p.id?"#9B8878":"#2C2825"}}>{p.name}</span>
+            {selProjId===p.id&&<span style={{fontSize:12,color:"#9B8878"}}>✓</span>}
+          </div>
+        ))}
+      </div>}
+    </div>
+    <div style={{marginBottom:14}}>
+      <span className="sl">Responsable (opcional)</span>
+      <input className="si" value={responsable} onChange={e=>setResponsable(e.target.value)} placeholder="Nombre de quien lo ejecuta..."/>
+    </div>
+    <div style={{marginBottom:14}}>
+      <span className="sl">Fecha (opcional)</span>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[{l:"Hoy",v:todayStr()},{l:"Mañana",v:tomorrow()}].map(q=>(
+          <button key={q.l} className={`dc${date===q.v?" on":""}`} onClick={()=>setDate(p=>p===q.v?"":q.v)}>{q.l}</button>
+        ))}
+        <button className={`dc${date===""?" on":""}`} onClick={()=>setDate("")}>Lo antes posible</button>
+        <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+          style={{border:"1px solid #E5E1DB",borderRadius:99,padding:"4px 11px",fontSize:11,fontFamily:"'DM Sans'",outline:"none",color:"#8C877F",background:"white"}}/>
+      </div>
+    </div>
+    {/* Toggle repetición */}
+    <div style={{marginBottom:14}}>
+      <span className="sl">Repetir</span>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[{l:"No",v:null},{l:"Cada día",v:"daily"},{l:"Cada semana",v:"weekly"},{l:"Cada mes",v:"monthly"}].map(op=>(
+          <button key={String(op.v)} onClick={()=>setRecurrence(op.v)}
+            className={`dc${recurrence===op.v?" on":""}`}>{op.l}</button>
+        ))}
+      </div>
+      {recurrence&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",marginTop:6}}>Al completar, la siguiente aparecerá automáticamente.</div>}
+    </div>
+    {/* Agendar en Google Calendar */}
+    {onCreateCalEvent&&(
+      <div style={{marginBottom:14}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:agendarCal?10:0}}>
+          <span className="sl" style={{marginBottom:0}}>Agendar en Google Calendar</span>
+          <button onClick={()=>setAgendarCal(v=>!v)} style={{
+            width:36,height:20,borderRadius:99,border:'none',cursor:'pointer',
+            background:agendarCal?'#2C2825':'#D5CFC8',
+            position:'relative',transition:'background .2s',flexShrink:0,
+          }}>
+            <div style={{
+              width:16,height:16,borderRadius:'50%',background:'white',
+              position:'absolute',top:2,left:agendarCal?18:2,transition:'left .2s',
+            }}/>
+          </button>
+        </div>
+        {agendarCal&&(
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
+            <input type="time" value={calHora} onChange={e=>setCalHora(e.target.value)}
+              style={{border:'1px solid #E5E1DB',borderRadius:8,padding:'6px 10px',fontSize:13,fontFamily:"'DM Sans'",outline:'none',color:'#2C2825',background:'white'}}/>
+            {[15,30,60].map(d=>(
+              <button key={d} onClick={()=>setCalDuracion(d)}
+                className={`dc${calDuracion===d?' on':''}`}>{d} min</button>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+    <button className="sv" onClick={go}>Agregar tarea</button>
+  </div>);
+}
+
+function NewProjectSheet({area,onAdd,isDesktop}){
+  const [name,setName]=useState("");
+  const cls=isDesktop?"d-modal":"sheet";
+  return(<div className={cls}>
+    {!isDesktop&&<div className="hd"/>}
+    <span className="sl" style={{color:AREAS[area].color}}>{AREAS[area].label}</span>
+    <input className="si" value={name} onChange={e=>setName(e.target.value)} autoFocus
+      placeholder="Nombre del proyecto..." onKeyDown={e=>e.key==="Enter"&&onAdd(area,name)} style={{marginBottom:0}}/>
+    <button className="sv" onClick={()=>onAdd(area,name)}>Crear proyecto</button>
+  </div>);
+}
+
+
+// ─── Metas View ───────────────────────────────────────────────────────────────
+
+function MetasView({goals,projects,onNew,onEdit,onReorder,completeGoal,isDesktop,onOpenAsistente}){
+  const horizons = [
+    {key:"anio",  label:"Este año",  sub:"2025",   color:"#9B8878", bg:"#F5F1ED", border:"#C4A882"},
+    {key:"medio", label:"2–5 años",  sub:"2026–30", color:"#8A8EA8", bg:"#F1F2F5", border:"#8A8EA8"},
+    {key:"largo", label:"5+ años",   sub:"2031+",   color:"#5B6BAF", bg:"#F0F1F8", border:"#5B6BAF"},
+  ];
+
+  // Build connections: for each goal, find children (goals that have this as parent)
+  const getChildren = (id) => goals.filter(g=>g.parentId===id);
+  const getProjects = (goalId) => projects.filter(p=>(p.goal_ids&&p.goal_ids.includes(goalId))||p.goal_id===goalId);
+
+  const p = isDesktop ? "28px 0 40px" : "16px 0 40px";
+
+  return(
+    <div style={{padding:p}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",padding:isDesktop?"0":"0 20px 16px",marginBottom:isDesktop?24:0}}>
+        <div>
+          {!isDesktop&&<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6,maxWidth:220}}>
+            Tu camino. Lo que hacés hoy te acerca a donde querés llegar.
+          </div>}
+          {isDesktop&&<p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",margin:0,lineHeight:1.6,maxWidth:680}}>
+            Tu camino de vida. Cada nivel alimenta al siguiente — lo que hacés hoy construye el largo plazo.
+          </p>}
+        </div>
+        <button onClick={onOpenAsistente}
+          style={{background:"none",border:"1px solid #E5E1DB",borderRadius:10,padding:"6px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",flexShrink:0,transition:"all .2s"}}>
+          <span style={{fontSize:14}}>✦</span> Asistente de metas
+        </button>
+      </div>
+
+      {/* Camino horizontal — desktop */}
+      {isDesktop&&(
+        <div style={{width:"100%"}}>
+          <DesktopMetasCanvas goals={goals} horizons={horizons} getChildren={getChildren} getProjects={getProjects} onEdit={onEdit} onNew={onNew} onReorder={onReorder}/>
+
+          {/* Unlinked projects warning */}
+          {(() => {
+            const unlinked = projects.filter(p=>p.area==="trabajo"&&(!p.goal_ids||p.goal_ids.length===0)&&!p.goal_id);
+            if(unlinked.length===0) return null;
+            return(
+              <div style={{padding:"12px 16px",background:"#FBF8F2",borderRadius:10,border:"1px solid #F0DFA0",display:"flex",alignItems:"center",gap:10,maxWidth:680}}>
+                <div style={{width:6,height:6,borderRadius:"50%",background:"#C4A882",flexShrink:0}}/>
+                <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#7A6A3A"}}>
+                  {unlinked.length===1?`El proyecto "${unlinked[0].name}" no está`:`${unlinked.length} proyectos no están`} vinculado{unlinked.length>1?"s":""} a ninguna meta. ¿Lo asignás desde Proyectos → Editar?
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Camino vertical — mobile */}
+      {!isDesktop&&(
+        <div style={{padding:"0 20px"}}>
+          {horizons.map((h,hi)=>(
+            <div key={h.key} style={{marginBottom:24}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:h.color}}/>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,color:h.color,letterSpacing:".06em",textTransform:"uppercase"}}>{h.label}</span>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB"}}>{h.sub}</span>
+                </div>
+                <button className="m-ib" onClick={()=>onNew(h.key)}>+ meta</button>
+              </div>
+              {goals.filter(g=>g.horizon===h.key).map(goal=>(
+                <GoalCard key={goal.id} goal={goal} horizon={h} children={getChildren(goal.id)} linkedProjects={getProjects(goal.id)} onEdit={()=>onEdit(goal)} allGoals={goals} mobile/>
+              ))}
+              {goals.filter(g=>g.horizon===h.key).length===0&&(
+                <div style={{background:"white",borderRadius:10,border:"1px dashed #E5E1DB",padding:"16px",textAlign:"center",fontFamily:"'DM Sans'",fontSize:12,color:"#D5CFC8",fontStyle:"italic"}}>
+                  Sin metas aún
+                </div>
+              )}
+              {hi<horizons.length-1&&(
+                <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 0",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:11}}>
+                  <div style={{flex:1,height:1,background:"linear-gradient(to right,"+h.color+"44,"+horizons[hi+1].color+"44)"}}/>
+                  <span>lleva a</span>
+                  <div style={{flex:1,height:1,background:"linear-gradient(to right,"+horizons[hi+1].color+"44,transparent)"}}/>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Unlinked warning mobile */}
+          {(() => {
+            const unlinked = projects.filter(p=>p.area==="trabajo"&&(!p.goal_ids||p.goal_ids.length===0)&&!p.goal_id);
+            if(unlinked.length===0) return null;
+            return(
+              <div style={{padding:"10px 14px",background:"#FBF8F2",borderRadius:10,border:"1px solid #F0DFA0",display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:5,height:5,borderRadius:"50%",background:"#C4A882",flexShrink:0}}/>
+                <div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#7A6A3A"}}>
+                  {unlinked.length} proyecto{unlinked.length>1?"s":""} sin meta vinculada
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+function DraggableGoalColumn({goals,horizon,getChildren,getProjects,onEdit,onComplete,onReorder,cardRefs}){
+  const [order,setOrder]=useState(null);
+  const dragItem=useRef(null),dragOver=useRef(null);
+  const sorted=order?order.map(id=>goals.find(g=>g.id===id)).filter(Boolean):[...goals].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+
+  function handleDragEnd(){
+    if(dragItem.current===null||dragOver.current===null||dragItem.current===dragOver.current){dragItem.current=null;dragOver.current=null;return;}
+    const r=[...sorted];const[m]=r.splice(dragItem.current,1);r.splice(dragOver.current,0,m);
+    const ids=r.map(g=>g.id);setOrder(ids);onReorder&&onReorder(ids);
+    dragItem.current=null;dragOver.current=null;
+  }
+
+  return(<>
+    {sorted.map((goal,i)=>(
+      <div key={goal.id} ref={el=>{if(cardRefs)cardRefs.current[goal.id]=el;}}
+        draggable
+        onDragStart={()=>dragItem.current=i}
+        onDragEnter={()=>dragOver.current=i}
+        onDragOver={e=>e.preventDefault()}
+        onDragEnd={handleDragEnd}
+        style={{cursor:"grab"}}>
+        <GoalCard goal={goal} horizon={horizon} children={getChildren(goal.id)} linkedProjects={getProjects(goal.id)} onEdit={()=>onEdit(goal)} onComplete={onComplete} allGoals={goals}/>
+      </div>
+    ))}
+  </>);
+}
+
+function DesktopMetasCanvas({goals,horizons,getChildren,getProjects,onEdit,onNew,onComplete,onReorder}){
+  const cardRefs = useRef({});
+  const [lines, setLines] = useState([]);
+  const containerRef = useRef(null);
+
+  useEffect(()=>{
+    // Calculate lines after render
+    const timer = setTimeout(()=>{
+      if(!containerRef.current) return;
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newLines = [];
+      goals.forEach(goal=>{
+        if(!goal.parentId) return;
+        const fromEl = cardRefs.current[goal.id];
+        const toEl   = cardRefs.current[goal.parentId];
+        if(!fromEl||!toEl) return;
+        const fromRect = fromEl.getBoundingClientRect();
+        const toRect   = toEl.getBoundingClientRect();
+        newLines.push({
+          x1: fromRect.right - containerRect.left,
+          y1: fromRect.top + fromRect.height/2 - containerRect.top,
+          x2: toRect.left  - containerRect.left,
+          y2: toRect.top  + toRect.height/2  - containerRect.top,
+          color: "#C0BAB2",
+        });
+      });
+      setLines(newLines);
+    }, 100);
+    return ()=>clearTimeout(timer);
+  },[goals]);
+
+  return(
+    <div ref={containerRef} style={{position:"relative"}}>
+      {/* SVG overlay for lines */}
+      {lines.length>0&&(
+        <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none",zIndex:0}} overflow="visible">
+          {lines.map((l,i)=>(
+            <path key={i}
+              d={`M ${l.x1} ${l.y1} C ${l.x1+40} ${l.y1}, ${l.x2-40} ${l.y2}, ${l.x2} ${l.y2}`}
+              fill="none" stroke={l.color} strokeWidth="1.5" opacity="0.85"/>
+          ))}
+        </svg>
+      )}
+      {/* Columns */}
+      <div style={{display:"flex",alignItems:"flex-start",gap:0,position:"relative",zIndex:1,width:"100%"}}>
+        {horizons.map((h,hi)=>(
+          <div key={h.key} style={{display:"flex",alignItems:"flex-start",flex:1}}>
+            <div style={{flex:1}}>
+              <div style={{marginBottom:12}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:h.color}}/>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,color:h.color,letterSpacing:".06em",textTransform:"uppercase"}}>{h.label}</span>
+                </div>
+                <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",paddingLeft:16}}>{h.sub}</div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:8,paddingRight:16}}>
+                <DraggableGoalColumn goals={goals.filter(g=>g.horizon===h.key)} horizon={h} getChildren={getChildren} getProjects={getProjects} onEdit={onEdit} onReorder={onReorder} cardRefs={cardRefs}/>
+                <button onClick={()=>onNew(h.key)}
+                  style={{background:"none",border:"1px dashed #D5CFC8",borderRadius:10,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:"10px",textAlign:"center",transition:"all .2s"}}
+                  onMouseOver={e=>e.currentTarget.style.borderColor="#B5A99A"}
+                  onMouseOut={e=>e.currentTarget.style.borderColor="#D5CFC8"}>
+                  + meta
+                </button>
+              </div>
+            </div>
+            {hi < horizons.length-1 && (
+              <div style={{display:"flex",alignItems:"center",paddingTop:28,flexShrink:0}}>
+                <div style={{width:24,height:1.5,background:`linear-gradient(to right, ${h.color}, ${horizons[hi+1].color})`}}/>
+                <div style={{fontSize:14,color:"#C8C3BB",marginLeft:2}}>›</div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Draggable Project Grid (desktop) ────────────────────────────────────────
+function DProjBlock({project,area,tasks,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks,sw,onEdit,onDeleteProject}){
+  const [open,setOpen]=useState(false);
+  const [conf,setConf]=useState(false);
+  const imp=IMPORTANCE[project.importance||"normal"];
+  const pending=tasks.filter(t=>!t.done).length;
+  const sorted=[...tasks].sort(taskSort);
+  return(
+    <div style={{marginBottom:10,border:"1px solid #EAE6E0",borderRadius:12,overflow:"hidden",background:"#FDFCFA"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
+          <div style={{width:5,height:5,borderRadius:"50%",background:AREAS[area]?.color||"#9B8878",opacity:.7,flexShrink:0}}/>
+          <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#2C2825",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{project.name}</span>
+          {(project.importance||"normal")!=="normal"&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:imp.color,background:imp.bg,padding:"1px 6px",borderRadius:99,flexShrink:0}}>{imp.label}</span>}
+          {pending>0&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",flexShrink:0}}>{pending}</span>}
+        </div>
+        <div style={{display:"flex",gap:5,alignItems:"center",flexShrink:0}} onClick={e=>e.stopPropagation()}>
+          <button className="d-ib" onClick={onAddTask}>+ tarea</button>
+          {onEdit&&<button className="d-ib" onClick={()=>onEdit(project)}>✎</button>}
+          {onDeleteProject&&!conf&&<button className="d-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>✕</button>}
+          {conf&&<><button className="d-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={()=>onDeleteProject(project.id)}>Eliminar</button><button className="d-ib" onClick={()=>setConf(false)}>✕</button></>}
+          <span style={{fontSize:11,color:"#C8C3BB",transform:open?"rotate(0)":"rotate(-90deg)",display:"inline-block",transition:"transform .2s",marginLeft:2}} onClick={()=>setOpen(o=>!o)}>▾</span>
+        </div>
+      </div>
+      {open&&(sorted.length>0?<DTaskList tasks={sorted} projects={[]} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} area={area} reorderTasks={reorderTasks}/>:<div style={{padding:"6px 18px 14px",fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic"}}>Sin tareas · hacé click en + tarea para agregar</div>)}
+    </div>
+  );
+}
+
+
+function DPlanBlock({project,onEdit,onDelete,onComplete}){
+  const [conf,setConf]=useState(false);
+  const [exp,setExp]=useState(false);
+  const imp=IMPORTANCE[project.importance||"normal"];
+  const has=project.description||project.mainGoal||(project.secondaryGoals?.length>0);
+  return(
+    <div style={{border:"1px solid #EAE6E0",borderRadius:12,background:"#FDFCFA",display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"14px 16px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1,minWidth:0}}>
+          <div onClick={()=>{if(window.confirm("¿Completar proyecto?"))onComplete&&onComplete(project.id);}} style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid #C8C3BB",flexShrink:0,marginTop:2,cursor:"pointer",transition:"all .2s"}} />
+          <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
+            <span style={{fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,color:"#2C2825"}}>{project.name}</span>
+            {project.monto&&<span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B8878",fontWeight:500}}>{project.monto}</span>}
+            <span style={{fontFamily:"'DM Sans'",fontSize:11,color:imp.color,background:imp.bg,padding:"2px 7px",borderRadius:99}}>{imp.label}</span>
+          </div>
+          {project.mainGoal&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#9B948C",lineHeight:1.4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{project.mainGoal}</div>}
+          {!has&&<div style={{fontFamily:"'DM Sans'",fontSize:12,color:"#D5CFC8",fontStyle:"italic"}}>Sin objetivos definidos</div>}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:5,flexShrink:0}}>
+          <button className="d-ib" onClick={onEdit}>Editar</button>
+          {conf?<><button className="d-ib" style={{color:"#C4896A",borderColor:"#C4896A"}} onClick={onDelete}>Confirmar</button><button className="d-ib" onClick={()=>setConf(false)}>✕</button></>:<button className="d-ib" style={{color:"#D5CFC8"}} onClick={()=>setConf(true)}>Eliminar</button>}
+        </div>
+      </div>
+      {exp&&has&&<div style={{padding:"0 16px 14px",borderTop:"1px solid #F5F2EE"}}>
+        {project.description&&<p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#6B6258",margin:"10px 0 8px",lineHeight:1.6}}>{project.description}</p>}
+        {project.mainGoal&&<div style={{marginBottom:8}}><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:3}}>Objetivo principal</div><div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#3A3530",fontWeight:500}}>{project.mainGoal}</div></div>}
+        {project.secondaryGoals?.length>0&&<div><div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase",marginBottom:5}}>Secundarios</div>{project.secondaryGoals.map((g,i)=><div key={i} style={{display:"flex",alignItems:"flex-start",gap:6,marginBottom:3}}><div style={{width:3,height:3,borderRadius:"50%",background:"#C8C3BB",flexShrink:0,marginTop:6}}/><span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#6B6258"}}>{g}</span></div>)}</div>}
+      </div>}
+    </div>
+  );
+}
+
+
+function DraggableProjectGrid({projects,onEdit,onDelete,onComplete,onReorder}){
+  const [order,setOrder]=useState(null);
+  const dragItem=useRef(null),dragOver=useRef(null);
+  const sorted=order?order.map(id=>projects.find(p=>p.id===id)).filter(Boolean):[...projects].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+
+  function handleDragEnd(){
+    if(dragItem.current===null||dragOver.current===null||dragItem.current===dragOver.current){dragItem.current=null;dragOver.current=null;return;}
+    const r=[...sorted];const[m]=r.splice(dragItem.current,1);r.splice(dragOver.current,0,m);
+    const ids=r.map(p=>p.id);setOrder(ids);onReorder&&onReorder(ids);
+    dragItem.current=null;dragOver.current=null;
+  }
+
+  return(
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(360px,1fr))",gap:12}}>
+      {sorted.map((proj,i)=>(
+        <div key={proj.id} draggable
+          onDragStart={()=>dragItem.current=i}
+          onDragEnter={()=>dragOver.current=i}
+          onDragOver={e=>e.preventDefault()}
+          onDragEnd={handleDragEnd}
+          style={{cursor:"grab"}}>
+          <DPlanBlock project={proj} onEdit={()=>onEdit(proj)} onDelete={()=>onDelete(proj.id)} onComplete={onComplete}/>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Draggable Project List (mobile) ─────────────────────────────────────────
+function DraggableProjectList({projects,onEdit,onDelete,onComplete,onReorder}){
+  const [order,setOrder]=useState(null);
+  const [dragIdx,setDragIdx]=useState(null);
+  const [overIdx,setOverIdx]=useState(null);
+  const longPress=useRef(null);
+  const touchMoved=useRef(false);
+  const touchStartY=useRef(0),touchStartX=useRef(0);
+  const rowRefs=useRef([]);
+  const sorted=order?order.map(id=>projects.find(p=>p.id===id)).filter(Boolean):[...projects].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+
+  function handleTouchStart(e,idx){
+    touchStartX.current=e.touches[0].clientX;touchStartY.current=e.touches[0].clientY;touchMoved.current=false;
+    longPress.current=setTimeout(()=>setDragIdx(idx),450);
+  }
+  function handleTouchMove(e){
+    const dx=Math.abs(e.touches[0].clientX-touchStartX.current),dy=Math.abs(e.touches[0].clientY-touchStartY.current);
+    if(dx>6||dy>6){touchMoved.current=true;clearTimeout(longPress.current);}
+    if(dragIdx===null) return;
+    e.preventDefault();
+    const y=e.touches[0].clientY;let found=null;
+    rowRefs.current.forEach((el,i)=>{if(!el)return;const r=el.getBoundingClientRect();if(y>=r.top&&y<=r.bottom)found=i;});
+    if(found!==null&&found!==dragIdx)setOverIdx(found);
+  }
+  function handleTouchEnd(idx){
+    clearTimeout(longPress.current);
+    if(dragIdx!==null){
+      if(overIdx!==null&&overIdx!==dragIdx){
+        const r=[...sorted];const[m]=r.splice(dragIdx,1);r.splice(overIdx,0,m);
+        const ids=r.map(p=>p.id);setOrder(ids);onReorder&&onReorder(ids);
+      }
+      setDragIdx(null);setOverIdx(null);
+    }
+  }
+
+  return(
+    <div onTouchMove={handleTouchMove}>
+      {sorted.map((proj,idx)=>(
+        <div key={proj.id} ref={el=>rowRefs.current[idx]=el}
+          style={{opacity:dragIdx===idx?.4:1,borderTop:overIdx===idx&&dragIdx!==null&&dragIdx!==idx?"2px solid #9B8878":"none"}}
+          onTouchStart={e=>handleTouchStart(e,idx)}
+          onTouchEnd={()=>handleTouchEnd(idx)}>
+          <PlanBlock project={proj} onEdit={()=>onEdit(proj)} onDelete={()=>onDelete(proj.id)} onComplete={onComplete}/>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GoalCard({goal,horizon,children,linkedProjects,onEdit,onComplete,allGoals,mobile}){
+  const [exp,setExp]=useState(false);
+  return(
+    <div style={{background:"white",borderRadius:10,border:`1px solid #EAE6E0`,borderLeft:`3px solid ${horizon.color}`,marginBottom:mobile?8:0,overflow:"hidden"}}>
+      <div style={{padding:"12px 14px",cursor:"pointer"}} onClick={()=>setExp(e=>!e)}>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+          <div style={{display:"flex",alignItems:"flex-start",gap:10,flex:1,minWidth:0}}>
+            <div onClick={e=>{e.stopPropagation();if(onComplete&&window.confirm("¿Completar meta? +2.000 pts"))onComplete(goal.id);}} style={{width:18,height:18,borderRadius:"50%",border:"1.5px solid #C8C3BB",flexShrink:0,marginTop:1,cursor:"pointer"}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#2C2825",marginBottom:goal.description?3:0,lineHeight:1.4}}>{goal.title}</div>
+              {goal.description&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",lineHeight:1.4}}>{goal.description}</div>}
+            </div>
+          </div>
+          <button onClick={e=>{e.stopPropagation();onEdit();}} style={{background:"none",border:"1px solid #E5E1DB",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",padding:"3px 7px",flexShrink:0,whiteSpace:"nowrap"}}>Editar</button>
+        </div>
+        {/* Linked projects */}
+        {linkedProjects.length>0&&(
+          <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:8}}>
+            {linkedProjects.map(p=>(
+              <span key={p.id} style={{fontSize:10,color:horizon.color,background:horizon.bg,padding:"2px 8px",borderRadius:99,fontFamily:"'DM Sans'",fontWeight:500}}>{p.name}</span>
+            ))}
+          </div>
+        )}
+        {/* Child goals count */}
+        {children.length>0&&(
+          <div style={{marginTop:6,fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F"}}>
+            {children.length} meta{children.length>1?"s":""} conectada{children.length>1?"s":""} ↓
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Goal Sheet ───────────────────────────────────────────────────────────────
+
+function GoalSheet({goal,goals,projects,onSave,onDelete,isDesktop}){
+  const [form,setForm]=useState({...goal});
+  const [conf,setConf]=useState(false);
+  const isNew=!goal.id;
+  const cls=isDesktop?"d-modal":"sheet";
+
+  const horizons=[
+    {key:"anio",  label:"Este año",  color:"#9B8878"},
+    {key:"medio", label:"2–5 años",  color:"#8A8EA8"},
+    {key:"largo", label:"5+ años",   color:"#5B6BAF"},
+  ];
+
+  // Parent goals: only show goals from the next horizon
+  const nextHorizon = form.horizon==="anio"?"medio":form.horizon==="medio"?"largo":null;
+  const parentOptions = nextHorizon ? goals.filter(g=>g.horizon===nextHorizon) : [];
+
+  return(
+    <div className={cls}>
+      {!isDesktop&&<div className="hd"/>}
+      <span className="sl">{isNew?"Nueva meta":"Editar meta"}</span>
+
+      {/* Horizon */}
+      <div style={{marginBottom:16}}>
+        <span className="sl">Horizonte</span>
+        <div style={{display:"flex",gap:6}}>
+          {horizons.map(h=>(
+            <button key={h.key} onClick={()=>setForm(f=>({...f,horizon:h.key,parentId:null}))}
+              style={{flex:1,padding:"8px 10px",borderRadius:8,border:`1.5px solid ${form.horizon===h.key?h.color:"#E5E1DB"}`,background:form.horizon===h.key?"white":"white",color:form.horizon===h.key?h.color:"#B0AA9F",fontFamily:"'DM Sans'",fontSize:12,cursor:"pointer",fontWeight:form.horizon===h.key?500:400,transition:"all .2s",textAlign:"center"}}>
+              {h.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{marginBottom:14}}>
+        <span className="sl">Meta</span>
+        <input className="si" value={form.title||""} onChange={e=>setForm(f=>({...f,title:e.target.value}))} autoFocus placeholder="¿Qué querés lograr?"/>
+      </div>
+
+      <div style={{marginBottom:16}}>
+        <span className="sl">Descripción (opcional)</span>
+        <textarea className="si" rows={2} value={form.description||""} onChange={e=>setForm(f=>({...f,description:e.target.value}))}
+          placeholder="Contexto o detalle..." style={{resize:"none",fontFamily:"'DM Sans'",lineHeight:1.6}}/>
+      </div>
+
+      {/* Parent goal link */}
+      {parentOptions.length>0&&(
+        <div style={{marginBottom:16}}>
+          <span className="sl">Contribuye a (opcional)</span>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {parentOptions.map(pg=>(
+              <button key={pg.id} onClick={()=>setForm(f=>({...f,parentId:f.parentId===pg.id?null:pg.id}))}
+                style={{textAlign:"left",padding:"8px 12px",borderRadius:8,border:`1px solid ${form.parentId===pg.id?"#8A8EA8":"#E5E1DB"}`,background:form.parentId===pg.id?"#F1F2F5":"white",color:form.parentId===pg.id?"#5B6BAF":"#6B6258",fontFamily:"'DM Sans'",fontSize:13,cursor:"pointer",transition:"all .15s"}}>
+                {pg.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button className="sv" onClick={()=>onSave(form)}>{isNew?"Crear meta":"Guardar"}</button>
+      {!isNew&&onDelete&&(
+        conf
+          ?<div style={{display:"flex",gap:8,marginTop:12}}>
+              <button onClick={onDelete} style={{flex:1,background:"none",border:"1px solid #C4896A",borderRadius:10,padding:"10px",fontSize:13,color:"#C4896A",cursor:"pointer",fontFamily:"'DM Sans'"}}>Confirmar</button>
+              <button onClick={()=>setConf(false)} style={{flex:1,background:"none",border:"1px solid #E5E1DB",borderRadius:10,padding:"10px",fontSize:13,color:"#B0AA9F",cursor:"pointer",fontFamily:"'DM Sans'"}}>Cancelar</button>
+            </div>
+          :<button onClick={()=>setConf(true)} style={{width:"100%",background:"none",border:"none",color:"#C4A89A",fontFamily:"'DM Sans'",fontSize:14,padding:"14px 0 0",cursor:"pointer"}}>Eliminar meta</button>
+      )}
+    </div>
+  );
+}
+
+function AsistenteMetasSheet({onClose,onInject,isDesktop}){
+  const [step,setStep]=useState(1);
+  const [energia,setEnergia]=useState(null);
+  const [perfil,setPerfil]=useState(null);
+  const [horizonte,setHorizonte]=useState(null);
+  const [selected,setSelected]=useState([]);
+  const cls=isDesktop?"d-modal":"sheet";
+
+  const ENERGIAS=[
+    {id:"impacto",  label:"Impacto",    desc:"Carrera, finanzas, negocios", icon:"◈"},
+    {id:"equilibrio",label:"Equilibrio",desc:"Paz mental, bienestar, arte",  icon:"◎"},
+    {id:"vinculos", label:"Vínculos",   desc:"Pareja, comunidad, hijos",     icon:"◯"},
+  ];
+  const PERFILES={
+    impacto:[
+      {id:"corporativo",label:"Carrera corporativa",desc:"Ascenso, liderazgo, ejecutivos"},
+      {id:"freelancer", label:"Freelancer",          desc:"Independencia, marca personal"},
+      {id:"founder",    label:"Founder",             desc:"Startup, equipo, crecimiento"},
+    ],
+    equilibrio:[
+      {id:"creativo",label:"Creativo",    desc:"Arte, obras, contenido"},
+      {id:"nomade",  label:"Nómade",      desc:"Exploración, trabajo remoto"},
+      {id:"paz",     label:"Paz y salud", desc:"Calma, longevidad, simpleza"},
+    ],
+    vinculos:[
+      {id:"padres",    label:"Líder del hogar",         desc:"Hijos, patrimonio, valores"},
+      {id:"pareja",    label:"Construcción compartida", desc:"Proyectos de a dos, romance"},
+      {id:"comunidad", label:"Comunidad",               desc:"Mayores, voluntariado, legado"},
+    ],
+  };
+  const HORIZONTES=[
+    {id:"corto",dbKey:"anio", label:"Este año",    desc:"Próximos 12 meses"},
+    {id:"medio",dbKey:"medio",label:"2 a 5 años",  desc:"Mediano plazo"},
+    {id:"largo",dbKey:"largo",label:"5 años o más",desc:"Largo plazo"},
+  ];
+
+  const handleSelect=(t)=>setSelected(s=>s.includes(t)?s.filter(x=>x!==t):[...s,t]);
+  const submit=()=>{
+    onInject(selected.map(t=>({title:t,description:"",horizon:HORIZONTES.find(h=>h.id===horizonte).dbKey})));
+  };
+
+  const Opcion=({label,desc,sel,onClick})=>(
+    <div onClick={onClick}
+      style={{padding:"12px 14px",borderRadius:10,border:`1px solid ${sel?"#C4A882":"#EAE6E0"}`,background:sel?"#FBF8F2":"white",cursor:"pointer",transition:"all .15s",marginBottom:6}}>
+      <div style={{fontFamily:"'DM Sans'",fontSize:13,color:sel?"#9B8878":"#2C2825",fontWeight:sel?500:400,marginBottom:desc?2:0}}>{label}</div>
+      {desc&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F"}}>{desc}</div>}
+    </div>
+  );
+
+  const stepLabels=["Tu energía","Tu perfil","Horizonte","Tus metas"];
+
+  return(
+    <div className={cls} style={{display:"flex",flexDirection:"column",height:step===4?(isDesktop?"80vh":"88vh"):"auto"}}>
+      {!isDesktop&&<div className="hd"/>}
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4,flexShrink:0}}>
+        {step>1
+          ?<button onClick={()=>setStep(s=>s-1)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",padding:0}}>← Atrás</button>
+          :<div style={{width:48}}/>
+        }
+        <div style={{textAlign:"center",flex:1}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#2C2825"}}>✦ Asistente de metas</div>
+          <div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C8C3BB",marginTop:1}}>{stepLabels[step-1]}</div>
+        </div>
+        <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:20,color:"#C8C3BB",lineHeight:1,padding:0}}>×</button>
+      </div>
+
+      <div style={{height:2,background:"#EAE6E0",borderRadius:99,margin:"12px 0 20px",flexShrink:0}}>
+        <div style={{height:"100%",width:`${(step/4)*100}%`,background:"linear-gradient(to right,#C4A882,#9B8878)",borderRadius:99,transition:"width .4s cubic-bezier(.34,1,.64,1)"}}/>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",minHeight:0}}>
+        {step===1&&(
+          <div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:16}}>¿En qué está enfocada tu energía ahora?</div>
+            {ENERGIAS.map(e=><Opcion key={e.id} label={`${e.icon} ${e.label}`} desc={e.desc} sel={energia===e.id} onClick={()=>{setEnergia(e.id);setStep(2);}}/>)}
+          </div>
+        )}
+        {step===2&&energia&&(
+          <div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:16}}>¿Qué perfil te describe mejor?</div>
+            {PERFILES[energia].map(p=><Opcion key={p.id} label={p.label} desc={p.desc} sel={perfil===p.id} onClick={()=>{setPerfil(p.id);setStep(3);}}/>)}
+          </div>
+        )}
+        {step===3&&(
+          <div>
+            <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:16}}>¿En qué horizonte querés definir metas?</div>
+            {HORIZONTES.map(h=><Opcion key={h.id} label={h.label} desc={h.desc} sel={horizonte===h.id} onClick={()=>{setHorizonte(h.id);setStep(4);}}/>)}
+          </div>
+        )}
+        {step===4&&energia&&perfil&&horizonte&&(()=>{
+          const catData=BANCO_METAS[energia][perfil][horizonte];
+          return(
+            <div>
+              <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",marginBottom:16}}>Elegí las que resuenen. Podés modificarlas después.</div>
+              {Object.entries(catData).map(([catName,metas])=>(
+                <div key={catName} style={{marginBottom:18}}>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:10,fontWeight:500,letterSpacing:".08em",textTransform:"uppercase",color:"#C4A882",marginBottom:8}}>{catName}</div>
+                  {metas.map((mText,i)=>{
+                    const isSel=selected.includes(mText);
+                    return(
+                      <div key={i} onClick={()=>handleSelect(mText)}
+                        style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"10px 14px",borderRadius:10,border:`1px solid ${isSel?"#C4A882":"#EAE6E0"}`,background:isSel?"#FBF8F2":"white",cursor:"pointer",transition:"all .15s",marginBottom:5}}>
+                        <span style={{fontFamily:"'DM Sans'",fontSize:13,color:isSel?"#9B8878":"#2C2825",lineHeight:1.4,flex:1}}>{mText}</span>
+                        {isSel&&<span style={{fontSize:12,color:"#C4A882",flexShrink:0}}>✓</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+              <div style={{height:80}}/>
+            </div>
+          );
+        })()}
+      </div>
+
+      {step===4&&(
+        <div style={{paddingTop:14,borderTop:"1px solid #EAE6E0",flexShrink:0}}>
+          <button onClick={submit} disabled={selected.length===0}
+            className="sv" style={{opacity:selected.length===0?.4:1,margin:0}}>
+            {selected.length>0?`Agregar ${selected.length} meta${selected.length>1?"s":""}`:"Seleccioná al menos una"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function PlanProjectSheet({project,onSave,isDesktop,goals=[]}){
+  const [form,setForm]=useState({...project,monto:project.monto||"",goal_id:project.goal_id||null,goal_ids:project.goal_ids||[],secondaryGoals:project.secondaryGoals?.length>0?[...project.secondaryGoals]:[""]});
+  function toggleGoal(gid){
+    setForm(f=>{
+      const ids = f.goal_ids.includes(gid) ? f.goal_ids.filter(x=>x!==gid) : [...f.goal_ids,gid];
+      return {...f, goal_ids:ids, goal_id:ids[0]||null};
+    });
+  }
+  function updGoal(i,val){const g=[...form.secondaryGoals];g[i]=val;setForm(f=>({...f,secondaryGoals:g}));}
+  function addGoal(){setForm(f=>({...f,secondaryGoals:[...f.secondaryGoals,""]}));}
+  function remGoal(i){setForm(f=>({...f,secondaryGoals:f.secondaryGoals.filter((_,j)=>j!==i)}));}
+  function save(){onSave({...form,secondaryGoals:form.secondaryGoals.filter(g=>g.trim())});}
+  const cls=isDesktop?"d-modal":"sheet";
+  const imp=form.importance||"normal";
+  return(<div className={cls}>
+    {!isDesktop&&<div className="hd"/>}
+    <span className="sl">Estrategia del proyecto</span>
+    <div style={{marginBottom:16}}>
+      <span className="sl">Nombre del proyecto</span>
+      <input className="si" value={form.name||""} onChange={e=>setForm(f=>({...f,name:e.target.value}))} style={{fontWeight:500}}/>
+    </div>
+    <div style={{marginBottom:16}}>
+      <span className="sl">Monto del deal (opcional)</span>
+      <input className="si" value={form.monto||""} onChange={e=>setForm(f=>({...f,monto:e.target.value}))} placeholder="ej. 400k"/>
+    </div>
+    {goals&&goals.filter(g=>g.horizon==="anio").length>0&&(
+      <div style={{marginBottom:16}}>
+        <span className="sl">Metas vinculadas (opcional)</span>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {goals.filter(g=>g.horizon==="anio").map(g=>{
+            const sel=(form.goal_ids||[]).includes(g.id);
+            return(
+              <button key={g.id} onClick={()=>toggleGoal(g.id)}
+                style={{textAlign:"left",padding:"8px 12px",borderRadius:8,border:`1px solid ${sel?"#9B8878":"#E5E1DB"}`,background:sel?"#F5F1ED":"white",color:sel?"#9B8878":"#6B6258",fontFamily:"'DM Sans'",fontSize:13,cursor:"pointer",transition:"all .15s",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                <span style={{flex:1}}>{g.title}</span>
+                {sel&&<span style={{fontSize:12,color:"#9B8878",flexShrink:0}}>✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    )}
+    <div style={{marginBottom:16}}>
+      <span className="sl">Importancia del proyecto</span>
+      <div style={{display:"flex",gap:6}}>
+        {Object.entries(IMPORTANCE).map(([k,v])=>(
+          <button key={k} className="impb" onClick={()=>setForm(f=>({...f,importance:k}))}
+            style={{background:imp===k?v.bg:"white",color:imp===k?v.color:"#B0AA9F",borderColor:imp===k?v.color:"#E5E1DB",fontWeight:imp===k?500:400}}>
+            {v.label}
+          </button>
+        ))}
+      </div>
+    </div>
+    <div style={{marginBottom:14}}>
+      <span className="sl">Descripción</span>
+      <textarea className="si" rows={3} placeholder="¿De qué trata este proyecto?" value={form.description||""} onChange={e=>setForm(f=>({...f,description:e.target.value}))} style={{resize:"none",fontFamily:"'DM Sans'",lineHeight:1.6}}/>
+    </div>
+    <div style={{marginBottom:14}}>
+      <span className="sl">Objetivo principal</span>
+      <input className="si" value={form.mainGoal||""} onChange={e=>setForm(f=>({...f,mainGoal:e.target.value}))} placeholder="¿Cuál es el resultado clave?"/>
+    </div>
+    <div style={{marginBottom:8}}>
+      <span className="sl">Objetivos secundarios</span>
+      {form.secondaryGoals.map((g,i)=>(
+        <div key={i} style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
+          <input className="si" value={g} onChange={e=>updGoal(i,e.target.value)} placeholder={`Objetivo ${i+1}...`} style={{flex:1}}/>
+          <button onClick={()=>remGoal(i)} style={{background:"none",border:"none",cursor:"pointer",color:"#C8C3BB",fontSize:16,padding:"0 4px"}}>✕</button>
+        </div>
+      ))}
+      <button onClick={addGoal} style={{background:"none",border:"1px dashed #D5CFC8",borderRadius:8,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:"8px 14px",width:"100%",marginTop:2}}>
+        + agregar objetivo secundario
+      </button>
+    </div>
+    <button className="sv" onClick={save}>Guardar</button>
+  </div>);
+}
+function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorderTasks}){
+  const [localOrder,setLocalOrder]=useState(null);
+  const [draggingId,setDraggingId]=useState(null);
+  const [overId,setOverId]=useState(null);
+  const sorted=localOrder
+    ?localOrder.map(id=>tasks.find(t=>t.id===id)).filter(Boolean)
+    :[...tasks].sort(taskSort);
+
+  function onDragStart(e,id){
+    e.dataTransfer.effectAllowed="move";
+    e.dataTransfer.setData("text/plain",id);
+    setDraggingId(id);
+  }
+  function onDragEnter(e,id){
+    e.preventDefault();
+    setOverId(id);
+  }
+  function onDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect="move"; }
+  function onDrop(e,id){
+    e.preventDefault();
+    const dragId=e.dataTransfer.getData("text/plain");
+    if(!dragId||dragId===id){setDraggingId(null);setOverId(null);return;}
+    const ids=sorted.map(t=>t.id);
+    const fi=ids.indexOf(dragId), ti=ids.indexOf(id);
+    if(fi<0||ti<0){setDraggingId(null);setOverId(null);return;}
+    const r=[...ids]; r.splice(fi,1); r.splice(ti,0,dragId);
+    setLocalOrder(r); reorderTasks&&reorderTasks(r);
+    setDraggingId(null); setOverId(null);
+  }
+  function onDragEnd(){ setDraggingId(null); setOverId(null); }
+
+  return(
+    <div>
+      {sorted.map((task,i)=>{
+        const proj=projects.find(p=>p.id===task.projectId);
+        const isDragging=draggingId===task.id;
+        const isOver=overId===task.id&&draggingId&&draggingId!==task.id;
+        return(
+          <div key={task.id}
+            draggable="true"
+            onDragStart={e=>onDragStart(e,task.id)}
+            onDragEnter={e=>onDragEnter(e,task.id)}
+            onDragOver={onDragOver}
+            onDrop={e=>onDrop(e,task.id)}
+            onDragEnd={onDragEnd}
+            style={{
+              padding:"12px 4px",
+              borderTop:isOver?"2px solid #9B8878":i>0?"1px solid #EAE6E0":"none",
+              display:"flex",alignItems:"center",gap:12,
+              cursor:"grab",
+              background:isDragging?"#EDE9E4":isOver?"#F5F2EE":overdue?"#FBF8F4":"transparent",
+              opacity:isDragging?.4:1,
+              transition:"opacity .1s,background .1s"
+            }}
+            onClick={()=>{ if(!draggingId) onOpen(task); }}>
+            <button className={`d-ci${task.done?" done":""}`} onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+              {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
+            </button>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"'DM Sans'",fontSize:14,color:task.done?"#C8C3BB":overdue?"#9B8878":"#2C2825",textDecoration:task.done?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+              <div style={{display:"flex",gap:8,marginTop:2}}>
+                {proj&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B948C",fontWeight:500}}>{proj.name}</span>}
+                {task.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:overdue?"#C4896A":"#9B948C"}}>{fmtDate(task.date)}</span>}
+                {task.responsable&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8A9E8A",fontWeight:500}}>→ {task.responsable}</span>}
+                {task.notes&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8"}}>· nota</span>}
+                <RecurrenceBadge type={task.recurrence_type}/>
+              </div>
+            </div>
+            <TypeDot type={task.type} done={task.done}/>
+            {onDelete&&<button onClick={e=>{e.stopPropagation();onDelete(task.id);}}
+              style={{background:"none",border:"none",cursor:"pointer",color:"#D5CFC8",fontSize:16,lineHeight:1,padding:"0 2px",flexShrink:0}}
+              title="Eliminar">×</button>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
+
+// ─── Error Toast ──────────────────────────────────────────────────────────────
+function ErrorToast({message,onDismiss}){
+  if(!message) return null;
+  return(
+    <div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",
+      background:"#2C2825",color:"white",borderRadius:12,padding:"10px 16px",
+      fontFamily:"'DM Sans'",fontSize:13,zIndex:9999,display:"flex",alignItems:"center",gap:10,
+      boxShadow:"0 4px 20px rgba(0,0,0,.2)",maxWidth:320,width:"calc(100% - 40px)"}}>
+      <span style={{flex:1}}>{message}</span>
+      <button onClick={onDismiss} style={{background:"none",border:"none",color:"rgba(255,255,255,.6)",cursor:"pointer",fontSize:16,padding:0,flexShrink:0}}>×</button>
+    </div>
+  );
+}
+
+function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderTasks,sw,desktop,onVerSemana,onUpdateTask,userId,supabase,onAddTask,onOpenAddSheet,onAddProject}){
+  const today = todayStr();
+  const todayTasks = (tasks||[]).filter(t=>!t.done&&t.date===today).sort(taskSort);
+
+  // Sugerencias del agente de calendar
+  const [sugerencias, setSugerencias] = useState([]);
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [cargandoCalendar, setCargandoCalendar] = useState(false);
+  const [calendarError, setCalendarError] = useState(null);
+
+  useEffect(()=>{
+    if(!userId||!supabase) return;
+    // Cargar sugerencias pendientes
+    supabase.from('calendar_suggestions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status','pending')
+      .order('created_at',{ascending:false})
+      .then(({data})=>{ if(data) setSugerencias(data); });
+    // Verificar si el calendario está conectado
+    supabase.from('user_profiles')
+      .select('calendar_connected')
+      .eq('id', userId)
+      .single()
+      .then(({data})=>{ if(data) setCalendarConnected(!!data.calendar_connected); });
+    // Detectar si acaba de conectar el calendario (redirect desde OAuth)
+    if(window.location.search.includes('calendar_connected=1')){
+      setCalendarConnected(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    if(window.location.search.includes('calendar_error=')){
+      setCalendarError('Error al conectar el calendario. Intentá de nuevo.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  },[userId]);
+
+  async function pedirSugerenciasCalendar(){
+    if(!userId) return;
+    setCargandoCalendar(true);
+    setCalendarError(null);
+    try{
+      const res = await fetch(`/api/calendar/process?user_id=${userId}`);
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error||'Error desconocido');
+      // Recargar sugerencias
+      const {data: sg} = await supabase
+        .from('calendar_suggestions')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status','pending')
+        .order('created_at',{ascending:false});
+      if(sg) setSugerencias(sg);
+    } catch(e){
+      setCalendarError('No pude cargar sugerencias. Revisá la conexión.');
+    } finally {
+      setCargandoCalendar(false);
+    }
+  }
+
+  async function aceptarSugerencia(s){
+    // Crear la tarea en Clarity
+    if(onAddTask) onAddTask({
+      title: s.task_title,
+      date: s.suggested_date,
+      projectId: null,
+      type: 'normal',
+      notes: `Sugerido por el agente — ${s.event_title}`,
+    });
+    // Marcar como aceptada
+    await supabase.from('calendar_suggestions').update({status:'accepted'}).eq('id',s.id);
+    setSugerencias(sg=>sg.filter(x=>x.id!==s.id));
+  }
+
+  async function descartarSugerencia(s){
+    await supabase.from('calendar_suggestions').update({status:'dismissed'}).eq('id',s.id);
+    setSugerencias(sg=>sg.filter(x=>x.id!==s.id));
+  }
+
+  const [diaDificil, setDiaDificil] = useState(false);
+  const [verTodoModal, setVerTodoModal] = useState(false);
+
+  // Agente de voz
+  const [grabando, setGrabando] = useState(false);
+  const [procesandoVoz, setProcesandoVoz] = useState(false);
+  const [accionesVoz, setAccionesVoz] = useState([]);
+  const [transcriptVoz, setTranscriptVoz] = useState('');
+  const [voiceError, setVoiceError] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const isHoldingRef = useRef(false);
+
+  async function iniciarGrabacion(){
+    if (grabando || isHoldingRef.current) return;
+    isHoldingRef.current = true;
+    setVoiceError(null);
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      if (!isHoldingRef.current) {
+        stream.getTracks().forEach(t=>t.stop());
+        return;
+      }
+      const mr = new MediaRecorder(stream); 
+      chunksRef.current = [];
+      mr.ondataavailable = e => { if(e.data.size>0) chunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t=>t.stop());
+        const type = chunksRef.current[0]?.type || mr.mimeType || 'audio/mp4';
+        const blob = new Blob(chunksRef.current, { type });
+        if (blob.size === 0) {
+          setProcesandoVoz(false);
+          setVoiceError('No capturó audio (permisos).');
+          return;
+        }
+        await procesarAudio(blob, blob.type);
+      };
+      mr.start(500); 
+      mediaRecorderRef.current = mr;
+      setGrabando(true);
+    } catch(e){
+      isHoldingRef.current = false;
+      console.error('Error grabando:', e);
+      setVoiceError('Error al acceder al micrófono.');
+    }
+  }
+
+  function detenerGrabacion(){
+    isHoldingRef.current = false;
+    if(mediaRecorderRef.current && grabando){
+      mediaRecorderRef.current.stop();
+      setGrabando(false);
+      setProcesandoVoz(true);
+    }
+  }
+
+  async function procesarAudio(blob, mimeType){
+    try{
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s límite
+      const res = await fetch('/api/voice-task', {
+        method:'POST', 
+        headers: { 'Content-Type': mimeType || 'audio/mp4' },
+        body: blob,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      const data = await res.json();
+      
+      if(!res.ok || data.error) {
+        setVoiceError('Error: ' + (data.error || 'Fallo desconocido').slice(0,40));
+        return;
+      }
+      
+      const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
+      
+      if(data.acciones?.length>0){
+        // Fuzzy matching por palabras clave
+        function fuzzyMatchProj(query, projName) {
+          const qWords = query.split(/\s+/).filter(w => w.length > 2);
+          const pWords = projName.split(/[\s\-]+/).filter(w => w.length > 2);
+          // Si alguna palabra del query está contenida en alguna palabra del proyecto (o viceversa)
+          for (const qw of qWords) {
+            for (const pw of pWords) {
+              if (pw.includes(qw) || qw.includes(pw)) return true;
+              // Levenshtein para palabras similares (distancia ≤ 2 para palabras largas)
+              if (qw.length >= 4 && pw.length >= 4) {
+                const d = levenshtein(qw, pw);
+                if (d <= 2) return true;
+              }
+            }
+          }
+          return false;
+        }
+        function levenshtein(a, b) {
+          const m = a.length, n = b.length;
+          const dp = Array.from({length: m+1}, (_,i) => Array.from({length: n+1}, (_,j) => i===0?j:j===0?i:0));
+          for(let i=1;i<=m;i++) for(let j=1;j<=n;j++)
+            dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+          return dp[m][n];
+        }
+
+        const processed = data.acciones.map(a => {
+          let enriched = { ...a, id: Math.random().toString(36).substr(2,9) };
+          if (a.tipo_accion === 'crear_tarea') {
+            let foundProj = null;
+            // Buscar en proyecto_nombre sugerido por Groq
+            if (a.proyecto_nombre) {
+              const pName = normalize(a.proyecto_nombre);
+              // Exacto primero
+              foundProj = projects.find(p => normalize(p.name) === pName);
+              // Luego fuzzy
+              if (!foundProj) foundProj = projects.find(p => fuzzyMatchProj(pName, normalize(p.name)));
+            }
+            // Si no encontró, buscar en el título de la tarea
+            if (!foundProj && a.titulo) {
+              const tNorm = normalize(a.titulo);
+              foundProj = projects.find(p => fuzzyMatchProj(tNorm, normalize(p.name)));
+            }
+            if (foundProj) enriched._proyecto_id = foundProj.id;
+          }
+          if (a.tipo_accion === 'completar_tarea' || a.tipo_accion === 'reprogramar_tarea') {
+            const tName = normalize(a.titulo_tarea);
+            const foundTask = tasks.find(t => !t.done && normalize(t.title).includes(tName));
+            if (foundTask) enriched._tarea_encontrada = foundTask;
+          }
+          return enriched;
+        });
+
+        setAccionesVoz(prev => [...prev, ...processed]);
+        setTranscriptVoz(data.transcript||'');
+      } else {
+        setVoiceError('No detecté acciones (' + (data.transcript || 'vacía').slice(0,30) + ')');
+      }
+    } catch(e){
+      console.error('Error procesando audio:', e);
+      setVoiceError(e.name === 'AbortError' ? 'Tiempo de espera agotado.' : 'Error de conexión.');
+    } finally {
+      setProcesandoVoz(false);
+    }
+  }
+
+  async function ejecutarAccionVoz(a){
+    if (a.tipo_accion === 'crear_tarea') {
+      if(onAddTask) onAddTask({
+        title: a.titulo,
+        date: a.fecha,
+        projectId: a._proyecto_id || null,
+        type: 'normal',
+        notes: a.razon ? `Sugerido por el agente: ${a.razon}` : '',
+      });
+    } else if (a.tipo_accion === 'crear_proyecto') {
+      if(onAddProject) onAddProject({ name: a.nombre, area: 'Personal' }); // TODO: usar area activa
+    } else if (a.tipo_accion === 'completar_tarea') {
+      if(a._tarea_encontrada && toggleDone) {
+        toggleDone(a._tarea_encontrada.id, true);
+      }
+    } else if (a.tipo_accion === 'reprogramar_tarea') {
+      if(a._tarea_encontrada && onUpdateTask) {
+        onUpdateTask({ ...a._tarea_encontrada, date: a.nueva_fecha });
+      }
+    }
+    setAccionesVoz(av=>av.filter(x=>x.id!==a.id));
+  }
+
+  function descartarAccionVoz(a){
+    setAccionesVoz(av=>av.filter(x=>x.id!==a.id));
+  }
+  const [seleccionadas, setSeleccionadas] = useState(new Set());
+  const [reagendado, setReagendado] = useState(false);
+  const [reagendadasCount, setReagendasCount] = useState(0);
+
+  // Mensajes de alivio — aleatorios
+  const MENSAJES = [
+    "Descansá hoy. Mañana será otro día.",
+    "No toda batalla se gana el mismo día. Mañana seguís.",
+    "Hoy fue difícil. Eso ya es suficiente.",
+    "Lo que no pudiste hoy, lo retomás mañana con más fuerza.",
+    "A veces el mejor movimiento es parar. Mañana es tuyo.",
+  ];
+  const mensaje = useMemo(()=>MENSAJES[Math.floor(Math.random()*MENSAJES.length)],[]);
+
+  function abrirDiaDificil(){
+    // Por defecto nada seleccionado — el usuario elige qué se queda hoy
+    setSeleccionadas(new Set());
+    setDiaDificil(true);
+  }
+
+  function toggleSeleccion(id){
+    setSeleccionadas(s=>{
+      const n = new Set(s);
+      n.has(id)?n.delete(id):n.add(id);
+      return n;
+    });
+  }
+
+  function marcarTodo(){
+    setSeleccionadas(new Set(todayTasks.map(t=>t.id)));
+  }
+
+  async function confirmar(){
+    const mañana = tomorrow();
+    const aReagendar = todayTasks.filter(t=>!seleccionadas.has(t.id));
+    for(const t of aReagendar){
+      await onUpdateTask({...t, date:mañana, snoozed_count:(t.snoozed_count||0)+1});
+    }
+    setReagendasCount(aReagendar.length);
+    setDiaDificil(false);
+    setReagendado(true);
+    setTimeout(()=>setReagendado(false), 5000);
+  }
+
+  const SectionHeader = ({label,color,count}) => (
+    <div style={{display:"flex",alignItems:"center",gap:8,
+      ...(desktop
+        ? {marginBottom:12,paddingBottom:8,borderBottom:"1px solid #EAE6E0"}
+        : {padding:"14px 20px 6px"}
+      )}}>
+      <div style={{width:5,height:5,borderRadius:"50%",background:color}}/>
+      <span style={{fontFamily:"'DM Sans'",fontSize:11,color,letterSpacing:".08em",textTransform:"uppercase"}}>
+        {label}{count>0&&` · ${count}`}
+      </span>
+    </div>
+  );
+
+  const TaskList = ({tasks,overdue}) => desktop
+    ? <DTaskList tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks}/>
+    : <TaskRows tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks} {...(sw||{})}/>;
+
+  const BtnMic = () => (
+    <div style={{position:'fixed',bottom:desktop?24:96,right:desktop?32:20,zIndex:200,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:8,pointerEvents:'none'}}>
+      {/* Toast de estado — solo visible cuando hay algo que mostrar */}
+      {(grabando||procesandoVoz||voiceError)&&(
+        <div style={{
+          pointerEvents:'none',
+          background:'#2C2825',color:'white',
+          borderRadius:10,padding:'7px 12px',
+          fontFamily:"'DM Sans'",fontSize:12,fontWeight:300,
+          boxShadow:'0 4px 16px rgba(0,0,0,.18)',
+          whiteSpace:'nowrap',
+          display:'flex',alignItems:'center',gap:8,
+        }}>
+          {procesandoVoz&&<><div style={{width:8,height:8,borderRadius:'50%',border:'2px solid #C4A882',borderTopColor:'transparent',animation:'spin 1s linear infinite',flexShrink:0}}/> Procesando...</>}
+          {grabando&&!procesandoVoz&&<><div style={{width:7,height:7,borderRadius:'50%',background:'#E07070',flexShrink:0,animation:'pulse 1s ease-in-out infinite'}}/> Grabando · soltá para procesar</>}
+          {voiceError&&!grabando&&!procesandoVoz&&<span style={{color:'#E07070'}}>⚠ {voiceError}</span>}
+        </div>
+      )}
+      {/* FAB circular */}
+      <button
+        onMouseDown={iniciarGrabacion}
+        onMouseUp={detenerGrabacion}
+        onMouseLeave={detenerGrabacion}
+        onTouchStart={e=>{e.preventDefault();iniciarGrabacion();}}
+        onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
+        onTouchCancel={e=>{e.preventDefault();detenerGrabacion();}}
+        style={{
+          pointerEvents:'auto',
+          width:48,height:48,borderRadius:'50%',
+          background:grabando?'#C4312A':procesandoVoz?'#C4A882':'#2C2825',
+          border:'none',cursor:'pointer',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          boxShadow:'0 4px 16px rgba(44,40,37,.22)',
+          transition:'all .2s',
+          flexShrink:0,
+        }}>
+        {/* Ícono micrófono + chispa AI */}
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="2" width="6" height="11" rx="3"/>
+          <path d="M5 10a7 7 0 0 0 14 0"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+          {/* chispa ✦ arriba a la derecha del mic */}
+        </svg>
+        {/* Indicador AI — punto brillante esquina superior derecha */}
+        {!grabando&&!procesandoVoz&&(
+          <div style={{
+            position:'absolute',top:9,right:9,
+            width:7,height:7,borderRadius:'50%',
+            background:'#C4A882',
+            border:'2px solid #2C2825',
+          }}/>
+        )}
+      </button>
+    </div>
+  );
+
+  // ── Panel Calendar ──
+  const PanelCalendar = (()=>{
+    // Botón conectar calendario
+    if(!calendarConnected){
+      return(
+        <div style={{margin:desktop?'0 0 20px':'12px 20px 4px',display:'flex',alignItems:'center',gap:10}}>
+          <a href={`/api/calendar/auth?user_id=${userId}`}
+            style={{
+              display:'inline-flex',alignItems:'center',gap:8,
+              fontFamily:"'DM Sans'",fontSize:12,fontWeight:400,
+              color:'#9B8878',textDecoration:'none',
+              border:'1px solid #EAE6E0',borderRadius:8,
+              padding:'6px 12px',background:'none',cursor:'pointer',
+            }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            Conectar Google Calendar
+          </a>
+          {calendarError&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C4312A'}}>{calendarError}</span>}
+        </div>
+      );
+    }
+
+    // Calendario conectado — botón pedir sugerencias + lista
+    return(
+      <div style={{margin:desktop?'0 0 20px':'12px 20px 4px'}}>
+        {/* Fila header */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom: sugerencias.length>0 ? 10 : 0}}>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <div style={{width:5,height:5,borderRadius:'50%',background:'#8A9E8A'}}/>
+            <span style={{fontFamily:"'DM Sans'",fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:'#8A9E8A'}}>
+              Tu agenda
+              {sugerencias.length>0&&<span style={{fontWeight:300,color:'#B0AA9F',marginLeft:6}}>{sugerencias.length}</span>}
+            </span>
+          </div>
+          <button
+            onClick={pedirSugerenciasCalendar}
+            disabled={cargandoCalendar}
+            style={{
+              background:'none',border:'none',cursor:cargandoCalendar?'default':'pointer',
+              fontFamily:"'DM Sans'",fontSize:12,color:'#C8C3BB',
+              display:'flex',alignItems:'center',gap:6,padding:0,
+            }}>
+            {cargandoCalendar
+              ? <><div style={{width:8,height:8,borderRadius:'50%',border:'2px solid #C4A882',borderTopColor:'transparent',animation:'spin 1s linear infinite'}}/> buscando...</>
+              : 'actualizar →'
+            }
+          </button>
+        </div>
+        {calendarError&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C4312A',marginBottom:8}}>{calendarError}</div>}
+        {/* Sugerencias */}
+        {sugerencias.map(s=>(
+          <div key={s.id} style={{
+            display:'flex',alignItems:'center',gap:12,
+            padding:'11px 0',
+            borderBottom:'1px solid #EAE6E0',
+          }}>
+            <div style={{width:3,borderRadius:99,alignSelf:'stretch',background:'#8A9E8A',flexShrink:0,minHeight:18}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825',lineHeight:1.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                {s.task_title}
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:4,marginTop:2}}>
+                <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>
+                  {s.momento==='pre'?'Antes de':'Después de'} {s.event_title}
+                </span>
+                {s.suggested_date&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{s.suggested_date}</span></>}
+              </div>
+            </div>
+            <div style={{display:'flex',gap:6,flexShrink:0}}>
+              <button onClick={()=>aceptarSugerencia(s)} style={{
+                background:'#2C2825',color:'white',border:'none',borderRadius:8,
+                padding:'6px 12px',fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,cursor:'pointer',
+              }}>Agregar</button>
+              <button onClick={()=>descartarSugerencia(s)} style={{
+                background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:8,
+                padding:'6px 8px',fontFamily:"'DM Sans'",fontSize:12,cursor:'pointer',
+              }}>✕</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  })();
+
+  // ── Modal Ver Todo ──
+  const VerTodoModal = () => {
+    if (!verTodoModal) return null;
+
+    const allPending = (tasks||[])
+      .filter(t => !t.done)
+      .map(t => {
+        const proj = (projects||[]).find(p => p.id === t.projectId);
+        return { ...t, _proj: proj };
+      })
+      .sort((a, b) => {
+        if (!a.date && !b.date) return 0;
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return a.date.localeCompare(b.date);
+      });
+
+    const today = todayStr();
+    const fmt = d => {
+      if (!d) return 'sin fecha';
+      if (d === today) return 'hoy';
+      const [,m,day] = d.split('-');
+      const months = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      return `${parseInt(day)} ${months[parseInt(m)]}`;
+    };
+
+    const AREA_COLOR = { trabajo: '#9B8878', personal: '#8A9E8A' };
+
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(44,40,37,.5)',zIndex:150,display:'flex',alignItems:'flex-end',justifyContent:'center'}}
+        onClick={e=>{if(e.target===e.currentTarget)setVerTodoModal(false);}}>
+        <div style={{
+          width:'100%',maxWidth:desktop?600:430,
+          background:'#F5F2EE',
+          borderRadius:desktop?'20px 20px 0 0':'20px 20px 0 0',
+          display:'flex',flexDirection:'column',
+          maxHeight:'85vh',
+          boxShadow:'0 -4px 40px rgba(0,0,0,.12)',
+        }}>
+          {/* Handle mobile */}
+          {!desktop&&<div style={{width:36,height:3,background:'#D5CFC8',borderRadius:99,margin:'14px auto 0',flexShrink:0}}/>}
+          {/* Header */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:desktop?'20px 32px 16px':'16px 20px 12px',flexShrink:0}}>
+            <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:'#2C2825'}}>
+              Todas las tareas
+              <span style={{fontWeight:300,color:'#B0AA9F',marginLeft:8}}>{allPending.length}</span>
+            </span>
+            <button onClick={()=>setVerTodoModal(false)}
+              style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:20,color:'#C8C3BB',lineHeight:1,padding:0}}>×</button>
+          </div>
+          {/* Lista */}
+          <div style={{overflowY:'auto',WebkitOverflowScrolling:'touch',flex:1,padding:desktop?'0 32px 32px':'0 0 32px'}}>
+            {allPending.length === 0 && (
+              <div style={{textAlign:'center',padding:'40px 0',color:'#C8C3BB',fontFamily:"'DM Sans'",fontSize:14}}>Sin tareas pendientes ·</div>
+            )}
+            {allPending.map(t => {
+              const areaColor = AREA_COLOR[t._proj?.area] || '#D5CFC8';
+              const isOverdueTask = t.date && t.date < today;
+              return (
+                <div key={t.id}
+                  onClick={()=>{ onOpen(t); setVerTodoModal(false); }}
+                  style={{
+                    display:'flex',alignItems:'center',gap:0,
+                    padding:desktop?'0 0 0 0':'0 20px',
+                    cursor:'pointer',
+                  }}>
+                  <div style={{
+                    display:'flex',alignItems:'center',gap:12,
+                    flex:1,
+                    padding:'11px 0',
+                    borderBottom:'1px solid #EAE6E0',
+                  }}>
+                    {/* Barra de color área */}
+                    <div style={{width:3,borderRadius:99,alignSelf:'stretch',background:areaColor,flexShrink:0,minHeight:18}}/>
+                    {/* Check */}
+                    <button onClick={e=>{e.stopPropagation(); toggleDone(t.id);}}
+                      style={{width:18,height:18,borderRadius:'50%',border:`1.5px solid #D5CFC8`,background:'none',cursor:'pointer',flexShrink:0,padding:0}}/>
+                    {/* Título + meta info */}
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:"'DM Sans'",fontSize:14,color:'#2C2825',lineHeight:1.3,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                        {t.title}
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
+                        {t._proj&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{t._proj.name}</span>}
+                        {t._proj&&t.date&&<span style={{color:'#D5CFC8',fontSize:10}}>·</span>}
+                        {t.date&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:isOverdueTask?'#C4A882':'#B0AA9F'}}>{fmt(t.date)}</span>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const BtnSemana = () => (
+    <button onClick={onVerSemana}
+      style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",fontWeight:300,padding:"0",letterSpacing:".01em"}}>
+      ver semana →
+    </button>
+  );
+
+  const BtnVerTodo = () => (
+    <button onClick={()=>setVerTodoModal(true)}
+      style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,color:"#C8C3BB",fontWeight:300,padding:"0",letterSpacing:".01em"}}>
+      ver todo →
+    </button>
+  );
+
+  // Toast de reagendado
+  const ToastReagendado = () => reagendado ? (
+    <div style={{margin:desktop?"0 0 20px":"0 20px 0",background:"#2C2825",borderRadius:12,padding:"12px 16px"}}>
+      <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#F5F2EE",lineHeight:1.5}}>{mensaje}</div>
+      {reagendasCount>0&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#9B8878",marginTop:4}}>{reagendasCount} {reagendasCount===1?"tarea":"tareas"} movida{reagendasCount===1?"":"s"} a mañana ·</div>}
+    </div>
+  ) : null;
+
+  // Modal día difícil
+  const ModalDiaDificil = () => !diaDificil ? null : (
+    <div style={{position:"fixed",inset:0,background:"rgba(44,40,37,.5)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:desktop?"center":"stretch"}}
+      onClick={e=>{if(e.target===e.currentTarget)setDiaDificil(false);}}>
+      <div style={{width:"100%",maxWidth:desktop?480:430,background:"#F5F2EE",borderRadius:desktop?"20px 20px 0 0":"20px 20px 0 0",padding:"20px 24px 40px"}}>
+        {/* Handle */}
+        <div style={{width:36,height:3,background:"#D5CFC8",borderRadius:99,margin:"0 auto 20px"}}/>
+        <div style={{fontFamily:"'DM Sans'",fontSize:22,fontWeight:300,color:"#2C2825",letterSpacing:"-.02em",marginBottom:6}}>Día difícil.</div>
+        <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.65,marginBottom:20}}>
+          Elegí lo que vas a hacer hoy. El resto lo dejamos para mañana. Descansá un poco.
+        </div>
+
+        {/* Lista con checkboxes */}
+        <div style={{marginBottom:16}}>
+          {todayTasks.map((t,i)=>{
+            const sel = seleccionadas.has(t.id);
+            const proj = projects.find(p=>p.id===t.projectId);
+            return(
+              <div key={t.id} onClick={()=>toggleSeleccion(t.id)}
+                style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:i<todayTasks.length-1?"1px solid #EDE9E4":"none",cursor:"pointer"}}>
+                <div style={{width:16,height:16,borderRadius:5,border:`1.5px solid ${sel?"#2C2825":"#C8C3BB"}`,background:sel?"#2C2825":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}}>
+                  {sel&&<svg width="9" height="9" viewBox="0 0 9 9"><polyline points="1.5,4.5 3.5,7 7.5,2" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:13,color:sel?"#2C2825":"#C8C3BB",transition:"all .2s"}}>{t.title}</div>
+                  {proj&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",marginTop:1}}>{proj.name}</div>}
+                </div>
+                {!sel&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#C4A882",flexShrink:0}}>→ mañana</span>}
+                {sel&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:"#8FAF8A",flexShrink:0}}>hoy ✓</span>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Botón mover todo */}
+        <button onClick={marcarTodo}
+          style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:"0 0 16px",display:"block",width:"100%",textAlign:"center"}}>
+          en realidad puedo con todo →
+        </button>
+
+        {/* Botón confirmar */}
+        <button onClick={confirmar}
+          style={{width:"100%",background:"#2C2825",color:"white",border:"none",borderRadius:12,padding:"14px 0",fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:"pointer",marginBottom:8}}>
+          {seleccionadas.size===0
+            ?"Mover todo a mañana"
+            :seleccionadas.size===todayTasks.length
+              ?"En realidad puedo con todo"
+              :"Listo, mover el resto"}
+        </button>
+        <button onClick={()=>setDiaDificil(false)}
+          style={{width:"100%",background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:"4px 0"}}>
+          Mejor puedo con todo →
+        </button>
+      </div>
+    </div>
+  );
+
+  // Editor de título inline para PanelVoz
+  function VozTituloEditor({titulo, onChange}){
+    const [editing, setEditing] = useState(false);
+    const [val, setVal] = useState(titulo);
+    if(editing) return(
+      <input
+        autoFocus
+        value={val}
+        onChange={e=>setVal(e.target.value)}
+        onBlur={()=>{onChange(val);setEditing(false);}}
+        onKeyDown={e=>{if(e.key==='Enter'){onChange(val);setEditing(false);}if(e.key==='Escape')setEditing(false);}}
+        style={{
+          fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825',
+          border:'none',borderBottom:'1px solid #C4A882',
+          background:'transparent',outline:'none',
+          flex:1,minWidth:0,lineHeight:1.3,padding:'0 0 2px',
+        }}
+      />
+    );
+    return(
+      <div style={{display:'flex',alignItems:'center',gap:6,flex:1,minWidth:0}}>
+        <span style={{fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825',lineHeight:1.3,flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+          {val}
+        </span>
+        <button onClick={()=>setEditing(true)} style={{
+          background:'none',border:'none',cursor:'pointer',
+          color:'#C8C3BB',padding:0,flexShrink:0,
+          fontSize:12,lineHeight:1,
+        }}>✎</button>
+      </div>
+    );
+  }
+
+  // Selector de proyecto inline para PanelVoz
+  function VozProyectoSelector({accionId, proyectoId, projects, onChange}){
+    const [open, setOpen] = useState(false);
+    const sel = projects.find(p=>p.id===proyectoId);
+    return(
+      <div style={{marginTop:6,position:'relative'}}>
+        <div onClick={()=>setOpen(o=>!o)} style={{
+          display:'inline-flex',alignItems:'center',gap:6,
+          border:'1px solid #EAE6E0',borderRadius:8,
+          padding:'4px 10px',cursor:'pointer',background:'white',
+        }}>
+          {sel
+            ? <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#9B8878'}}>{sel.name}</span>
+            : <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C8C3BB',fontStyle:'italic'}}>sin proyecto</span>
+          }
+          <span style={{fontSize:9,color:'#C8C3BB'}}>{open?'▴':'▾'}</span>
+        </div>
+        {open&&(
+          <div style={{
+            position:'absolute',top:'100%',left:0,zIndex:10,
+            background:'white',border:'1px solid #EAE6E0',borderRadius:8,
+            marginTop:2,minWidth:180,maxHeight:160,overflowY:'auto',
+            boxShadow:'0 4px 16px rgba(0,0,0,.08)',
+          }}>
+            <div onClick={()=>{onChange(null);setOpen(false);}} style={{
+              padding:'8px 12px',cursor:'pointer',
+              fontFamily:"'DM Sans'",fontSize:12,
+              color:'#B0AA9F',fontStyle:'italic',
+              borderBottom:'1px solid #F5F2EE',
+            }}>Sin proyecto</div>
+            {projects.map(p=>(
+              <div key={p.id} onClick={()=>{onChange(p.id);setOpen(false);}} style={{
+                padding:'8px 12px',cursor:'pointer',
+                fontFamily:"'DM Sans'",fontSize:12,
+                color:proyectoId===p.id?'#9B8878':'#2C2825',
+                background:proyectoId===p.id?'#F5F1ED':'white',
+                borderBottom:'1px solid #F5F2EE',
+              }}>
+                {p.name}
+                {proyectoId===p.id&&<span style={{float:'right',color:'#9B8878'}}>✓</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const ACCION_LABEL = {
+    crear_tarea:      'Nueva tarea',
+    crear_proyecto:   'Nuevo proyecto',
+    completar_tarea:  'Completar',
+    reprogramar_tarea:'Mover al',
+  };
+
+  const PanelVoz = accionesVoz.length>0 ? (
+    <div style={{margin:desktop?'0 0 24px':'12px 20px 4px'}}>
+      {/* Encabezado */}
+      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+        <div style={{width:5,height:5,borderRadius:'50%',background:'#C4A882'}}/>
+        <span style={{fontFamily:"'DM Sans'",fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878'}}>
+          Escuché esto
+        </span>
+        {transcriptVoz&&<span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C8C3BB',fontStyle:'italic',marginLeft:4}}>· {transcriptVoz}</span>}
+      </div>
+      {/* Tarjetas */}
+      {accionesVoz.map((a)=>{
+        const disabled = !a._tarea_encontrada && (a.tipo_accion==='completar_tarea'||a.tipo_accion==='reprogramar_tarea');
+        let titulo = '';
+        if(a.tipo_accion==='crear_tarea') titulo = a.titulo;
+        if(a.tipo_accion==='crear_proyecto') titulo = a.nombre;
+        if(a.tipo_accion==='completar_tarea') titulo = a._tarea_encontrada ? a._tarea_encontrada.title : `"${a.titulo_tarea}" — no encontrada`;
+        if(a.tipo_accion==='reprogramar_tarea') titulo = a._tarea_encontrada ? `${a._tarea_encontrada.title} → ${a.nueva_fecha}` : `"${a.titulo_tarea}" — no encontrada`;
+        return(
+          <div key={a.id} style={{
+            display:'flex',alignItems:'center',gap:12,
+            padding:'11px 0',
+            borderBottom:'1px solid #EAE6E0',
+          }}>
+            {/* Barra accent */}
+            <div style={{width:3,borderRadius:99,alignSelf:'stretch',background:'#C4A882',flexShrink:0,minHeight:18}}/>
+            {/* Contenido */}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <VozTituloEditor
+                  titulo={titulo}
+                  onChange={(t)=>setAccionesVoz(av=>av.map(x=>x.id===a.id
+                    ? a.tipo_accion==='crear_tarea'
+                      ? {...x,titulo:t}
+                      : {...x,titulo_tarea:t}
+                    : x))}
+                />
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:4,marginTop:2,flexWrap:'wrap'}}>
+                <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{ACCION_LABEL[a.tipo_accion]}</span>
+                {a.tipo_accion==='crear_tarea'&&a.fecha&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{a.fecha}</span></>}
+                {a.tipo==='sugerida'&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C8C3BB'}}>sugerida</span></>}
+              </div>
+              {/* Selector de proyecto editable */}
+              {a.tipo_accion==='crear_tarea'&&(
+                <VozProyectoSelector
+                  accionId={a.id}
+                  proyectoId={a._proyecto_id||null}
+                  projects={projects}
+                  onChange={(pid)=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_proyecto_id:pid}:x))}
+                />
+              )}
+            </div>
+            {/* Acciones */}
+            <div style={{display:'flex',gap:6,flexShrink:0}}>
+              <button
+                onClick={()=>ejecutarAccionVoz(a)}
+                disabled={disabled}
+                style={{
+                  background:disabled?'#F0EDE8':'#2C2825',
+                  color:disabled?'#C8C3BB':'white',
+                  border:'none',borderRadius:8,
+                  padding:'6px 12px',
+                  fontFamily:"'DM Sans'",fontSize:12,fontWeight:500,
+                  cursor:disabled?'not-allowed':'pointer',
+                  transition:'all .15s',
+                }}>
+                Agregar
+              </button>
+              <button
+                onClick={()=>descartarAccionVoz(a)}
+                style={{
+                  background:'none',color:'#C8C3BB',
+                  border:'1px solid #EAE6E0',borderRadius:8,
+                  padding:'6px 8px',
+                  fontFamily:"'DM Sans'",fontSize:12,
+                  cursor:'pointer',
+                }}>
+                ✕
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  ) : null;
+
+  const isEmpty = todayTasks.length===0&&overdueWork.length===0;
+
+  if(isEmpty) return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:desktop?"0 0 16px":"8px 20px"}}>
+        <BtnSemana/>
+        <BtnVerTodo/>
+      </div>
+      {PanelCalendar}
+      {PanelVoz}
+      <div style={{textAlign:"center",padding:desktop?"60px 0":"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
+      <button onClick={()=>onOpenAddSheet ? onOpenAddSheet({projectId:null,area:'trabajo',projectName:'',showProjectSelector:true}) : onAddTask({id:null,name:'',area:'trabajo',showProjectSelector:true})} className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:8}:{}}>
+        <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
+      </button>
+      <VerTodoModal/>
+      <ModalDiaDificil/>
+      <BtnMic/>
+    </div>
+  );
+
+  if(desktop) return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{display:"flex",gap:16}}>
+          <BtnSemana/>
+          <BtnVerTodo/>
+        </div>
+        {todayTasks.length>=2&&(
+          <button onClick={abrirDiaDificil}
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:0,letterSpacing:".01em"}}>
+            día difícil →
+          </button>
+        )}
+      </div>
+      <ToastReagendado/>
+      {PanelCalendar}
+      {PanelVoz}
+
+      <div style={{display:"flex",gap:48,alignItems:"flex-start"}}>
+        <div style={{flex:1,minWidth:0}}>
+          <SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/>
+          {todayTasks.length>0
+            ?<TaskList tasks={todayTasks}/>
+            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas para hoy ·</div>
+          }
+        </div>
+        <div style={{width:1,background:"#EAE6E0",alignSelf:"stretch",flexShrink:0}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/>
+          {overdueWork.length>0
+            ?<TaskList tasks={overdueWork} overdue/>
+            :<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",padding:"8px 0"}}>Sin tareas vencidas ·</div>
+          }
+        </div>
+      </div>
+      <button onClick={()=>onOpenAddSheet ? onOpenAddSheet({projectId:null,area:'trabajo',projectName:'',showProjectSelector:true}) : onAddTask({id:null,name:'',area:'trabajo',showProjectSelector:true})} className="d-newp" style={{marginTop:16}}>
+        <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
+      </button>
+      <VerTodoModal/>
+      <ModalDiaDificil/>
+
+      <BtnMic/>
+    </div>
+  );
+
+  return(
+    <div style={{paddingBottom:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 20px 0"}}>
+        <div style={{display:"flex",gap:16}}>
+          <BtnSemana/>
+          <BtnVerTodo/>
+        </div>
+        {todayTasks.length>=2&&(
+          <button onClick={abrirDiaDificil}
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",padding:0,letterSpacing:".01em"}}>
+            día difícil →
+          </button>
+        )}
+      </div>
+      <ToastReagendado/>
+
+      {PanelCalendar}
+      {PanelVoz}
+      {todayTasks.length>0&&<><SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/><TaskList tasks={todayTasks}/></>}
+      {overdueWork.length>0&&<><SectionHeader label="Vencidas" color="#C4A882" count={overdueWork.length}/><TaskList tasks={overdueWork} overdue/></>}
+      <button onClick={()=>onOpenAddSheet ? onOpenAddSheet({projectId:null,area:'trabajo',projectName:'',showProjectSelector:true}) : onAddTask({id:null,name:'',area:'trabajo',showProjectSelector:true})} className="m-newp">
+        <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
+      </button>
+      <VerTodoModal/>
+      <ModalDiaDificil/>
+
+
+
+      <BtnMic/>
+    </div>
+  );
+}
+
+// ─── Semana View ──────────────────────────────────────────────────────────────
+function SemanaView({tasks, projects, onToggle, onOpen, onUpdate, desktop, onAddTask}){
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = semana actual
+  const [viewMode, setViewMode]     = useState("semana"); // "semana" | "dia"
+  const [selectedDay, setSelectedDay] = useState(null); // índice 0-6
+
+  // ── Calcular los 7 días de la semana activa ──
+  const weekDays = useMemo(()=>{
+    const days = [];
+    const now = new Date();
+    // Lunes como inicio de semana
+    const dow = now.getDay(); // 0=dom
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (dow===0?6:dow-1) + weekOffset*7);
+    for(let i=0;i<7;i++){
+      const d = new Date(monday);
+      d.setDate(monday.getDate()+i);
+      days.push(d.toISOString().split("T")[0]);
+    }
+    return days;
+  }, [weekOffset]);
+
+  const today = todayStr();
+
+  // Etiquetas de días
+  const DAY_SHORT = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+  const DAY_FULL  = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+
+  // Label de la semana: "5 – 11 may"
+  const weekLabel = useMemo(()=>{
+    const fmt = (d)=>{
+      const [,m,day] = d.split("-");
+      const months = ["","ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+      return `${parseInt(day)} ${months[parseInt(m)]}`;
+    };
+    return `${fmt(weekDays[0])} – ${fmt(weekDays[6])}`;
+  },[weekDays]);
+
+  // Tareas con fecha — todas (trabajo + personal)
+  const tasksForDay = (dateStr) =>
+    tasks.filter(t => t.date === dateStr && !t.done).sort(taskSort);
+
+  // Tareas vencidas (anteriores a esta semana)
+  const overdueTasks = tasks.filter(t =>
+    t.date && t.date < weekDays[0] && !t.done
+  ).sort(taskSort);
+
+  // Seleccionar día activo (default = hoy si está en la semana, si no el primero)
+  useEffect(()=>{
+    const todayIdx = weekDays.indexOf(today);
+    setSelectedDay(todayIdx>=0 ? todayIdx : 0);
+  }, [weekDays]);
+
+  // ── Drag & drop ──
+  const dragTask   = useRef(null); // {id, fromDate}
+  const longPressTimer = useRef(null);
+  const [dragging, setDragging] = useState(null); // id de la tarea dragging
+  const [dropTarget, setDropTarget] = useState(null); // dateStr destino
+
+  // Desktop: HTML5 drag
+  function onDragStart(e, task){
+    dragTask.current = {id: task.id, fromDate: task.date};
+    setDragging(task.id);
+    e.dataTransfer.effectAllowed = "move";
+  }
+  function onDragOver(e, dateStr){
+    e.preventDefault();
+    setDropTarget(dateStr);
+  }
+  function onDrop(e, dateStr){
+    e.preventDefault();
+    if(!dragTask.current || dragTask.current.fromDate === dateStr) { resetDrag(); return; }
+    moveTask(dragTask.current.id, dateStr);
+    resetDrag();
+  }
+  function onDragEnd(){ resetDrag(); }
+
+  // Mobile: long press
+  function onTouchStart(e, task){
+    longPressTimer.current = setTimeout(()=>{
+      dragTask.current = {id: task.id, fromDate: task.date};
+      setDragging(task.id);
+    }, 450);
+  }
+  function onTouchMove(e){
+    if(!dragTask.current) { clearTimeout(longPressTimer.current); return; }
+    e.preventDefault();
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const col = el?.closest("[data-day]");
+    if(col) setDropTarget(col.dataset.day);
+  }
+  function onTouchEnd(e, task){
+    clearTimeout(longPressTimer.current);
+    if(!dragTask.current){ return; }
+    if(dropTarget && dropTarget !== dragTask.current.fromDate){
+      moveTask(dragTask.current.id, dropTarget);
+    }
+    resetDrag();
+  }
+  function resetDrag(){ dragTask.current=null; setDragging(null); setDropTarget(null); }
+
+  function moveTask(taskId, newDate){
+    const task = tasks.find(t=>t.id===taskId);
+    if(!task) return;
+    const updated = {...task, date: newDate,
+      snoozed_count: newDate > (task.date||"") ? (task.snoozed_count||0)+1 : task.snoozed_count
+    };
+    onUpdate(updated);
+  }
+
+  // ── CHIP de tarea (mini para vista semana) ──
+  const MiniChip = ({task}) => {
+    const proj = projects.find(p=>p.id===task.projectId);
+    const type = task.type||"normal";
+    const borderColor = type==="estrategica"?"#5B6BAF":type==="urgente"?"#C49A7A":"#EAE6E0";
+    const isDragging = dragging===task.id;
+    return(
+      <div
+        draggable={desktop}
+        onDragStart={desktop?e=>onDragStart(e,task):undefined}
+        onDragEnd={desktop?onDragEnd:undefined}
+        onTouchStart={!desktop?e=>onTouchStart(e,task):undefined}
+        onTouchMove={!desktop?onTouchMove:undefined}
+        onTouchEnd={!desktop?e=>onTouchEnd(e,task):undefined}
+        onClick={()=>{ if(!dragging) onOpen(task); }}
+        style={{
+          borderRadius:5,padding:"4px 5px",fontSize:10,color:"#2C2825",
+          lineHeight:1.3,wordBreak:"break-word",
+          border:`1px solid #EAE6E0`,borderLeft:`3px solid ${borderColor}`,
+          background:"white",cursor:"grab",marginBottom:3,
+          opacity:isDragging?0.4:1,
+          transition:"opacity .15s",userSelect:"none",
+        }}>
+        <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+        {proj&&<div style={{fontSize:9,color:"#B0AA9F",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{proj.name}</div>}
+      </div>
+    );
+  };
+
+  // ── CHIP expandido (vista día) ──
+  const DayChip = ({task}) => {
+    const proj = projects.find(p=>p.id===task.projectId);
+    const type = task.type||"normal";
+    const borderColor = type==="estrategica"?"#5B6BAF":type==="urgente"?"#C49A7A":"transparent";
+    return(
+      <div onClick={()=>onOpen(task)}
+        style={{display:"flex",alignItems:"center",gap:10,padding:"11px 14px",
+          background:"#FDFCFA",borderRadius:8,border:"1px solid #EAE6E0",
+          borderLeft:`3px solid ${borderColor}`,marginBottom:6,cursor:"pointer"}}>
+        <button style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid #C8C3BB",background:"none",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}
+          onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+        </button>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#2C2825",lineHeight:1.4}}>{task.title}</div>
+          {proj&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",marginTop:1}}>{proj.name}</div>}
+        </div>
+        <TypeDot type={task.type} done={false}/>
+      </div>
+    );
+  };
+
+  const pad = desktop ? "0 48px" : "0 16px";
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+
+      {/* Controls: navegación semana + toggle */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:desktop?"12px 48px":"10px 16px",flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <button onClick={()=>setWeekOffset(w=>w-1)}
+            style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#C8C3BB",padding:"0 2px",lineHeight:1}}>‹</button>
+          <span style={{fontFamily:"'DM Sans'",fontSize:12,color:"#6B6258",minWidth:90,textAlign:"center"}}>{weekLabel}</span>
+          <button onClick={()=>setWeekOffset(w=>w+1)}
+            style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#C8C3BB",padding:"0 2px",lineHeight:1}}>›</button>
+          {weekOffset!==0&&(
+            <button onClick={()=>setWeekOffset(0)}
+              style={{background:"none",border:"1px solid #E5E1DB",borderRadius:99,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",padding:"2px 8px",marginLeft:4}}>
+              Hoy
+            </button>
+          )}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:0}}>
+          <button onClick={()=>setViewMode("semana")}
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:viewMode==="semana"?"#2C2825":"#D5CFC8",fontWeight:viewMode==="semana"?500:300,padding:"10px 4px",minHeight:44}}>
+            semana
+          </button>
+          <span style={{fontSize:13,color:"#EAE6E0",padding:"0 4px"}}>·</span>
+          <button onClick={()=>setViewMode("dia")}
+            style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:viewMode==="dia"?"#2C2825":"#D5CFC8",fontWeight:viewMode==="dia"?500:300,padding:"10px 4px",minHeight:44}}>
+            día
+          </button>
+        </div>
+      </div>
+
+      {/* ── VISTA SEMANA ── */}
+      {viewMode==="semana"&&(
+        <div style={{flex:1,overflowY:"auto",padding:desktop?"0 48px 24px":"0 16px 24px"}}>
+          <div style={{display:"flex",gap:4,alignItems:"flex-start"}}>
+            {weekDays.map((dateStr,i)=>{
+              const dayTasks = tasksForDay(dateStr);
+              const isToday = dateStr===today;
+              const isTarget = dropTarget===dateStr;
+              return(
+                <div key={dateStr} data-day={dateStr} style={{flex:1,minWidth:0}}
+                  onDragOver={desktop?e=>onDragOver(e,dateStr):undefined}
+                  onDrop={desktop?e=>onDrop(e,dateStr):undefined}>
+                  {/* Header del día */}
+                  <div onClick={()=>{ setSelectedDay(i); setViewMode("dia"); }}
+                    style={{textAlign:"center",marginBottom:6,padding:"4px 2px",borderRadius:8,cursor:"pointer",background:isToday?"#2C2825":"transparent",transition:"background .15s"}}>
+                    <span style={{fontSize:9,letterSpacing:".08em",textTransform:"uppercase",color:isToday?"rgba(255,255,255,.6)":"#C8C3BB",display:"block"}}>{DAY_SHORT[i]}</span>
+                    <span style={{fontSize:15,fontWeight:isToday?500:300,color:isToday?"white":"#9B8878",lineHeight:1.2,display:"block"}}>{parseInt(dateStr.split("-")[2])}</span>
+                  </div>
+                  {/* Tareas del día */}
+                  <div style={{minHeight:40,borderRadius:6,border:isTarget?"2px dashed #9B8878":"2px dashed transparent",transition:"border .15s",padding:2}}>
+                    {dayTasks.length===0
+                      ?<div style={{height:28,borderRadius:5,border:"1px dashed #EAE6E0"}}/>
+                      :dayTasks.map(t=><MiniChip key={t.id} task={t}/>)
+                    }
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Vencidas — al final */}
+          {overdueTasks.length>0&&(
+            <div style={{marginTop:20}}>
+              <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:4,height:4,borderRadius:"50%",background:"#C4A882"}}/>
+                Vencidas · {overdueTasks.length}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                {overdueTasks.map(t=><DayChip key={t.id} task={t}/>)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── VISTA DÍA ── */}
+      {viewMode==="dia"&&(
+        <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column"}}>
+          {/* Pills de días */}
+          <div style={{display:"flex",padding:desktop?"0 48px 12px":"0 16px 12px",gap:4,flexShrink:0}}>
+            {weekDays.map((dateStr,i)=>{
+              const hasTasks = tasksForDay(dateStr).length>0;
+              const isToday = dateStr===today;
+              const isSelected = selectedDay===i;
+              return(
+                <button key={dateStr} onClick={()=>setSelectedDay(i)}
+                  style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"5px 2px",borderRadius:99,border:"none",cursor:"pointer",
+                    background:isSelected?"#2C2825":"transparent",transition:"background .15s"}}>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".08em",textTransform:"uppercase",color:isSelected?"rgba(255,255,255,.6)":isToday?"#9B8878":"#C8C3BB"}}>{DAY_SHORT[i]}</span>
+                  <span style={{fontFamily:"'DM Sans'",fontSize:16,fontWeight:300,color:isSelected?"white":isToday?"#2C2825":"#9B8878",lineHeight:1.1}}>{parseInt(dateStr.split("-")[2])}</span>
+                  {hasTasks&&<div style={{width:4,height:4,borderRadius:"50%",background:isSelected?"rgba(255,255,255,.5)":"#C4A882",marginTop:2}}/>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Card del día seleccionado */}
+          {selectedDay!==null&&(()=>{
+            const dateStr = weekDays[selectedDay];
+            const dayTasks = tasksForDay(dateStr);
+            const isToday = dateStr===today;
+            const dow = new Date(dateStr+"T12:00:00").getDay();
+            const dayName = DAY_FULL[(dow+6)%7]; // ajustar para lunes=0
+            const [,m,d] = dateStr.split("-");
+
+            return(
+              <div style={{margin:desktop?"0 48px":"0 16px",background:"white",borderRadius:14,border:"1px solid #EAE6E0",padding:"16px 14px",boxShadow:"0 1px 8px rgba(0,0,0,.05)",flex:1}}>
+                <div style={{textAlign:"center",marginBottom:16}}>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:10,fontWeight:500,letterSpacing:".1em",textTransform:"uppercase",color:isToday?"#9B8878":"#B0AA9F"}}>{dayName}</div>
+                  <div style={{fontFamily:"'DM Sans'",fontSize:22,fontWeight:400,color:"#2C2825",lineHeight:1.1,marginTop:1}}>{parseInt(d)}</div>
+                </div>
+                {dayTasks.length===0
+                  ?<div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#D5CFC8",fontStyle:"italic",textAlign:"center",padding:"16px 0 8px"}}>Sin tareas este día</div>
+                  :dayTasks.map(t=><DayChip key={t.id} task={t}/>)
+                }
+                {onAddTask&&(
+                  <button onClick={()=>onAddTask(dateStr)}
+                    style={{width:"100%",marginTop:10,background:"none",border:"1px dashed #E5E1DB",borderRadius:10,padding:"9px 0",fontFamily:"'DM Sans'",fontSize:12,color:"#C8C3BB",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                    <span style={{fontSize:16,lineHeight:1}}>+</span> Nueva tarea
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Vencidas en vista día también */}
+          {overdueTasks.length>0&&(
+            <div style={{margin:desktop?"16px 48px":"16px 16px"}}>
+              <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",letterSpacing:".08em",textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+                <div style={{width:4,height:4,borderRadius:"50%",background:"#C4A882"}}/>
+                Vencidas · {overdueTasks.length}
+              </div>
+              {overdueTasks.map(t=><DayChip key={t.id} task={t}/>)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Tareas View (con toggle todas / por proyecto) ───────────────────────────
+function TareasView({activeArea,projects,allProjects,tasksForProject,tasks,onToggle,onDelete,onOpen,onAddTask,onComplete,reorderTasks,addTask,addProject,sw,desktop,focusMode,activeProjId}){
+  const STORAGE_KEY = 'clarity_tareas_modo';
+  // Default: 'sin_proyecto' — propósito principal del tab
+  const [modo, setModo] = useState(()=>{
+    try{ return localStorage.getItem(STORAGE_KEY)||'sin_proyecto'; }catch{ return 'sin_proyecto'; }
+  });
+
+  function switchModo(m){
+    setModo(m);
+    try{ localStorage.setItem(STORAGE_KEY, m); }catch{}
+  }
+
+  // Tareas del área que NO tienen proyecto asignado (projectId es null/undefined o no existe en projects)
+  // Tareas sin proyecto: simplemente las que tienen projectId null/undefined
+  const tareasSinProyecto = tasks
+    .filter(t=>!t.done && !t.projectId)
+    .sort(taskSort);
+
+  // Todas las tareas del área activa, sin agrupar
+  const todasLasTareas = projects.flatMap(p=>
+    tasksForProject(p.id).filter(t=>!t.done).map(t=>({...t,_proj:p}))
+  ).concat(tareasSinProyecto)
+  .sort(taskSort);
+
+  // Crear tarea suelta — sin proyecto
+  function addTareaSuelta(){
+    // Busca un proyecto "placeholder" invisible o abre el sheet sin proyecto
+    // Por ahora abrimos el sheet con el primer proyecto disponible o null
+    const firstProj = projects[0];
+    if(firstProj){
+      onAddTask(firstProj);
+    } else {
+      // Sin proyectos — crear tarea igual, el selector lo permite
+      onAddTask({id:null, name:'', area:activeArea});
+    }
+  }
+
+  if(focusMode) return(
+    <FocusProjectMode
+      projects={projects}
+      tasksForProject={tasksForProject}
+      onToggle={onToggle}
+      onDelete={onDelete}
+      onOpen={onOpen}
+      onAddTask={onAddTask}
+      desktop={desktop}
+    />
+  );
+
+  const tareasActuales = modo==='sin_proyecto' ? tareasSinProyecto : todasLasTareas;
+
+  return(
+    <div style={desktop?{padding:"24px 48px"}:{}}>
+
+      {/* Epígrafe */}
+      <div style={{padding:desktop?'0 0 16px':'8px 20px 12px'}}>
+        <p style={{fontFamily:"'DM Sans'",fontSize:13,color:'#B0AA9F',lineHeight:1.6}}>
+          Creá tareas sueltas o asignalas a un proyecto.
+        </p>
+      </div>
+
+      {/* Lista de tareas sin proyecto */}
+      <div>
+        {tareasSinProyecto.length===0
+          ?<div style={{textAlign:'center',padding:'40px 20px',color:'#C8C3BB',fontFamily:"'DM Sans'",fontSize:14}}>
+            Sin tareas sueltas. Todo está asignado a un proyecto.
+           </div>
+          :desktop
+            ?<DTaskList tasks={tareasSinProyecto} projects={allProjects||projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks}/>
+            :<TaskRows tasks={tareasSinProyecto} projects={allProjects||projects} onToggle={onToggle} onDelete={onDelete} onOpen={onOpen} reorderTasks={reorderTasks} {...(sw||{})}/>
+        }
+        <button onClick={()=>onAddTask({id:null,name:'',area:activeArea,showProjectSelector:true})} className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:8}:{}}>
+          <span style={{fontSize:18,lineHeight:1}}>+</span> Nueva tarea
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Tour de bienvenida ────────────────────────────────────────────────────────
+function TourApp({onClose}){
+  const [step, setStep] = useState(0);
+  const bg = '#F5F2EE';
+  const STYLE = `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#F5F2EE!important;}`;
+
+  const PASOS = [
+    {
+      num: '01', label: 'Tareas',
+      title: 'Empezá por lo urgente.',
+      body: 'Cargá todo lo que tenés pendiente en la tab Tareas. Organizalas en proyectos cuando quieras, o dejálas sueltas.',
+      svg: (
+        <svg width="140" height="100" viewBox="0 0 140 100" fill="none">
+          <rect x="20" y="15" width="100" height="70" rx="8" stroke="#EAE6E0" strokeWidth="2"/>
+          <rect x="32" y="30" width="76" height="12" rx="4" fill="#F5F1ED" stroke="#EAE6E0" strokeWidth="1"/>
+          <circle cx="42" cy="36" r="4" stroke="#C4A882" strokeWidth="1.5"/>
+          <line x1="52" y1="36" x2="98" y2="36" stroke="#D5CFC8" strokeWidth="1.5" strokeLinecap="round"/>
+          <rect x="32" y="48" width="76" height="12" rx="4" fill="#F5F1ED" stroke="#EAE6E0" strokeWidth="1"/>
+          <circle cx="42" cy="54" r="4" stroke="#C4A882" strokeWidth="1.5"/>
+          <line x1="52" y1="54" x2="88" y2="54" stroke="#D5CFC8" strokeWidth="1.5" strokeLinecap="round"/>
+          <rect x="32" y="66" width="76" height="12" rx="4" fill="#EAF0E4" stroke="#C4A882" strokeWidth="1"/>
+          <circle cx="42" cy="72" r="4" fill="#C4A882" stroke="#C4A882" strokeWidth="1.5"/>
+          <path d="M39.5 72 L41.5 74 L44.5 70" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          <line x1="52" y1="72" x2="92" y2="72" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round" opacity=".5"/>
+        </svg>
+      ),
+    },
+    {
+      num: '02', label: 'Proyectos',
+      title: 'Dales contexto.',
+      body: 'Una lista larga agobia. En Proyectos agrupás tus tareas para que cada esfuerzo tenga un propósito claro.',
+      svg: (
+        <svg width="140" height="100" viewBox="0 0 140 100" fill="none">
+          <rect x="10" y="30" width="36" height="52" rx="5" stroke="#EAE6E0" strokeWidth="2"/>
+          <rect x="52" y="15" width="36" height="67" rx="5" stroke="#C4A882" strokeWidth="2"/>
+          <rect x="94" y="24" width="36" height="58" rx="5" stroke="#EAE6E0" strokeWidth="2"/>
+          <line x1="18" y1="42" x2="38" y2="42" stroke="#E5E1DB" strokeWidth="1.2"/>
+          <line x1="18" y1="50" x2="36" y2="50" stroke="#E5E1DB" strokeWidth="1.2"/>
+          <line x1="60" y1="27" x2="80" y2="27" stroke="#C4A882" strokeWidth="1.2" opacity=".7"/>
+          <line x1="60" y1="35" x2="80" y2="35" stroke="#C4A882" strokeWidth="1.2" opacity=".7"/>
+          <line x1="60" y1="43" x2="74" y2="43" stroke="#C4A882" strokeWidth="1.2" opacity=".7"/>
+          <line x1="102" y1="36" x2="122" y2="36" stroke="#E5E1DB" strokeWidth="1.2"/>
+          <line x1="102" y1="44" x2="118" y2="44" stroke="#E5E1DB" strokeWidth="1.2"/>
+        </svg>
+      ),
+    },
+    {
+      num: '03', label: 'Metas',
+      title: 'Que el árbol no te tape el bosque.',
+      body: 'Cuando estés listo, definí tus Metas en la tab Metas y conectalas con tus proyectos. Así sabés que cada tarea suma a algo más grande.',
+      svg: (
+        <svg width="140" height="100" viewBox="0 0 140 100" fill="none">
+          <circle cx="70" cy="38" r="22" stroke="#C4A882" strokeWidth="2"/>
+          <line x1="70" y1="16" x2="70" y2="10" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
+          <line x1="92" y1="38" x2="98" y2="38" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
+          <line x1="48" y1="38" x2="42" y2="38" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
+          <line x1="70" y1="60" x2="70" y2="66" stroke="#C4A882" strokeWidth="1.5" strokeLinecap="round"/>
+          <line x1="62" y1="38" x2="70" y2="28" stroke="#C4A882" strokeWidth="2.5" strokeLinecap="round"/>
+          <line x1="70" y1="28" x2="78" y2="36" stroke="#C4A882" strokeWidth="1.2" strokeLinecap="round" opacity=".4"/>
+          <path d="M16 82 Q35 60 55 70 Q75 80 95 62 Q110 50 124 82" stroke="#EAE6E0" strokeWidth="1.5" fill="none"/>
+        </svg>
+      ),
+    }  ];
+
+  const paso = PASOS[step];
+  const isLast = step === PASOS.length - 1;
+
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(44,40,37,.6)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:'0 0 40px'}}>
+      <style>{STYLE}</style>
+      <div style={{width:'100%',maxWidth:430,background:bg,borderRadius:20,padding:'28px 24px 32px',fontFamily:"'DM Sans',sans-serif",margin:'0 16px'}}>
+
+        {/* Header */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:10,fontWeight:500,letterSpacing:'.1em',textTransform:'uppercase',color:'#C4A882'}}>{paso.num} · {paso.label}</span>
+          </div>
+          <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB',padding:0}}>
+            Saltar tour
+          </button>
+        </div>
+
+        {/* Barra de progreso */}
+        <div style={{height:2,background:'#EAE6E0',borderRadius:99,marginBottom:20,overflow:'hidden'}}>
+          <div style={{height:'100%',width:`${((step+1)/PASOS.length)*100}%`,background:'linear-gradient(to right,#C4A882,#9B8878)',borderRadius:99,transition:'width .4s cubic-bezier(.34,1,.64,1)'}}/>
+        </div>
+
+        {/* Ilustración */}
+        <div style={{display:'flex',justifyContent:'center',marginBottom:20}}>
+          {paso.svg}
+        </div>
+
+        {/* Texto */}
+        <div style={{fontSize:22,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8,lineHeight:1.2}}>{paso.title}</div>
+        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.7,marginBottom:24}}>{paso.body}</div>
+
+        {/* Botones */}
+        <button onClick={isLast ? onClose : ()=>setStep(s=>s+1)}
+          style={{width:'100%',background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'14px 0',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
+          {isLast ? 'Empezar →' : 'Siguiente →'}
+        </button>
+
+      </div>
+    </div>
+  );
+}
+
+function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline,desktop,showTour,setShowTour,uid,supabase}){
+
+  const activeSec = SECTIONS.find(s => s.id === section);
+  const showAreaPills = subView==="proyectos";
+  const [semanaModal, setSemanaModal] = useState(false);
+
+  // Orden de sub-tabs por sección — persiste en localStorage
+  const [subTabOrders, setSubTabOrders] = useState(()=>{
+    try{ return JSON.parse(localStorage.getItem('clarity_subtab_orders')||'{}'); }catch{ return {}; }
+  });
+  function getOrderedSubTabs(sec){
+    const order = subTabOrders[sec.id];
+    if(!order) return sec.subTabs;
+    return [...sec.subTabs].sort((a,b)=>{
+      const ia = order.indexOf(a.id);
+      const ib = order.indexOf(b.id);
+      return (ia===-1?99:ia)-(ib===-1?99:ib);
+    });
+  }
+  // Drag & drop state para sub-tabs
+  const [dragSubTab, setDragSubTab] = useState(null);
+
+  const NAV_ITEMS = [
+    { id:"hoy",       label:"Mi día",    icon:"⊙" },
+    { id:"proyectos", label:"Proyectos", icon:"☐" },
+    { id:"metas",     label:"Metas",     icon:"⋈" },
+    { id:"progreso",  label:"Progreso",  icon:"❀" },
+  ];
+
+  // ── Sub-nav + contenido (compartido mobile/desktop) ──
+  const SubNav = () => {
+    if(!activeSec || activeSec.subTabs.length <= 1) return null;
+    const orderedTabs = getOrderedSubTabs(activeSec);
+
+    function handleDragStart(e, tabId){
+      setDragSubTab(tabId);
+      e.dataTransfer.effectAllowed = 'move';
+    }
+    function handleDragOver(e, tabId){
+      e.preventDefault();
+      if(dragSubTab===tabId) return;
+    }
+    function handleDrop(e, targetId){
+      e.preventDefault();
+      if(!dragSubTab || dragSubTab===targetId) return;
+      const current = orderedTabs.map(t=>t.id);
+      const fromIdx = current.indexOf(dragSubTab);
+      const toIdx   = current.indexOf(targetId);
+      const next = [...current];
+      next.splice(fromIdx,1);
+      next.splice(toIdx,0,dragSubTab);
+      const newOrders = {...subTabOrders, [activeSec.id]: next};
+      setSubTabOrders(newOrders);
+      try{ localStorage.setItem('clarity_subtab_orders', JSON.stringify(newOrders)); }catch{}
+      // Si el tab arrastrado quedó primero, navegar a él
+      if(toIdx===0) setSubView(dragSubTab);
+      setDragSubTab(null);
+    }
+    function handleDragEnd(){ setDragSubTab(null); }
+
+    return(
+      <div style={{display:"flex",alignItems:"center",borderBottom:"1px solid #EAE6E0",padding:desktop?"0 48px":"0 20px",flexShrink:0}}>
+        <div style={{display:"flex",gap:desktop?24:20,flex:1}}>
+          {orderedTabs.map(tab=>(
+            <button key={tab.id}
+              onClick={()=>setSubView(tab.id)}
+              draggable
+              onDragStart={e=>handleDragStart(e,tab.id)}
+              onDragOver={e=>handleDragOver(e,tab.id)}
+              onDrop={e=>handleDrop(e,tab.id)}
+              onDragEnd={handleDragEnd}
+              style={{
+                background:"none",border:"none",
+                cursor:dragSubTab?'grabbing':'pointer',
+                fontFamily:"'DM Sans'",fontSize:12,fontWeight:600,
+                letterSpacing:".08em",textTransform:"uppercase",
+                color:subView===tab.id?"#2C2825":"#B0AA9F",
+                paddingBottom:10,
+                borderBottom:`2px solid ${subView===tab.id?"#2C2825":dragSubTab===tab.id?"#C4A882":"transparent"}`,
+                transition:"all .2s",whiteSpace:"nowrap",
+                opacity:dragSubTab===tab.id?.5:1,
+              }}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {showAreaPills&&desktop&&<div style={{paddingBottom:10}}><AreaToggle/></div>}
+      </div>
+    );
+  };
+
+  // Toggle área — mismo estilo que semana/día, va dentro del SubNav
+  const AreaToggle = () => showAreaPills ? (
+    <div style={{display:"flex",alignItems:"center",gap:0,marginLeft:"auto",flexShrink:0}}>
+      <button onClick={()=>{setActiveArea("trabajo");setActiveProjId(null);}}
+        style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:activeArea==="trabajo"?"#2C2825":"#D5CFC8",fontWeight:activeArea==="trabajo"?500:300,padding:"10px 4px",minHeight:44}}>
+        trabajo
+      </button>
+      <span style={{fontSize:13,color:"#EAE6E0",padding:"0 4px"}}>·</span>
+      <button onClick={()=>{setActiveArea("personal");setActiveProjId(null);}}
+        style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,letterSpacing:'.01em',color:activeArea==="personal"?"#2C2825":"#D5CFC8",fontWeight:activeArea==="personal"?500:300,padding:"10px 4px",minHeight:44}}>
+        personal
+      </button>
+    </div>
+  ) : null;
+  const AreaPills = AreaToggle; // alias por compatibilidad
+
+  const TopBar = () => (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:desktop?"20px 48px 16px":"52px 20px 14px",flexShrink:0}}>
+      <div style={{fontFamily:"'DM Sans'",fontSize:10,color:"#B0AA9F",letterSpacing:".08em",textTransform:"uppercase"}}>
+        {new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        {!isOnline&&<span style={{fontFamily:"'DM Sans'",fontSize:10,color:"#C4A882",background:"#FBF8F2",padding:"2px 8px",borderRadius:99,border:"1px solid #F0DFA0"}}>sin conexión</span>}
+        <button onClick={()=>{const nf=!focusMode;setFocusMode(nf);trackEvent(nf?"focus_mode_on":"focus_mode_off");}}
+          style={{background:focusMode?"#2C2825":"none",color:focusMode?"white":"#C8C3BB",border:`1px solid ${focusMode?"#2C2825":"#E5E1DB"}`,borderRadius:99,padding:"3px 12px",fontFamily:"'DM Sans'",fontSize:10,cursor:"pointer",transition:"all .2s",letterSpacing:".06em"}}>
+          {focusMode?"◈ Foco":"◈"}
+        </button>
+        <button onClick={signOut} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:11,color:"#D5CFC8",padding:0}}>↩</button>
+      </div>
+    </div>
+  );
+
+  const Content = () => (
+    <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:desktop?0:100}}>
+
+      {subView==="hoy"&&(
+        focusMode
+          ?<div style={{padding:desktop?"24px 48px":"16px 20px 0"}}>
+             <FocusMode overdueWork={overdueWork} todayWork={todayWork} upcomingWork={upcomingWork} tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} desktop={desktop}/>
+           </div>
+          :<div style={desktop?{padding:"24px 48px"}:{}}>
+             <HoyView overdueWork={overdueWork} projects={projects} tasks={tasks} toggleDone={toggleDone} onDelete={deleteTask} onOpen={setSheet} reorderTasks={reorderTasks} sw={sw} desktop={desktop} onVerSemana={()=>setSemanaModal(true)} onUpdateTask={updateTask} userId={uid} supabase={supabase} onAddTask={t=>addTask(t)} onOpenAddSheet={(cfg)=>setAddSheet(cfg)} onAddProject={addProject}/>
+           </div>
+      )}
+
+      {semanaModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(44,40,37,.5)",zIndex:100,display:"flex",alignItems:"stretch",justifyContent:"center"}} onClick={e=>{if(e.target===e.currentTarget)setSemanaModal(false);}}>
+          <div style={{width:"100%",maxWidth:desktop?900:430,background:"#F5F2EE",display:"flex",flexDirection:"column",boxShadow:"0 0 40px rgba(0,0,0,.15)"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:desktop?"20px 48px 0":"16px 20px 0",flexShrink:0}}>
+              <span style={{fontFamily:"'DM Sans'",fontSize:13,fontWeight:500,color:"#2C2825"}}>Semana</span>
+              <button onClick={()=>setSemanaModal(false)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:20,color:"#C8C3BB",lineHeight:1,padding:0}}>×</button>
+            </div>
+            <div style={{flex:1,overflow:"auto"}}>
+              <SemanaView tasks={tasks} projects={projects} onToggle={toggleDone} onOpen={setSheet} onUpdate={updateTask} desktop={desktop} onAddTask={(date,area)=>setAddSheet({projectId:null,area:area||'trabajo',projectName:'',date:date,showProjectSelector:true})}/>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {subView==="tareas"&&(
+        <TareasView
+          activeArea={activeArea}
+          projects={projectsForArea(activeArea)}
+          allProjects={projects}
+          tasksForProject={tasksForProject}
+          tasks={tasks}
+          onToggle={toggleDone}
+          onDelete={deleteTask}
+          onOpen={setSheet}
+          onAddTask={(proj)=>setAddSheet({projectId:proj?.id||null,area:activeArea,projectName:proj?.name||'',showProjectSelector:proj?.showProjectSelector||true})}
+          onComplete={completeProject}
+          reorderTasks={reorderTasks}
+          addTask={addTask}
+          addProject={addProject}
+          sw={sw}
+          desktop={desktop}
+          focusMode={focusMode}
+          activeProjId={activeProjId}
+        />
+      )}
+
+      {subView==="proyectos"&&(
+        <div style={desktop?{padding:"24px 48px"}:{paddingBottom:0}}>
+          <div style={{padding:desktop?"0 0 20px":"14px 20px 4px"}}>
+            <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"#B0AA9F",lineHeight:1.6}}>Creá proyectos y agregá tareas dentro de cada uno.</p>
+          </div>
+          {focusMode
+            ?<FocusProjectMode projects={projectsForArea(activeArea)} tasksForProject={tasksForProject} onToggle={toggleDone} onDelete={deleteTask} onOpen={setSheet} onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})} desktop={desktop}/>
+            :<GroupedProjectsView
+              projects={projectsForArea(activeArea).filter(p=>!activeProjId||p.id===activeProjId)}
+              tasksForProject={tasksForProject}
+              onToggle={toggleDone}
+              onDelete={deleteTask}
+              onOpen={setSheet}
+              onAddTask={(proj)=>setAddSheet({projectId:proj.id,area:activeArea,projectName:proj.name})}
+              onComplete={completeProject}
+              reorderTasks={reorderTasks}
+              sw={sw}
+              desktop={desktop}
+              onEditProject={setPlanSheet}
+              onDeleteProject={deleteProject}
+            />
+          }
+          {projectsForArea(activeArea).length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Sin proyectos aún.</div>}
+          <button className={desktop?"d-newp":"m-newp"} style={desktop?{marginTop:16}:{}}
+            onClick={()=>setNewProjSheet({area:activeArea})}>
+            {desktop?`+ Nuevo proyecto en ${AREAS[activeArea]?.label}`:<><span style={{fontSize:18,lineHeight:1}}>+</span> Nuevo proyecto</>}
+          </button>
+        </div>
+      )}
+
+      {subView==="metas"&&(
+        <div style={desktop?{padding:"0 48px"}:{}}>
+          <MetasView goals={goals} projects={projects} onNew={(h)=>setGoalSheet({title:"",description:"",horizon:h,parentId:null})} onEdit={(g)=>setGoalSheet(g)} onReorder={reorderGoals} completeGoal={completeGoal} isDesktop={desktop} onOpenAsistente={()=>setAsistenteSheet(true)}/>
+        </div>
+      )}
+
+      {subView==="cerezo"&&(
+        <div style={desktop?{padding:"24px 48px"}:{padding:"24px 20px"}}>
+          <CerezoView points={points} treeLevel={treeLevel} TREE_LEVELS={TREE_LEVELS} desktop={desktop}/>
+        </div>
+      )}
+
+      {subView==="analitica"&&(
+        <div style={desktop?{padding:"24px 48px",maxWidth:900}:{}}>
+          <AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount} desktop={desktop} onDiaDificil={()=>{switchSection('hoy');}} onFoco={()=>setFocusMode(true)}/>
+        </div>
+      )}
+
+      {!desktop&&(
+        <div style={{textAlign:"center",padding:"16px 0 4px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8",userSelect:"none"}}>
+          Clarity
+        </div>
+      )}
+    </div>
+  );
+
+  // ── DESKTOP: sidebar izquierdo colapsable ──
+  const [sidebarOpen, setSidebarOpen] = useState(()=>{
+    try{ return localStorage.getItem('clarity_sidebar')!=='0'; }catch{ return true; }
+  });
+  function toggleSidebar(){
+    setSidebarOpen(o=>{
+      const next=!o;
+      try{ localStorage.setItem('clarity_sidebar', next?'1':'0'); }catch{}
+      return next;
+    });
+  }
+
+  if(desktop) return(
+    <div style={{height:"100vh",overflow:"hidden",background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex"}}>
+      <AppStyles/>
+      {/* Sidebar */}
+      <div className={`d-sidebar ${sidebarOpen?"open":"collapsed"}`}>
+        {/* Logo + toggle */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:sidebarOpen?"space-between":"center",marginBottom:24,minHeight:28}}>
+          <div className="d-sidebar-logo" style={{paddingLeft:sidebarOpen?8:0}}>Clarity</div>
+          <button className="d-sidebar-toggle" onClick={toggleSidebar} aria-label={sidebarOpen?"Colapsar":"Expandir"}>
+            {sidebarOpen
+              ? <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="1" y="1" width="13" height="13" rx="2"/><line x1="5" y1="1" x2="5" y2="14"/></svg>
+              : <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="1" y="1" width="13" height="13" rx="2"/><line x1="10" y1="1" x2="10" y2="14"/></svg>
+            }
+          </button>
+        </div>
+        {NAV_ITEMS.map(n=>(
+          <div key={n.id} className={`d-sidebar-item${section===n.id?" active":""}`} onClick={()=>setSection(n.id)}>
+            <span className={`d-sidebar-icon${section===n.id?" active":""}`}>{n.icon}</span>
+            <span className={`d-sidebar-text${section===n.id?" active":""}`}>{n.label}</span>
+          </div>
+        ))}
+      </div>
+      {/* Main */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <TopBar/>
+        <SubNav/>
+        <Content/>
+        <div style={{textAlign:"center",padding:"0 0 20px",fontFamily:"'DM Sans'",fontSize:9,letterSpacing:".22em",textTransform:"uppercase",color:"#D5CFC8",userSelect:"none",flexShrink:0}}>
+          Clarity
+        </div>
+      </div>
+      <CelebrationToast celebrate={celebrate}/>
+      <ErrorToast message={opError} onDismiss={()=>setOpError(null)}/>
+      {sheets}
+      {showTour&&<TourApp onClose={()=>setShowTour(false)}/>}
+    </div>
+  );
+
+  // ── MOBILE: bottom nav fija ──
+  return(
+    <div style={{maxWidth:430,margin:"0 auto",minHeight:"100vh",background:"#F5F2EE",fontFamily:"'DM Sans',sans-serif",display:"flex",flexDirection:"column",position:"relative"}}>
+      <AppStyles/>
+      <TopBar/>
+      <SubNav/>
+      {showAreaPills&&(
+        <div style={{display:"flex",justifyContent:"flex-end",padding:"4px 20px 0"}}>
+          <AreaToggle/>
+        </div>
+      )}
+      <Content/>
+      {/* Bottom Nav */}
+      <nav className="bottom-nav">
+        {NAV_ITEMS.map(n=>(
+          <div key={n.id} className="bottom-nav-item" onClick={()=>setSection(n.id)}>
+            <div className={`bottom-nav-icon${section===n.id?" active":""}`}>{n.icon}</div>
+            <div className={`bottom-nav-label${section===n.id?" active":""}`}>{n.label}</div>
+          </div>
+        ))}
+      </nav>
+      <CelebrationToast celebrate={celebrate}/>
+      <ErrorToast message={opError} onDismiss={()=>setOpError(null)}/>
+      {sheets}
+      {showTour&&<TourApp onClose={()=>setShowTour(false)}/>}
+    </div>
+  );
+}
