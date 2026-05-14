@@ -4217,9 +4217,11 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
 
         setAccionesVoz(prev => [...prev, ...processed]);
         setTranscriptVoz(data.transcript||'');
-      } else {
+      } else if(data.tipo === 'accion') {
+        // Solo mostrar error si era una acción y no encontró nada
         setVoiceError('No detecté acciones (' + (data.transcript || 'vacía').slice(0,30) + ')');
       }
+      // Si es consulta o ambas sin acciones, el chat ya muestra la respuesta — no hay error
     } catch(e){
       console.error('Error procesando audio:', e);
       setVoiceError(e.name === 'AbortError' ? 'Tiempo de espera agotado.' : 'Error de conexión.');
