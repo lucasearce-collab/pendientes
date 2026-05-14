@@ -4080,6 +4080,8 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   const [accionesVoz, setAccionesVoz] = useState([]);
   const [transcriptVoz, setTranscriptVoz] = useState('');
   const [voiceError, setVoiceError] = useState(null);
+  const [chatVoz, setChatVoz] = useState([]); // historial de la sesión [{rol:'user'|'clarity', texto}]
+  const [chatOpen, setChatOpen] = useState(false);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const isHoldingRef = useRef(false);
@@ -4130,19 +4132,82 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   async function procesarAudio(blob, mimeType){
     try{
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s límite
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      // Construir contexto completo
+      const hoy = todayStr();
+      const hace30 = new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0,10);
+      const proyectosCtx = (projects||[]).map(p=>({name:p.name,area:p.area,importance:p.importance}));
+      const pendientesCtx = (tasks||[]).filter(t=>!t.done).map(t=>({
+        title:t.title, date:t.date||null,
+        projectName:(projects||[]).find(p=>p.id===t.projectId)?.name||null,
+      }));
+      const completadasCtx = (tasks||[]).filter(t=>t.done&&t.completed_at&&t.completed_at>=hace30).map(t=>({
+        title:t.title, completed_at:t.completed_at,
+        projectName:(projects||[]).find(p=>p.id===t.projectId)?.name||null,
+      }));
+
+      // Armar multipart/form-data manualmente
+      const boundary = '----ClarityBoundary' + Date.now();
+      const enc = new TextEncoder();
+
+      function part(name, value, type=null) {
+        const header = type
+          ? `--${boundary}
+Content-Disposition: form-data; name="${name}"; filename="audio.${type.split('/')[1]||'webm'}"
+Content-Type: ${type}
+
+`
+          : `--${boundary}
+Content-Disposition: form-data; name="${name}"
+
+`;
+        return [enc.encode(header), typeof value === 'string' ? enc.encode(value) : new Uint8Array(value), enc.encode('
+')];
+      }
+
+      const audioArr = await blob.arrayBuffer();
+      const contextJson = JSON.stringify({
+        proyectos: proyectosCtx,
+        tareasPendientes: pendientesCtx,
+        tareasCompletadas: completadasCtx,
+        historialChat: chatVoz,
+      });
+
+      const bodyParts = [
+        ...part('audio', audioArr, mimeType||'audio/webm'),
+        ...part('context', contextJson),
+        enc.encode(`--${boundary}--
+`),
+      ];
+
+      const totalLen = bodyParts.reduce((s,p)=>s+p.byteLength,0);
+      const bodyBuffer = new Uint8Array(totalLen);
+      let offset = 0;
+      for(const p of bodyParts){ bodyBuffer.set(p, offset); offset+=p.byteLength; }
+
       const res = await fetch('/api/voice-task', {
-        method:'POST', 
-        headers: { 'Content-Type': mimeType || 'audio/mp4' },
-        body: blob,
-        signal: controller.signal
+        method:'POST',
+        headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+        body: bodyBuffer,
+        signal: controller.signal,
       });
       clearTimeout(timeoutId);
       const data = await res.json();
-      
+
       if(!res.ok || data.error) {
         setVoiceError('Error: ' + (data.error || 'Fallo desconocido').slice(0,40));
         return;
+      }
+
+      // Si hay respuesta conversacional, agregarla al chat
+      if(data.respuesta) {
+        setChatVoz(prev => [
+          ...prev,
+          { rol:'user', texto: data.transcript||'' },
+          { rol:'clarity', texto: data.respuesta },
+        ]);
+        setChatOpen(true);
       }
       
       const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
@@ -4318,6 +4383,45 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   const TaskList = ({tasks,overdue}) => desktop
     ? <DTaskList tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks}/>
     : <TaskRows tasks={tasks} projects={projects} onToggle={toggleDone} onDelete={onDelete} onOpen={onOpen} overdue={overdue} reorderTasks={reorderTasks} {...(sw||{})}/>;
+
+  // ── Panel Chat Clarity ──
+  const PanelChat = chatOpen && chatVoz.length > 0 ? (
+    <div style={{
+      margin: desktop?'0 0 20px':'12px 20px 4px',
+      background:'white',borderRadius:14,
+      border:'1px solid #EAE6E0',
+      overflow:'hidden',
+    }}>
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:'1px solid #F5F2EE'}}>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <div style={{width:5,height:5,borderRadius:'50%',background:'#C4A882'}}/>
+          <span style={{fontFamily:"'DM Sans'",fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878'}}>Clarity</span>
+        </div>
+        <button onClick={()=>{setChatOpen(false);setChatVoz([]);}}
+          style={{background:'none',border:'none',cursor:'pointer',color:'#C8C3BB',fontSize:16,padding:0,lineHeight:1}}>×</button>
+      </div>
+      {/* Mensajes */}
+      <div style={{padding:'12px 16px',display:'flex',flexDirection:'column',gap:10}}>
+        {chatVoz.map((m,i)=>(
+          <div key={i} style={{display:'flex',flexDirection:'column',gap:2,alignItems:m.rol==='user'?'flex-end':'flex-start'}}>
+            {m.rol==='user'
+              ? <div style={{
+                  background:'#F5F2EE',borderRadius:'12px 12px 2px 12px',
+                  padding:'8px 12px',maxWidth:'85%',
+                  fontFamily:"'DM Sans'",fontSize:13,color:'#8C877F',fontStyle:'italic',
+                }}>{m.texto}</div>
+              : <div style={{
+                  background:'#2C2825',borderRadius:'2px 12px 12px 12px',
+                  padding:'10px 14px',maxWidth:'90%',
+                  fontFamily:"'DM Sans'",fontSize:13,color:'white',lineHeight:1.5,
+                }}>{m.texto}</div>
+            }
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
 
   const BtnMic = () => (
     <div style={{position:'fixed',bottom:desktop?24:96,right:desktop?32:20,zIndex:200,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:8,pointerEvents:'none'}}>
@@ -4846,6 +4950,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         <BtnSemana/>
         <BtnVerTodo/>
       </div>
+      {PanelChat}
       {PanelCalendar}
       {PanelVoz}
       <div style={{textAlign:"center",padding:desktop?"60px 0":"32px 0 8px",color:"#C8C3BB",fontFamily:"'DM Sans'",fontSize:14}}>Todo al día ·</div>
@@ -4873,6 +4978,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
         )}
       </div>
       <ToastReagendado/>
+      {PanelChat}
       {PanelCalendar}
       {PanelVoz}
 
@@ -4919,6 +5025,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       </div>
       <ToastReagendado/>
 
+      {PanelChat}
       {PanelCalendar}
       {PanelVoz}
       {todayTasks.length>0&&<><SectionHeader label="Vencen hoy" color="#9B8878" count={todayTasks.length}/><TaskList tasks={todayTasks}/></>}
