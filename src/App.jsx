@@ -215,6 +215,7 @@ export default function App() {
   const [goals,    setGoals]    = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [googleToken, setGoogleToken] = useState(null);
+  const [calendarTokenReady, setCalendarTokenReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [opError,   setOpError]   = useState(null);
   const [isDesktop,setIsDesktop]= useState(window.innerWidth>=768);
@@ -315,6 +316,13 @@ export default function App() {
       setGoals(userGoals);
       setLoading(false);
       await loadPoints(session.user.id);
+      // Cargar google_calendar_token para crear eventos
+      supabase.from('user_profiles').select('google_calendar_token,calendar_connected').eq('id',session.user.id).single().then(({data})=>{
+        if(data?.calendar_connected && data?.google_calendar_token){
+          setGoogleToken(data.google_calendar_token);
+          setCalendarTokenReady(true);
+        }
+      });
       // Load rescheduled count for analytics
       supabase.from('events').select('id',{count:'exact'}).eq('user_id',session.user.id).eq('event_type','task_rescheduled').then(({count})=>setRescheduledCount(count||0));
       // Mostrar onboarding si el usuario nunca aceptó los términos
@@ -342,24 +350,43 @@ export default function App() {
   const todayWork   = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId);return p?.area==="trabajo"&&t.date===todayStr();}).sort(taskSort);
   const upcomingWork = tasks.filter(t=>{const p=projects.find(x=>x.id===t.projectId); if(!p||p.area!=="trabajo"||t.done) return false; return !t.date;}).sort(taskSort);
 
-  async function createCalendarEvent(task, projectName){
-    if(!googleToken || !task.date) return;
+  async function createCalendarEvent(task, projectName, calTime=null, calDuration=30){
+    const token = googleToken;
+    if(!token || !task.date) return false;
     try {
-      await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${googleToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      let eventBody;
+      if(calTime){
+        // Evento con hora específica
+        const [h,m] = calTime.split(':').map(Number);
+        const start = new Date(`${task.date}T00:00:00`);
+        start.setHours(h,m,0,0);
+        const end = new Date(start.getTime() + calDuration * 60000);
+        const pad = n => String(n).padStart(2,'0');
+        const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+        eventBody = {
+          summary: task.title,
+          description: projectName ? `Proyecto: ${projectName}` : '',
+          start: { dateTime: fmt(start), timeZone: 'America/Argentina/Buenos_Aires' },
+          end:   { dateTime: fmt(end),   timeZone: 'America/Argentina/Buenos_Aires' },
+          reminders: { useDefault: true },
+        };
+      } else {
+        // Evento de día completo
+        eventBody = {
           summary: task.title,
           description: projectName ? `Proyecto: ${projectName}` : '',
           start: { date: task.date },
-          end: { date: task.date },
+          end:   { date: task.date },
           reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 480 }] },
-        }),
+        };
+      }
+      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventBody),
       });
-    } catch(e) { console.error('Calendar error:', e); }
+      return res.ok;
+    } catch(e) { console.error('Calendar error:', e); return false; }
   }
 
   async function addTask(task){
@@ -549,8 +576,8 @@ export default function App() {
 
   const sheets=(
     <>
-      {sheet      &&<><div className="sheet-overlay" onClick={()=>setSheet(null)}/><EditSheet task={sheet} projects={projects} onSave={updateTask} onDelete={()=>deleteTask(sheet.id)} isDesktop={isDesktop}/></>}
-      {addSheet   &&<><div className="sheet-overlay" onClick={()=>setAddSheet(null)}/><AddTaskSheet {...addSheet} onAdd={addTask} isDesktop={isDesktop} projects={projects}/></>}
+      {sheet      &&<><div className="sheet-overlay" onClick={()=>setSheet(null)}/><EditSheet task={sheet} projects={projects} onSave={updateTask} onDelete={()=>deleteTask(sheet.id)} isDesktop={isDesktop} onCreateCalEvent={calendarTokenReady?(task,proj,t,d)=>createCalendarEvent(task,proj,t,d):null}/></>}
+      {addSheet   &&<><div className="sheet-overlay" onClick={()=>setAddSheet(null)}/><AddTaskSheet {...addSheet} onAdd={addTask} isDesktop={isDesktop} projects={projects} onCreateCalEvent={calendarTokenReady?(task,proj,t,d)=>createCalendarEvent(task,proj,t,d):null}/></>}
       {newProjSheet&&<><div className="sheet-overlay" onClick={()=>setNewProjSheet(null)}/><NewProjectSheet area={newProjSheet.area} onAdd={addProject} isDesktop={isDesktop}/></>}
       {planSheet  &&<><div className="sheet-overlay" onClick={()=>setPlanSheet(null)}/><PlanProjectSheet project={planSheet} onSave={updateProject} isDesktop={isDesktop} goals={goals}/></>}
       {goalSheet  &&<><div className="sheet-overlay" onClick={()=>setGoalSheet(null)}/><GoalSheet goal={goalSheet} goals={goals} projects={projects} onSave={goalSheet.id?updateGoal:addGoal} onDelete={goalSheet.id?()=>deleteGoal(goalSheet.id):null} isDesktop={isDesktop}/></>}
@@ -2995,9 +3022,12 @@ function TypeSelector({value,onChange}){
   </div>);
 }
 
-function EditSheet({task,projects,onSave,onDelete,isDesktop}){
+function EditSheet({task,projects,onSave,onDelete,isDesktop,onCreateCalEvent=null}){
   const [form,setForm]=useState({...task,type:task.type||"normal"});
   const [projOpen,setProjOpen]=useState(false);
+  const [agendarCal,setAgendarCal]=useState(false);
+  const [calHora,setCalHora]=useState('09:00');
+  const [calDuracion,setCalDuracion]=useState(30);
   const selProj=projects.find(p=>p.id===form.projectId);
   const cls=isDesktop?"d-modal":"sheet";
   return(<div className={cls}>
@@ -3058,23 +3088,68 @@ function EditSheet({task,projects,onSave,onDelete,isDesktop}){
       </div>
       {form.recurrence_type&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",marginTop:6}}>Al completar, la siguiente aparecerá automáticamente.</div>}
     </div>
-    <button className="sv" onClick={()=>onSave(form)}>Guardar</button>
+    {/* Agendar en Google Calendar */}
+    {onCreateCalEvent&&(
+      <div style={{marginBottom:14}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:agendarCal?10:0}}>
+          <span className="sl" style={{marginBottom:0}}>Agendar en Google Calendar</span>
+          <button onClick={()=>setAgendarCal(v=>!v)} style={{
+            width:36,height:20,borderRadius:99,border:'none',cursor:'pointer',
+            background:agendarCal?'#2C2825':'#D5CFC8',
+            position:'relative',transition:'background .2s',flexShrink:0,
+          }}>
+            <div style={{
+              width:16,height:16,borderRadius:'50%',background:'white',
+              position:'absolute',top:2,left:agendarCal?18:2,transition:'left .2s',
+            }}/>
+          </button>
+        </div>
+        {agendarCal&&(
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
+            <input type="time" value={calHora} onChange={e=>setCalHora(e.target.value)}
+              style={{border:'1px solid #E5E1DB',borderRadius:8,padding:'6px 10px',fontSize:13,fontFamily:"'DM Sans'",outline:'none',color:'#2C2825',background:'white'}}/>
+            {[15,30,60].map(d=>(
+              <button key={d} onClick={()=>setCalDuracion(d)}
+                className={`dc${calDuracion===d?' on':''}`}>{d} min</button>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+    <button className="sv" onClick={()=>{
+      onSave(form);
+      if(agendarCal && onCreateCalEvent && form.date){
+        const proj = projects.find(p=>p.id===form.projectId);
+        onCreateCalEvent(form, proj?.name||'', calHora, calDuracion);
+      }
+    }}>Guardar</button>
     <button onClick={onDelete} style={{width:"100%",background:"none",border:"none",color:"#C4A89A",fontFamily:"'DM Sans'",fontSize:14,padding:"14px 0 0",cursor:"pointer"}}>Eliminar tarea</button>
   </div>);
 }
 
-function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[],showProjectSelector=false,date:initialDate=""}){
+function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[],showProjectSelector=false,date:initialDate="",onCreateCalEvent=null}){
   const [title,setTitle]=useState("");
   const [type,setType]=useState("normal");
   const [date,setDate]=useState(initialDate||"");
   const [responsable,setResponsable]=useState("");
   const [recurrence,setRecurrence]=useState(null); // null | 'daily' | 'weekly' | 'monthly'
+  const [agendarCal,setAgendarCal]=useState(false);
+  const [calHora,setCalHora]=useState('09:00');
+  const [calDuracion,setCalDuracion]=useState(30);
   const [selProjId,setSelProjId]=useState(projectId||null);
   const [projOpen,setProjOpen]=useState(false);
   const cls=isDesktop?"d-modal":"sheet";
   const areaProjects = projects.filter(p=>p.area===area);
   const selProj = areaProjects.find(p=>p.id===selProjId);
-  function go(){if(!title.trim())return;onAdd({projectId:selProjId,title:title.trim(),type,date,responsable,recurrence_type:recurrence});}
+  function go(){
+    if(!title.trim())return;
+    const task={projectId:selProjId,title:title.trim(),type,date,responsable,recurrence_type:recurrence};
+    onAdd(task);
+    if(agendarCal && onCreateCalEvent && date){
+      const proj = projects.find(p=>p.id===selProjId);
+      onCreateCalEvent(task, proj?.name||'', calHora, calDuracion);
+    }
+  }
   return(<div className={cls}>
     {!isDesktop&&<div className="hd"/>}
     <span className="sl">{selProj?selProj.name:projectName||"Nueva tarea"}</span>
@@ -3129,6 +3204,34 @@ function AddTaskSheet({projectId,area,projectName,onAdd,isDesktop,projects=[],sh
       </div>
       {recurrence&&<div style={{fontFamily:"'DM Sans'",fontSize:11,color:"#B0AA9F",marginTop:6}}>Al completar, la siguiente aparecerá automáticamente.</div>}
     </div>
+    {/* Agendar en Google Calendar */}
+    {onCreateCalEvent&&(
+      <div style={{marginBottom:14}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:agendarCal?10:0}}>
+          <span className="sl" style={{marginBottom:0}}>Agendar en Google Calendar</span>
+          <button onClick={()=>setAgendarCal(v=>!v)} style={{
+            width:36,height:20,borderRadius:99,border:'none',cursor:'pointer',
+            background:agendarCal?'#2C2825':'#D5CFC8',
+            position:'relative',transition:'background .2s',flexShrink:0,
+          }}>
+            <div style={{
+              width:16,height:16,borderRadius:'50%',background:'white',
+              position:'absolute',top:2,left:agendarCal?18:2,transition:'left .2s',
+            }}/>
+          </button>
+        </div>
+        {agendarCal&&(
+          <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',marginTop:8}}>
+            <input type="time" value={calHora} onChange={e=>setCalHora(e.target.value)}
+              style={{border:'1px solid #E5E1DB',borderRadius:8,padding:'6px 10px',fontSize:13,fontFamily:"'DM Sans'",outline:'none',color:'#2C2825',background:'white'}}/>
+            {[15,30,60].map(d=>(
+              <button key={d} onClick={()=>setCalDuracion(d)}
+                className={`dc${calDuracion===d?' on':''}`}>{d} min</button>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
     <button className="sv" onClick={go}>Agregar tarea</button>
   </div>);
 }
