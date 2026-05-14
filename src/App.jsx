@@ -4215,13 +4215,32 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
 
   async function ejecutarAccionVoz(a){
     if (a.tipo_accion === 'crear_tarea') {
-      if(onAddTask) onAddTask({
+      const task = {
         title: a.titulo,
         date: a.fecha,
         projectId: a._proyecto_id || null,
         type: 'normal',
         notes: a.razon ? `Sugerido por el agente: ${a.razon}` : '',
-      });
+      };
+      if(onAddTask) onAddTask(task);
+      // Crear en Google Calendar si el usuario lo pidió
+      if(a._agendar_cal && a.fecha && userId){
+        const proj = (projects||[]).find(p=>p.id===a._proyecto_id);
+        try {
+          await fetch('/api/calendar/create-event', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+              user_id: userId,
+              title: a.titulo,
+              date: a.fecha,
+              time: a._cal_hora||'09:00',
+              duration_minutes: a._cal_dur||30,
+              project_name: proj?.name||'',
+            }),
+          });
+        } catch(e){ console.error('Calendar error:', e); }
+      }
     } else if (a.tipo_accion === 'crear_proyecto') {
       if(onAddProject) onAddProject({ name: a.nombre, area: 'Personal' }); // TODO: usar area activa
     } else if (a.tipo_accion === 'completar_tarea') {
@@ -4758,6 +4777,31 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
                   projects={projects}
                   onChange={(pid)=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_proyecto_id:pid}:x))}
                 />
+              )}
+              {/* Toggle agendar en calendar */}
+              {a.tipo_accion==='crear_tarea'&&calendarTokenReady&&(
+                <div style={{marginTop:8}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:a._agendar_cal?8:0}}>
+                    <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>Agendar en Google Calendar</span>
+                    <button onClick={()=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_agendar_cal:!x._agendar_cal,_cal_hora:x._cal_hora||'09:00',_cal_dur:x._cal_dur||30}:x))}
+                      style={{width:32,height:18,borderRadius:99,border:'none',cursor:'pointer',
+                        background:a._agendar_cal?'#2C2825':'#D5CFC8',position:'relative',transition:'background .2s',flexShrink:0}}>
+                      <div style={{width:14,height:14,borderRadius:'50%',background:'white',
+                        position:'absolute',top:2,left:a._agendar_cal?16:2,transition:'left .2s'}}/>
+                    </button>
+                  </div>
+                  {a._agendar_cal&&(
+                    <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                      <input type="time" value={a._cal_hora||'09:00'}
+                        onChange={e=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_cal_hora:e.target.value}:x))}
+                        style={{border:'1px solid #E5E1DB',borderRadius:8,padding:'4px 8px',fontSize:11,fontFamily:"'DM Sans'",outline:'none',color:'#2C2825',background:'white'}}/>
+                      {[15,30,60].map(d=>(
+                        <button key={d} onClick={()=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_cal_dur:d}:x))}
+                          className={`dc${(a._cal_dur||30)===d?' on':''}`}>{d}m</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
             {/* Acciones */}
