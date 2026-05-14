@@ -4150,9 +4150,26 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       if(data.acciones?.length>0){
         const processed = data.acciones.map(a => {
           let enriched = { ...a, id: Math.random().toString(36).substr(2,9) };
-          if (a.tipo_accion === 'crear_tarea' && a.proyecto_nombre) {
-            const pName = normalize(a.proyecto_nombre);
-            const foundProj = projects.find(p => normalize(p.name).includes(pName));
+          if (a.tipo_accion === 'crear_tarea') {
+            // Buscar proyecto por nombre sugerido por Groq
+            let foundProj = null;
+            if (a.proyecto_nombre) {
+              const pName = normalize(a.proyecto_nombre);
+              // Primero: match exacto
+              foundProj = projects.find(p => normalize(p.name) === pName);
+              // Segundo: proyecto contiene el nombre sugerido
+              if (!foundProj) foundProj = projects.find(p => normalize(p.name).includes(pName));
+              // Tercero: el nombre sugerido contiene el nombre del proyecto
+              if (!foundProj) foundProj = projects.find(p => pName.includes(normalize(p.name)));
+            }
+            // Si no encontró por proyecto_nombre, buscar en el título de la tarea
+            if (!foundProj && a.titulo) {
+              const tNorm = normalize(a.titulo);
+              foundProj = projects.find(p => {
+                const pNorm = normalize(p.name);
+                return pNorm.length > 3 && tNorm.includes(pNorm);
+              });
+            }
             if (foundProj) enriched._proyecto_id = foundProj.id;
           }
           if (a.tipo_accion === 'completar_tarea' || a.tipo_accion === 'reprogramar_tarea') {
@@ -4582,6 +4599,54 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
     </div>
   );
 
+  // Selector de proyecto inline para PanelVoz
+  function VozProyectoSelector({accionId, proyectoId, projects, onChange}){
+    const [open, setOpen] = React.useState(false);
+    const sel = projects.find(p=>p.id===proyectoId);
+    return(
+      <div style={{marginTop:6,position:'relative'}}>
+        <div onClick={()=>setOpen(o=>!o)} style={{
+          display:'inline-flex',alignItems:'center',gap:6,
+          border:'1px solid #EAE6E0',borderRadius:8,
+          padding:'4px 10px',cursor:'pointer',background:'white',
+        }}>
+          {sel
+            ? <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#9B8878'}}>{sel.name}</span>
+            : <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C8C3BB',fontStyle:'italic'}}>sin proyecto</span>
+          }
+          <span style={{fontSize:9,color:'#C8C3BB'}}>{open?'▴':'▾'}</span>
+        </div>
+        {open&&(
+          <div style={{
+            position:'absolute',top:'100%',left:0,zIndex:10,
+            background:'white',border:'1px solid #EAE6E0',borderRadius:8,
+            marginTop:2,minWidth:180,maxHeight:160,overflowY:'auto',
+            boxShadow:'0 4px 16px rgba(0,0,0,.08)',
+          }}>
+            <div onClick={()=>{onChange(null);setOpen(false);}} style={{
+              padding:'8px 12px',cursor:'pointer',
+              fontFamily:"'DM Sans'",fontSize:12,
+              color:'#B0AA9F',fontStyle:'italic',
+              borderBottom:'1px solid #F5F2EE',
+            }}>Sin proyecto</div>
+            {projects.map(p=>(
+              <div key={p.id} onClick={()=>{onChange(p.id);setOpen(false);}} style={{
+                padding:'8px 12px',cursor:'pointer',
+                fontFamily:"'DM Sans'",fontSize:12,
+                color:proyectoId===p.id?'#9B8878':'#2C2825',
+                background:proyectoId===p.id?'#F5F1ED':'white',
+                borderBottom:'1px solid #F5F2EE',
+              }}>
+                {p.name}
+                {proyectoId===p.id&&<span style={{float:'right',color:'#9B8878'}}>✓</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const ACCION_LABEL = {
     crear_tarea:      'Nueva tarea',
     crear_proyecto:   'Nuevo proyecto',
@@ -4623,10 +4688,17 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
               <div style={{display:'flex',alignItems:'center',gap:4,marginTop:2,flexWrap:'wrap'}}>
                 <span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{ACCION_LABEL[a.tipo_accion]}</span>
                 {a.tipo_accion==='crear_tarea'&&a.fecha&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#B0AA9F'}}>{a.fecha}</span></>}
-                {a.tipo_accion==='crear_tarea'&&a._proyecto_id&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#9B8878'}}>{(projects.find(p=>p.id===a._proyecto_id)||{}).name||''}</span></>}
-                {a.tipo_accion==='crear_tarea'&&!a._proyecto_id&&a.proyecto_nombre&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C4A882'}}>sin proyecto asignado</span></>}
                 {a.tipo==='sugerida'&&<><span style={{color:'#D5CFC8',fontSize:10}}>·</span><span style={{fontFamily:"'DM Sans'",fontSize:11,color:'#C8C3BB'}}>sugerida</span></>}
               </div>
+              {/* Selector de proyecto editable */}
+              {a.tipo_accion==='crear_tarea'&&(
+                <VozProyectoSelector
+                  accionId={a.id}
+                  proyectoId={a._proyecto_id||null}
+                  projects={projects}
+                  onChange={(pid)=>setAccionesVoz(av=>av.map(x=>x.id===a.id?{...x,_proyecto_id:pid}:x))}
+                />
+              )}
             </div>
             {/* Acciones */}
             <div style={{display:'flex',gap:6,flexShrink:0}}>
