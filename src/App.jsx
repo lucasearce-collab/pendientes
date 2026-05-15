@@ -568,9 +568,12 @@ export default function App() {
   );
 
   const props={tasks,projects,goals,section,subView,setSection:switchSection,setSubView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline,showTour,setShowTour,uid,supabase,calendarTokenReady,createCalendarEvent};
-  if(onboarding) return <OnboardingFlow uid={uid} supabase={supabase} onComplete={(gs,ps)=>{
+  if(onboarding) return <OnboardingFlow uid={uid} supabase={supabase} onComplete={(gs,tareas)=>{
     setGoals(gs.map(goalFromDb));
-    setProjects(ps.map(projFromDb));
+    // Crear la primera tarea si el usuario la escribió
+    if(tareas && tareas.length > 0){
+      tareas.forEach(t => addTask(t));
+    }
     setOnboarding(false);
     setShowTour(true);
     switchSection("hoy");
@@ -1788,14 +1791,23 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
 
   const STEPS = [
     {type:'terms'},
-    {type:'intro'},
-    {type:'done'},
+    {type:'welcome'},
+    {type:'primera_tarea'},
   ];
 
-  async function finish(){
+  async function finish(tareaTitle){
     setSaving(true);
     await supabase.from('user_profiles').upsert({id:uid, terms_accepted:true, terms_accepted_at:new Date().toISOString()});
-    onComplete([], []);
+    const tareas = [];
+    if(tareaTitle && tareaTitle.trim()){
+      tareas.push({
+        title: tareaTitle.trim(),
+        date: new Date().toISOString().slice(0,10),
+        type: 'normal',
+        projectId: null,
+      });
+    }
+    onComplete([], tareas);
   }
 
   function addItem(horizon){
@@ -1869,57 +1881,78 @@ function OnboardingFlow({uid, supabase, onComplete, isDesktop}){
   );
 
   // ── INTRO ──
-  if(s.type==='intro') return(
+  // ── WELCOME ──
+  if(s.type==='welcome') return(
     <div style={{minHeight:'100vh',background:'#EAE6E0',display:'flex',alignItems:isDesktop?'center':'flex-start',justifyContent:'center',fontFamily:"'DM Sans',sans-serif"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#EAE6E0!important;overflow:auto!important;}`}</style>
-      <div style={{width:'100%',maxWidth:420,background:bg,borderRadius:isDesktop?20:0,minHeight:isDesktop?'auto':'100vh',display:'flex',flexDirection:'column',boxShadow:isDesktop?'0 8px 40px rgba(0,0,0,.12)':'none'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 24px 0'}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=Lora:ital@1&display=swap');*{box-sizing:border-box;}body{background:#EAE6E0!important;}`}</style>
+      <div style={{width:'100%',maxWidth:420,background:bg,borderRadius:isDesktop?20:0,minHeight:isDesktop?'auto':'100vh',display:'flex',flexDirection:'column',boxShadow:isDesktop?'0 8px 40px rgba(0,0,0,.12)':'none',padding:'52px 24px 0'}}>
         <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
-      </div>
-      <div style={{flex:1,padding:'32px 24px 0'}}>
-        <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:14}}>
-          <div style={{width:7,height:7,borderRadius:'50%',background:'#C4A882'}}/>
-          <span style={{fontSize:10,fontWeight:500,letterSpacing:'.12em',textTransform:'uppercase',color:'#C4A882'}}>Bienvenido</span>
+        <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'center',paddingBottom:48}}>
+          <div style={{fontSize:32,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',lineHeight:1.2,marginBottom:20}}>
+            Cada tarea te acerca a{' '}
+            <span style={{fontFamily:"'Lora', serif",fontStyle:'italic',color:'#9B8878'}}>la vida que vos querés.</span>
+          </div>
+          <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.7,marginBottom:40}}>
+            Clarity conecta lo que hacés hoy con adónde querés llegar. No es una lista de pendientes — es una arquitectura de vida.
+          </div>
+          <button onClick={()=>setStep(2)} style={{width:'100%',background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:14,fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
+            Empezar →
+          </button>
         </div>
-        <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',marginBottom:8}}>Clarity funciona en capas</div>
-        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.65,marginBottom:24}}>Todo se conecta. Tus tareas diarias existen para avanzar proyectos, que a su vez existen para lograr metas. Vamos a construir ese árbol juntos.</div>
-        <div style={{background:'white',borderRadius:14,border:'1px solid #EAE6E0',padding:20,marginBottom:24}}>
-          {[
-            {icon:'🎯', color:'#EEF0F8', titleColor:'#5B6BAF', title:'Metas de vida', desc:'Tu visión a largo, mediano y corto plazo'},
-            {icon:'📁', color:'#EEF6EE', titleColor:'#8FAF8A', title:'Proyectos', desc:'Iniciativas concretas que avanzás semana a semana'},
-            {icon:'✓', color:'#F5F1ED', titleColor:'#9B8878', title:'Tareas', desc:'Las acciones concretas de tu día a día'},
-          ].map(({icon,color,titleColor,title,desc},i,arr)=>(
-            <div key={title}>
-              <div style={{display:'flex',alignItems:'center',gap:12}}>
-                <div style={{width:32,height:32,borderRadius:8,background:color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0}}>{icon}</div>
-                <div>
-                  <div style={{fontSize:12,fontWeight:500,color:titleColor,marginBottom:1}}>{title}</div>
-                  <div style={{fontSize:11,color:'#B0AA9F',lineHeight:1.4}}>{desc}</div>
-                </div>
-              </div>
-              {i<arr.length-1&&(
-                <div style={{display:'flex',alignItems:'center',gap:8,margin:'10px 0',padding:'0 4px'}}>
-                  <div style={{width:32,display:'flex',justifyContent:'center'}}><div style={{width:1,height:14,background:'#EAE6E0'}}/></div>
-                  <div style={{flex:1,display:'flex',alignItems:'center',gap:8}}>
-                    <div style={{flex:1,height:1,background:'#EAE6E0'}}/>
-                    <span style={{fontSize:10,color:'#C8C3BB'}}>{i===0?'impulsan':'se ejecutan en'}</span>
-                    <div style={{flex:1,height:1,background:'#EAE6E0'}}/>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        <div style={{fontSize:12,color:'#C8C3BB',textAlign:'center',lineHeight:1.6}}>Cada tarea que completás hace avanzar un proyecto.<br/>Cada proyecto completado acerca una meta.</div>
       </div>
-      <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'16px 24px 32px',background:'linear-gradient(to top, #F5F2EE 70%, transparent)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <button onClick={()=>setStep(0)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB'}}>← Anterior</button>
-        <button onClick={finish} style={{background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'13px 26px',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>{saving?'Guardando...':'Empezar →'}</button>
-      </div>
-      <div style={{height:80}}/>
-    </div>
     </div>
   );
+
+  // ── PRIMERA TAREA ──
+  if(s.type==='primera_tarea'){
+    const [tareaInput, setTareaInput] = [input, setInput];
+    return(
+      <div style={{minHeight:'100vh',background:'#EAE6E0',display:'flex',alignItems:isDesktop?'center':'flex-start',justifyContent:'center',fontFamily:"'DM Sans',sans-serif"}}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap');*{box-sizing:border-box;}body{background:#EAE6E0!important;}`}</style>
+        <div style={{width:'100%',maxWidth:420,background:bg,borderRadius:isDesktop?20:0,minHeight:isDesktop?'auto':'100vh',display:'flex',flexDirection:'column',boxShadow:isDesktop?'0 8px 40px rgba(0,0,0,.12)':'none',padding:'52px 24px 0'}}>
+          <span style={{fontSize:9,letterSpacing:'.22em',textTransform:'uppercase',color:'#C8C3BB'}}>Clarity</span>
+          <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'center',paddingBottom:48}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:14}}>
+              <div style={{width:6,height:6,borderRadius:'50%',background:'#C4A882'}}/>
+              <span style={{fontSize:9,letterSpacing:'.12em',textTransform:'uppercase',color:'#C4A882'}}>Una sola pregunta</span>
+            </div>
+            <div style={{fontSize:26,fontWeight:300,color:'#2C2825',letterSpacing:'-.02em',lineHeight:1.3,marginBottom:8}}>
+              ¿Qué tarea no te podés olvidar de hacer hoy?
+            </div>
+            <div style={{fontSize:12,color:'#C8C3BB',marginBottom:28}}>Después podés agregar todo lo demás.</div>
+            <input
+              autoFocus
+              value={tareaInput}
+              onChange={e=>setTareaInput(e.target.value)}
+              onKeyDown={e=>e.key==='Enter'&&tareaInput.trim()&&finish(tareaInput)}
+              placeholder="Escribí tu tarea..."
+              style={{
+                width:'100%',background:'white',border:'1.5px solid #C4A882',
+                borderRadius:12,padding:'14px 16px',
+                fontFamily:"'DM Sans'",fontSize:14,color:'#2C2825',
+                outline:'none',boxSizing:'border-box',marginBottom:16,
+              }}
+            />
+            <button
+              onClick={()=>tareaInput.trim()&&finish(tareaInput)}
+              disabled={!tareaInput.trim()||saving}
+              style={{
+                width:'100%',background:tareaInput.trim()?'#2C2825':'#D5CFC8',
+                color:'white',border:'none',borderRadius:12,padding:14,
+                fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,
+                cursor:tareaInput.trim()?'pointer':'default',transition:'background .2s',
+                marginBottom:12,
+              }}>
+              {saving?'Guardando...':'Crear y entrar →'}
+            </button>
+            <button onClick={()=>finish('')} style={{background:'none',border:'none',cursor:'pointer',fontFamily:"'DM Sans'",fontSize:13,color:'#C8C3BB',textAlign:'center'}}>
+              Saltar por ahora
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ── METAS ──
   if(s.type==='metas'){
