@@ -4592,7 +4592,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
 
       {/* FAB + principal */}
       <button
-        onClick={()=>{ if(!grabando&&!procesandoVoz&&!procesandoImagen) setFabOpen(o=>!o); }}
+        onClick={()=>{ if(grabando){detenerGrabacion();return;} if(!procesandoVoz&&!procesandoImagen) setFabOpen(o=>!o); }}
         style={{
           pointerEvents:'auto',
           width:48,height:48,borderRadius:'50%',
