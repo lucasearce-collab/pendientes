@@ -4147,12 +4147,11 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   const [voiceError, setVoiceError] = useState(null);
   const [chatVoz, setChatVoz] = useState([]); // historial de la sesión [{rol:'user'|'clarity', texto}]
   const [chatOpen, setChatOpen] = useState(false);
-  const [menuFAB, setMenuFAB] = useState(false); // menú del FAB abierto
-  const [procesandoImagen, setProcesandoImagen] = useState(false);
-  const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const isHoldingRef = useRef(false);
+  const [procesandoImagen, setProcesandoImagen] = useState(false);
+  const fileInputRef = useRef(null);
 
   async function iniciarGrabacion(){
     if (grabando || isHoldingRef.current) return;
@@ -4199,52 +4198,41 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
 
   async function procesarImagen(file) {
     setProcesandoImagen(true);
-    setMenuFAB(false);
     try {
       const CRLF = '\r\n';
       const boundary = '----ClarityVisionBoundary' + Date.now();
       const enc = new TextEncoder();
-
       const proyectosCtx = (projects||[]).map(p=>({name:p.name,area:p.area}));
       const contextJson = JSON.stringify({ proyectos: proyectosCtx });
-
       const imgArr = await file.arrayBuffer();
       const mime = file.type || 'image/jpeg';
-
-      function part(name, value, type=null) {
+      function vpart(name, value, type=null) {
         const header = type
           ? '--'+boundary+CRLF+'Content-Disposition: form-data; name="'+name+'"; filename="img"'+CRLF+'Content-Type: '+type+CRLF+CRLF
           : '--'+boundary+CRLF+'Content-Disposition: form-data; name="'+name+'"'+CRLF+CRLF;
         return [enc.encode(header), typeof value==='string'?enc.encode(value):new Uint8Array(value), enc.encode(CRLF)];
       }
-
       const bodyParts = [
-        ...part('image', imgArr, mime),
-        ...part('context', contextJson),
+        ...vpart('image', imgArr, mime),
+        ...vpart('context', contextJson),
         enc.encode('--'+boundary+'--'+CRLF),
       ];
       const totalLen = bodyParts.reduce((s,p)=>s+p.byteLength,0);
       const bodyBuffer = new Uint8Array(totalLen);
       let offset = 0;
       for(const p of bodyParts){ bodyBuffer.set(p, offset); offset+=p.byteLength; }
-
       const res = await fetch('/api/vision-task', {
         method:'POST',
         headers:{ 'Content-Type': 'multipart/form-data; boundary='+boundary },
         body: bodyBuffer,
       });
       const data = await res.json();
-
-      if(!res.ok || data.error){
-        setVoiceError('Error al procesar la imagen.');
-        return;
-      }
-
+      if(!res.ok || data.error){ setVoiceError('Error al procesar la imagen.'); return; }
       if(data.acciones && data.acciones.length > 0){
         const normalize = s => s?.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim()||'';
-        function fuzzyMatchProj(query, projName) {
+        function fuzzyVision(query, projName) {
           const qWords = query.split(/\s+/).filter(w=>w.length>2);
-          const pWords = projName.split(/[\s\-]+/).filter(w=>w.length>2);
+          const pWords = projName.split(/[\s-]+/).filter(w=>w.length>2);
           for(const qw of qWords) for(const pw of pWords) if(pw.includes(qw)||qw.includes(pw)) return true;
           return false;
         }
@@ -4253,7 +4241,7 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
           if(a.tipo_accion==='crear_tarea' && a.proyecto_nombre){
             const pName = normalize(a.proyecto_nombre);
             let found = projects.find(p=>normalize(p.name)===pName);
-            if(!found) found = projects.find(p=>fuzzyMatchProj(pName, normalize(p.name)));
+            if(!found) found = projects.find(p=>fuzzyVision(pName, normalize(p.name)));
             if(found) enriched._proyecto_id = found.id;
           }
           return enriched;
@@ -4532,9 +4520,8 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
 
   const BtnMic = () => (
     <div style={{position:'fixed',bottom:desktop?24:96,right:desktop?32:20,zIndex:200,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:8,pointerEvents:'none'}}>
-
-      {/* Toast de estado */}
-      {(grabando||procesandoVoz||procesandoImagen||voiceError)&&(
+      {/* Toast de estado — solo visible cuando hay algo que mostrar */}
+      {(grabando||procesandoVoz||voiceError)&&(
         <div style={{
           pointerEvents:'none',
           background:'#2C2825',color:'white',
@@ -4544,74 +4531,71 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
           whiteSpace:'nowrap',
           display:'flex',alignItems:'center',gap:8,
         }}>
-          {(procesandoVoz||procesandoImagen)&&<><div style={{width:8,height:8,borderRadius:'50%',border:'2px solid #C4A882',borderTopColor:'transparent',animation:'spin 1s linear infinite',flexShrink:0}}/> Procesando...</>}
+          {procesandoVoz&&<><div style={{width:8,height:8,borderRadius:'50%',border:'2px solid #C4A882',borderTopColor:'transparent',animation:'spin 1s linear infinite',flexShrink:0}}/> Procesando...</>}
           {grabando&&!procesandoVoz&&<><div style={{width:7,height:7,borderRadius:'50%',background:'#E07070',flexShrink:0,animation:'pulse 1s ease-in-out infinite'}}/> Grabando · soltá para procesar</>}
-          {voiceError&&!grabando&&!procesandoVoz&&!procesandoImagen&&<span style={{color:'#E07070'}}>⚠ {voiceError}</span>}
+          {voiceError&&!grabando&&!procesandoVoz&&<span style={{color:'#E07070'}}>⚠ {voiceError}</span>}
         </div>
       )}
-
-      {/* Menú expandido */}
-      {menuFAB&&!grabando&&!procesandoVoz&&!procesandoImagen&&(
-        <div style={{pointerEvents:'auto',display:'flex',flexDirection:'column',gap:8,alignItems:'flex-end'}}>
-          {/* Opción micrófono */}
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <span style={{fontFamily:"'DM Sans'",fontSize:12,color:'white',background:'rgba(44,40,37,.75)',borderRadius:8,padding:'5px 10px',backdropFilter:'blur(4px)'}}>Dictá una tarea</span>
-            <button
-              onMouseDown={()=>{setMenuFAB(false);iniciarGrabacion();}}
-              onMouseUp={detenerGrabacion}
-              onMouseLeave={detenerGrabacion}
-              onTouchStart={e=>{e.preventDefault();setMenuFAB(false);iniciarGrabacion();}}
-              onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
-              onTouchCancel={e=>{e.preventDefault();detenerGrabacion();}}
-              style={{pointerEvents:'auto',width:42,height:42,borderRadius:'50%',background:'#2C2825',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(44,40,37,.22)'}}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="9" y="2" width="6" height="11" rx="3"/>
-                <path d="M5 10a7 7 0 0 0 14 0"/>
-                <line x1="12" y1="19" x2="12" y2="22"/>
-              </svg>
-            </button>
-          </div>
-          {/* Opción cámara/galería */}
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <span style={{fontFamily:"'DM Sans'",fontSize:12,color:'white',background:'rgba(44,40,37,.75)',borderRadius:8,padding:'5px 10px',backdropFilter:'blur(4px)'}}>Foto de lista o notas</span>
-            <button
-              onClick={()=>{ setMenuFAB(false); if(fileInputRef.current){ fileInputRef.current.accept='image/*'; fileInputRef.current.removeAttribute('capture'); fileInputRef.current.click(); }}}
-              style={{pointerEvents:'auto',width:42,height:42,borderRadius:'50%',background:'#2C2825',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(44,40,37,.22)'}}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* FAB principal */}
+      {/* FAB circular */}
       <button
-        onClick={()=>{ if(!grabando&&!procesandoVoz&&!procesandoImagen) setMenuFAB(m=>!m); }}
+        onMouseDown={iniciarGrabacion}
+        onMouseUp={detenerGrabacion}
+        onMouseLeave={detenerGrabacion}
+        onTouchStart={e=>{e.preventDefault();iniciarGrabacion();}}
+        onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
+        onTouchCancel={e=>{e.preventDefault();detenerGrabacion();}}
         style={{
           pointerEvents:'auto',
           width:48,height:48,borderRadius:'50%',
-          background:grabando?'#C4312A':procesandoVoz||procesandoImagen?'#C4A882':menuFAB?'#4A403A':'#2C2825',
+          background:grabando?'#C4312A':procesandoVoz?'#C4A882':'#2C2825',
           border:'none',cursor:'pointer',
           display:'flex',alignItems:'center',justifyContent:'center',
           boxShadow:'0 4px 16px rgba(44,40,37,.22)',
-          transition:'all .2s',flexShrink:0,position:'relative',
+          transition:'all .2s',
+          flexShrink:0,
         }}>
+        {/* Ícono micrófono + chispa AI */}
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <rect x="9" y="2" width="6" height="11" rx="3"/>
           <path d="M5 10a7 7 0 0 0 14 0"/>
           <line x1="12" y1="19" x2="12" y2="22"/>
+          {/* chispa ✦ arriba a la derecha del mic */}
         </svg>
-        {!grabando&&!procesandoVoz&&!procesandoImagen&&(
-          <div style={{position:'absolute',top:9,right:9,width:7,height:7,borderRadius:'50%',background:'#C4A882',border:'2px solid #2C2825'}}/>
+        {/* Indicador AI — punto brillante esquina superior derecha */}
+        {!grabando&&!procesandoVoz&&(
+          <div style={{
+            position:'absolute',top:9,right:9,
+            width:7,height:7,borderRadius:'50%',
+            background:'#C4A882',
+            border:'2px solid #2C2825',
+          }}/>
         )}
       </button>
 
-      {/* Overlay para cerrar menú al tocar afuera */}
-      {menuFAB&&(
-        <div onClick={()=>setMenuFAB(false)}
-          style={{position:'fixed',inset:0,zIndex:-1,pointerEvents:'auto'}}/>
+      {/* Input file oculto para imagen */}
+      <input ref={fileInputRef} type="file" accept="image/*"
+        style={{display:'none'}}
+        onChange={e=>{ const f=e.target.files?.[0]; if(f) procesarImagen(f); }}
+      />
+
+      {/* Botón cámara — separado, no interfiere con el mic */}
+      {!grabando&&!procesandoVoz&&!procesandoImagen&&(
+        <button
+          onClick={()=>{ if(fileInputRef.current) fileInputRef.current.click(); }}
+          style={{
+            pointerEvents:'auto',
+            width:36,height:36,borderRadius:'50%',
+            background:'#4A403A',
+            border:'none',cursor:'pointer',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            boxShadow:'0 2px 8px rgba(44,40,37,.18)',
+            transition:'all .2s',
+          }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+        </button>
       )}
     </div>
   );
@@ -5047,10 +5031,6 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       </button>
       <VerTodoModal/>
       <ModalDiaDificil/>
-      <input ref={fileInputRef} type="file" accept="image/*"
-        style={{display:'none'}}
-        onChange={e=>{ const f=e.target.files?.[0]; if(f) procesarImagen(f); }}
-      />
       <BtnMic/>
     </div>
   );
@@ -5125,6 +5105,8 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       </button>
       <VerTodoModal/>
       <ModalDiaDificil/>
+
+
 
       <BtnMic/>
     </div>
