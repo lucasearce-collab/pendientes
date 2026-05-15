@@ -234,6 +234,7 @@ export default function App() {
   const [focusMode, setFocusMode] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
   const [showTour, setShowTour] = useState(false);
+  const [ofrecerTour, setOfrecerTour] = useState(false);
   const [rescheduledCount, setRescheduledCount] = useState(0);
   const [points, setPoints] = useState(0);
 
@@ -567,7 +568,7 @@ export default function App() {
     </>
   );
 
-  const props={tasks,projects,goals,section,subView,setSection:switchSection,setSubView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline,showTour,setShowTour,uid,supabase,calendarTokenReady,createCalendarEvent};
+  const props={tasks,projects,goals,section,subView,setSection:switchSection,setSubView,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,activeArea,setActiveArea,activeProjId,setActiveProjId,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,completeProject,completeGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline,showTour,setShowTour,ofrecerTour,setOfrecerTour,uid,supabase,calendarTokenReady,createCalendarEvent};
   if(onboarding) return <OnboardingFlow uid={uid} supabase={supabase} onComplete={(gs,tareas)=>{
     setGoals(gs.map(goalFromDb));
     // Crear la primera tarea si el usuario la escribió
@@ -575,7 +576,8 @@ export default function App() {
       tareas.forEach(t => addTask(t));
     }
     setOnboarding(false);
-    setShowTour(true);
+    setShowTour(false);
+    setOfrecerTour(true);
     switchSection("hoy");
   }} isDesktop={isDesktop}/>;
   return <>
@@ -5435,7 +5437,7 @@ function TourApp({onClose}){
   );
 }
 
-function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline,desktop,showTour,setShowTour,uid,supabase,calendarTokenReady=false,createCalendarEvent}){
+function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,activeArea,setActiveArea,activeProjId,setActiveProjId,focusMode,setFocusMode,points,treeLevel,TREE_LEVELS,celebrate,rescheduledCount,opError,setOpError,completeProject,completeGoal,overdueWork,todayWork,upcomingWork,projectsForArea,tasksForProject,toggleDone,deleteTask,deleteProject,addTask,addProject,updateTask,reorderTasks,reorderProjects,reorderGoals,addGoal,updateGoal,deleteGoal,setSheet,setAddSheet,setNewProjSheet,setPlanSheet,setGoalSheet,setAsistenteSheet,sw,sheets,signOut,isOnline,desktop,showTour,setShowTour,ofrecerTour=false,setOfrecerTour,uid,supabase,calendarTokenReady=false,createCalendarEvent}){
 
   const activeSec = SECTIONS.find(s => s.id === section);
   const showAreaPills = subView==="proyectos";
@@ -5710,6 +5712,24 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
       <ErrorToast message={opError} onDismiss={()=>setOpError(null)}/>
       {sheets}
       {showTour&&<TourApp onClose={()=>setShowTour(false)}/>}
+      {ofrecerTour&&!showTour&&(
+        <div style={{position:'fixed',bottom:32,left:'50%',transform:'translateX(-50%)',zIndex:150,
+          background:'#2C2825',borderRadius:14,padding:'14px 20px',
+          display:'flex',alignItems:'center',gap:16,
+          boxShadow:'0 4px 24px rgba(0,0,0,.18)',
+          fontFamily:"'DM Sans'",whiteSpace:'nowrap',
+        }}>
+          <span style={{fontSize:13,color:'white',fontWeight:300}}>¿Querés un tour rápido?</span>
+          <button onClick={()=>{setOfrecerTour(false);setShowTour(true);}}
+            style={{background:'#C4A882',color:'white',border:'none',borderRadius:8,padding:'6px 14px',fontSize:12,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>
+            Sí, mostrame
+          </button>
+          <button onClick={()=>setOfrecerTour(false)}
+            style={{background:'none',color:'#C8C3BB',border:'none',fontSize:12,cursor:'pointer',fontFamily:"'DM Sans'",padding:0}}>
+            No, gracias
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -5738,6 +5758,24 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
       <ErrorToast message={opError} onDismiss={()=>setOpError(null)}/>
       {sheets}
       {showTour&&<TourApp onClose={()=>setShowTour(false)}/>}
+      {ofrecerTour&&!showTour&&(
+        <div style={{position:'fixed',bottom:90,left:'50%',transform:'translateX(-50%)',zIndex:150,
+          background:'#2C2825',borderRadius:14,padding:'14px 20px',
+          display:'flex',alignItems:'center',gap:12,
+          boxShadow:'0 4px 24px rgba(0,0,0,.18)',
+          fontFamily:"'DM Sans'",whiteSpace:'nowrap',
+        }}>
+          <span style={{fontSize:13,color:'white',fontWeight:300}}>¿Tour rápido?</span>
+          <button onClick={()=>{setOfrecerTour(false);setShowTour(true);}}
+            style={{background:'#C4A882',color:'white',border:'none',borderRadius:8,padding:'6px 14px',fontSize:12,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>
+            Sí
+          </button>
+          <button onClick={()=>setOfrecerTour(false)}
+            style={{background:'none',color:'#C8C3BB',border:'none',fontSize:12,cursor:'pointer',fontFamily:"'DM Sans'",padding:0}}>
+            No
+          </button>
+        </div>
+      )}
     </div>
   );
 }
