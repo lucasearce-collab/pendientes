@@ -4533,12 +4533,6 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
   const BtnMic = () => (
     <div style={{position:'fixed',bottom:desktop?24:96,right:desktop?32:20,zIndex:200,display:'flex',flexDirection:'column',alignItems:'flex-end',gap:8,pointerEvents:'none'}}>
 
-      {/* Input file oculto */}
-      <input ref={fileInputRef} type="file" accept="image/*" capture={false}
-        style={{display:'none'}}
-        onChange={e=>{ const f=e.target.files?.[0]; if(f) procesarImagen(f); }}
-      />
-
       {/* Toast de estado */}
       {(grabando||procesandoVoz||procesandoImagen||voiceError)&&(
         <div style={{
@@ -5049,6 +5043,10 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       </button>
       <VerTodoModal/>
       <ModalDiaDificil/>
+      <input ref={fileInputRef} type="file" accept="image/*"
+        style={{display:'none'}}
+        onChange={e=>{ const f=e.target.files?.[0]; if(f) procesarImagen(f); }}
+      />
       <BtnMic/>
     </div>
   );
@@ -5093,7 +5091,10 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       </button>
       <VerTodoModal/>
       <ModalDiaDificil/>
-
+      <input ref={fileInputRef} type="file" accept="image/*"
+        style={{display:'none'}}
+        onChange={e=>{ const f=e.target.files?.[0]; if(f) procesarImagen(f); }}
+      />
       <BtnMic/>
     </div>
   );
@@ -5123,9 +5124,10 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       </button>
       <VerTodoModal/>
       <ModalDiaDificil/>
-
-
-
+      <input ref={fileInputRef} type="file" accept="image/*"
+        style={{display:'none'}}
+        onChange={e=>{ const f=e.target.files?.[0]; if(f) procesarImagen(f); }}
+      />
       <BtnMic/>
     </div>
   );
