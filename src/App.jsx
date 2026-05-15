@@ -1352,51 +1352,103 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
     return <span style={{fontFamily:"'DM Sans'",fontSize:11,background:c.bg,color:c.text,padding:'3px 9px',borderRadius:99}}>{label}</span>;
   };
 
-  // Calcular indicadores para el coach
+  // Calcular indicadores para el coach usando la misma lógica que AnaliticaView
   async function generarCoach(){
     setLoadingCoach(true);
     try {
+      // ── Rendimiento ──
       const weekDays2 = [];
       for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); weekDays2.push(d.toISOString().slice(0,10)); }
       const completadosPorDia = weekDays2.map(d=>(tasks||[]).filter(t=>t.completed_at&&t.completed_at.slice(0,10)===d).length);
       const totalSem = completadosPorDia.reduce((a,b)=>a+b,0);
       const totalHist = (tasks||[]).filter(t=>t.done).length;
-      const conFecha = (tasks||[]).filter(t=>t.done&&t.date);
-      const aTiempo = conFecha.length>0 ? Math.round(conFecha.filter(t=>t.completed_at&&t.completed_at.slice(0,10)<=t.date).length/conFecha.length*100) : 0;
-      const postergadas = (tasks||[]).filter(t=>!t.done&&t.snoozed_count>0).length;
-      const postPct = conFecha.length>0 ? Math.round(postergadas/(conFecha.length||1)*100) : 0;
 
-      const personalProjs = (projects||[]).filter(p=>p.area==='personal');
-      const personalTasks = (tasks||[]).filter(t=>t.done&&personalProjs.some(p=>p.id===t.projectId));
-      const allDone = (tasks||[]).filter(t=>t.done);
-      const ocioScore = allDone.length>0 ? Math.round(personalTasks.length/allDone.length*100) : 0;
+      // A tiempo (misma lógica que AnaliticaView)
+      const conFecha = (tasks||[]).filter(t=>t.done&&t.date&&t.completed_at);
+      const onTimePct = conFecha.length>0?Math.round(conFecha.filter(t=>t.completed_at.slice(0,10)<=t.date).length/conFecha.length*100):null;
+      const snoozeableTasks = (tasks||[]).filter(t=>t.date&&!t.done);
+      const snoozeRate = snoozeableTasks.length>0?Math.round(snoozeableTasks.filter(t=>(t.snoozed_count||0)>0).length/snoozeableTasks.length*100):null;
 
-      const estrategicas = allDone.filter(t=>{const p=(projects||[]).find(x=>x.id===t.projectId);return p?.importance==='estrategica';}).length;
-      const urgentes = allDone.filter(t=>{const p=(projects||[]).find(x=>x.id===t.projectId);return p?.importance==='urgente';}).length;
-      const normales = allDone.length - estrategicas - urgentes;
-
-      const momentumData = (goals||[]).filter(g=>g.horizon==='anio').map(g=>{
-        const gTasks = (tasks||[]).filter(t=>{const p=(projects||[]).find(x=>x.id===t.projectId);return p?.goal_id===g.id&&t.done;});
-        const last = gTasks.sort((a,b)=>(b.completed_at||'').localeCompare(a.completed_at||''))[0];
-        const dias = last?.completed_at ? Math.floor((Date.now()-new Date(last.completed_at))/(1000*60*60*24)) : 99;
-        return { meta: g.title, score: Math.max(0,100-dias*5), diasDesdeActividad: dias };
+      // ── Salud: Presión Total (misma lógica que calcCogLoad) ──
+      const ahora = Date.now();
+      const pendientes2 = (tasks||[]).filter(t=>!t.done);
+      const vencidas2 = pendientes2.filter(t=>t.date&&new Date(t.date+'T23:59:59').getTime()<ahora).length;
+      const paraHoy2 = pendientes2.filter(t=>t.date===today).length;
+      const promedioSnooze2 = pendientes2.length>0?pendientes2.reduce((acc,t)=>acc+(t.snoozed_count||0),0)/pendientes2.length:0;
+      const proyActivos2 = new Set(pendientes2.filter(t=>t.projectId).map(t=>t.projectId)).size;
+      const hace15d2 = ahora - 15*24*60*60*1000;
+      const projsSinTareas2 = (projects||[]).filter(p=>{
+        const tienePend = pendientes2.some(t=>t.projectId===p.id);
+        const tieneReciente = (tasks||[]).some(t=>t.done&&t.projectId===p.id&&t.completed_at&&new Date(t.completed_at).getTime()>hace15d2);
+        return !tienePend&&!tieneReciente;
       });
+      const latPers2 = projsSinTareas2.filter(p=>p.area==='personal').length;
+      const latLab2 = projsSinTareas2.filter(p=>p.area==='trabajo').length;
+      const presionScore = Math.min(100,Math.round((vencidas2*10)+(paraHoy2*3)+(promedioSnooze2*5)+(proyActivos2*7)+(latPers2*4)+(latLab2*8)));
+      const presionStatus = presionScore>=70?'critica':presionScore>=40?'elevada':'saludable';
+
+      // ── Balance estratégico (mismo cálculo que calcAlignment) ──
+      const allDone2 = (tasks||[]).filter(t=>t.done);
+      const semDone = allDone2.filter(t=>t.completed_at&&weekDays2.includes(t.completed_at.slice(0,10)));
+      const semEst = semDone.filter(t=>{const p=(projects||[]).find(x=>x.id===t.projectId);return p?.importance==='estrategica';}).length;
+      const semUrg = semDone.filter(t=>{const p=(projects||[]).find(x=>x.id===t.projectId);return p?.importance==='urgente';}).length;
+      const semNorm = semDone.length-semEst-semUrg;
+
+      // ── Coherencia (mismo cálculo que tab Dirección) ──
+      const tareasConMeta2 = pendientes2.filter(t=>{
+        const p=(projects||[]).find(x=>x.id===t.projectId);
+        return p&&((p.goal_ids&&p.goal_ids.length>0)||p.goal_id);
+      });
+      const pctConMeta2 = pendientes2.length>0?Math.round(tareasConMeta2.length/pendientes2.length*100):0;
+      const metasAnio2 = (goals||[]).filter(g=>g.horizon==='anio');
+      const metasMedio2 = (goals||[]).filter(g=>g.horizon==='medio');
+      const pctAnioConect = metasAnio2.length>0?Math.round(metasAnio2.filter(g=>g.parentId).length/metasAnio2.length*100):0;
+      const pctMedioConect = metasMedio2.length>0?Math.round(metasMedio2.filter(g=>g.parentId).length/metasMedio2.length*100):0;
+
+      // ── Momentum por meta (mismo cálculo que tab Dirección) ──
+      const momentumData2 = metasAnio2.map(g=>{
+        const projsDeEsta = (projects||[]).filter(p=>p.goal_id===g.id||(p.goal_ids&&p.goal_ids.includes(g.id)));
+        const tareasComp = (tasks||[]).filter(t=>t.done&&projsDeEsta.some(p=>p.id===t.projectId)&&t.completed_at);
+        const ult7 = tareasComp.filter(t=>t.completed_at>=weekDays2[0]).length;
+        const ult30 = tareasComp.filter(t=>{const d=new Date(t.completed_at);return(ahora-d.getTime())<=30*24*60*60*1000;}).length;
+        const ultima = tareasComp.sort((a,b)=>b.completed_at.localeCompare(a.completed_at))[0];
+        const diasInercia = ultima?Math.floor((ahora-new Date(ultima.completed_at).getTime())/(24*60*60*1000)):99;
+        const tieneRecencia = diasInercia<=3;
+        const scoreVol = Math.min(70, ult7*8+(ult30-ult7)*2);
+        const scoreRec = tieneRecencia?15:0;
+        const scoreEst = Math.min(6, projsDeEsta.length*2);
+        const penalidad = tieneRecencia?0:Math.min(40,diasInercia*0.75);
+        const mScore = Math.min(100,Math.round(scoreVol+scoreRec+scoreEst-penalidad));
+        return { meta: g.title, score: mScore, diasDesdeActividad: diasInercia };
+      });
+
+      // ── Tareas que resistís ──
+      const resistidas = pendientes2.filter(t=>(t.snoozed_count||0)>=3).map(t=>({
+        titulo: t.title,
+        proyecto: (projects||[]).find(p=>p.id===t.projectId)?.name||'',
+        vecesPostergada: t.snoozed_count,
+      }));
 
       const indicadores = {
         tareasCompletadasPorDia: completadosPorDia,
         totalSemana: totalSem,
         totalHistorico: totalHist,
-        porcentajeATiempo: aTiempo,
-        porcentajePostergadas: postPct,
-        presionTotal: 0,
-        ocioScore,
+        porcentajeATiempo: onTimePct,
+        porcentajePostergadas: snoozeRate,
+        presionTotal: presionScore,
+        presionStatus,
+        proyectosActivos: proyActivos2,
+        tareasVencidas: vencidas2,
+        latenciaLaboral: latLab2,
+        latenciaPersonal: latPers2,
         balanceEstrategico: {
-          estrategicas: allDone.length>0?Math.round(estrategicas/allDone.length*100):0,
-          prioritarias: allDone.length>0?Math.round(urgentes/allDone.length*100):0,
-          operativas: allDone.length>0?Math.round(normales/allDone.length*100):0,
+          estrategicas: semDone.length>0?Math.round(semEst/semDone.length*100):0,
+          prioritarias: semDone.length>0?Math.round(semUrg/semDone.length*100):0,
+          operativas: semDone.length>0?Math.round(semNorm/semDone.length*100):0,
         },
-        coherencia: { tareasConProposito: 0, metasConectadas: 0 },
-        momentum: momentumData,
+        coherencia: { tareasConProposito: pctConMeta2, metasAnioConectadas: pctAnioConect, metasMedioConectadas: pctMedioConect },
+        momentum: momentumData2,
+        tareasResistidas: resistidas.slice(0,5),
       };
 
       const res = await fetch('/api/coach', {
@@ -1421,25 +1473,25 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
     <div style={{paddingBottom:48,padding:desktop?'0 0 48px':'0 20px 48px',fontFamily:"'DM Sans',sans-serif"}}>
 
       {/* ── Card Coach ── */}
-      <div style={{background:'#2C2825',borderRadius:14,padding:'16px 18px',marginBottom:20}}>
+      <div style={{background:'#F5F0E8',border:'1px solid #EAE6E0',borderRadius:14,padding:'16px 18px',marginBottom:20}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:coachMsg?10:0}}>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <div style={{width:5,height:5,borderRadius:'50%',background:'#8A9E8A'}}/>
-            <span style={{fontFamily:"'DM Sans'",fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:'#8A9E8A'}}>Coach</span>
+            <div style={{width:5,height:5,borderRadius:'50%',background:'#9B8878'}}/>
+            <span style={{fontFamily:"'DM Sans'",fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:'#9B8878'}}>Coach</span>
           </div>
           <button onClick={generarCoach} disabled={loadingCoach}
             style={{background:'none',border:'none',cursor:loadingCoach?'default':'pointer',
-              fontFamily:"'DM Sans'",fontSize:12,color:'#8A9E8A',
+              fontFamily:"'DM Sans'",fontSize:12,color:'#9B8878',
               display:'flex',alignItems:'center',gap:6,padding:0}}>
             {loadingCoach
-              ? <><div style={{width:7,height:7,borderRadius:'50%',border:'2px solid #8A9E8A',borderTopColor:'transparent',animation:'spin 1s linear infinite'}}/> analizando...</>
+              ? <><div style={{width:7,height:7,borderRadius:'50%',border:'2px solid #9B8878',borderTopColor:'transparent',animation:'spin 1s linear infinite'}}/> analizando...</>
               : coachMsg ? 'actualizar →' : 'ver mi semana →'
             }
           </button>
         </div>
         {coachMsg
-          ? <p style={{fontFamily:"'DM Sans'",fontSize:13,color:'white',lineHeight:1.65,margin:0,fontWeight:300}}>{coachMsg}</p>
-          : !loadingCoach && <p style={{fontFamily:"'DM Sans'",fontSize:12,color:'#6B6560',lineHeight:1.5,margin:0,fontStyle:'italic'}}>Tu perspectiva semanal — tocá para generarla.</p>
+          ? <p style={{fontFamily:"'DM Sans'",fontSize:13,color:'#2C2825',lineHeight:1.65,margin:0,fontWeight:300}}>{coachMsg}</p>
+          : !loadingCoach && <p style={{fontFamily:"'DM Sans'",fontSize:12,color:'#B0AA9F',lineHeight:1.5,margin:0,fontStyle:'italic'}}>Tu perspectiva semanal — tocá para generarla.</p>
         }
       </div>
 
