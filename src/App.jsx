@@ -5392,7 +5392,35 @@ function TourApp({onClose}){
           <path d="M16 82 Q35 60 55 70 Q75 80 95 62 Q110 50 124 82" stroke="#EAE6E0" strokeWidth="1.5" fill="none"/>
         </svg>
       ),
-    }  ];
+    },
+    {
+      num: '04', label: 'Tu progreso',
+      title: 'Tu progreso, visible.',
+      body: 'Cada tarea y proyecto que completes suma puntos y hace crecer tu árbol. Porque la vida que querés depende de tu constancia.',
+      svg: (
+        <svg width="140" height="100" viewBox="0 0 140 100" fill="none">
+          {/* Tronco */}
+          <rect x="65" y="68" width="10" height="18" rx="3" fill="#C4A882" opacity=".6"/>
+          {/* Copa principal */}
+          <ellipse cx="70" cy="52" rx="28" ry="22" fill="#8A9E8A" opacity=".25"/>
+          <ellipse cx="70" cy="48" rx="22" ry="18" fill="#8A9E8A" opacity=".35"/>
+          <ellipse cx="70" cy="44" rx="16" ry="14" fill="#8A9E8A" opacity=".5"/>
+          {/* Flores */}
+          <circle cx="58" cy="36" r="4" fill="#F5C0C0" opacity=".8"/>
+          <circle cx="70" cy="30" r="5" fill="#F5C0C0" opacity=".9"/>
+          <circle cx="82" cy="36" r="4" fill="#F5C0C0" opacity=".8"/>
+          <circle cx="64" cy="44" r="3.5" fill="#F5C0C0" opacity=".7"/>
+          <circle cx="76" cy="44" r="3.5" fill="#F5C0C0" opacity=".7"/>
+          <circle cx="70" cy="40" r="3" fill="#F5C0C0"/>
+          {/* Puntos flotando */}
+          <text x="96" y="42" fontSize="9" fill="#C4A882" fontFamily="DM Sans" fontWeight="500">+500</text>
+          <text x="96" y="56" fontSize="9" fill="#9B8878" fontFamily="DM Sans" fontWeight="500">+5k</text>
+          {/* Base */}
+          <line x1="50" y1="86" x2="90" y2="86" stroke="#EAE6E0" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      ),
+    }
+  ];
 
   const paso = PASOS[step];
   const isLast = step === PASOS.length - 1;
@@ -5429,7 +5457,7 @@ function TourApp({onClose}){
         {/* Botones */}
         <button onClick={isLast ? onClose : ()=>setStep(s=>s+1)}
           style={{width:'100%',background:'#2C2825',color:'white',border:'none',borderRadius:12,padding:'14px 0',fontFamily:"'DM Sans'",fontSize:14,fontWeight:500,cursor:'pointer'}}>
-          {isLast ? 'Empezar →' : 'Siguiente →'}
+          {isLast ? 'Entendido, empecemos →' : 'Siguiente →'}
         </button>
 
       </div>
@@ -5713,21 +5741,29 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
       {sheets}
       {showTour&&<TourApp onClose={()=>setShowTour(false)}/>}
       {ofrecerTour&&!showTour&&(
-        <div style={{position:'fixed',bottom:32,left:'50%',transform:'translateX(-50%)',zIndex:150,
-          background:'#2C2825',borderRadius:14,padding:'14px 20px',
-          display:'flex',alignItems:'center',gap:16,
-          boxShadow:'0 4px 24px rgba(0,0,0,.18)',
-          fontFamily:"'DM Sans'",whiteSpace:'nowrap',
+        <div style={{position:'fixed',top:24,right:24,zIndex:150,
+          background:'#F5F2EE',borderRadius:16,padding:'18px 20px',
+          border:'1px solid #EAE6E0',
+          boxShadow:'0 8px 32px rgba(44,40,37,.12)',
+          fontFamily:"'DM Sans'",maxWidth:260,
         }}>
-          <span style={{fontSize:13,color:'white',fontWeight:300}}>¿Querés un tour rápido?</span>
-          <button onClick={()=>{setOfrecerTour(false);setShowTour(true);}}
-            style={{background:'#C4A882',color:'white',border:'none',borderRadius:8,padding:'6px 14px',fontSize:12,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>
-            Sí, mostrame
-          </button>
-          <button onClick={()=>setOfrecerTour(false)}
-            style={{background:'none',color:'#C8C3BB',border:'none',fontSize:12,cursor:'pointer',fontFamily:"'DM Sans'",padding:0}}>
-            No, gracias
-          </button>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+            <span style={{fontSize:18}}>🌱</span>
+            <span style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>¿Querés un tour rápido?</span>
+          </div>
+          <div style={{fontSize:12,color:'#B0AA9F',lineHeight:1.5,marginBottom:14}}>
+            Te mostramos todo en menos de un minuto.
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={()=>{setOfrecerTour(false);setShowTour(true);}}
+              style={{flex:1,background:'#2C2825',color:'white',border:'none',borderRadius:10,padding:'8px 0',fontSize:12,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>
+              Sí, mostrame
+            </button>
+            <button onClick={()=>setOfrecerTour(false)}
+              style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:10,padding:'8px 12px',fontSize:12,cursor:'pointer',fontFamily:"'DM Sans'"}}>
+              No
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -5759,21 +5795,29 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
       {sheets}
       {showTour&&<TourApp onClose={()=>setShowTour(false)}/>}
       {ofrecerTour&&!showTour&&(
-        <div style={{position:'fixed',bottom:90,left:'50%',transform:'translateX(-50%)',zIndex:150,
-          background:'#2C2825',borderRadius:14,padding:'14px 20px',
-          display:'flex',alignItems:'center',gap:12,
-          boxShadow:'0 4px 24px rgba(0,0,0,.18)',
-          fontFamily:"'DM Sans'",whiteSpace:'nowrap',
+        <div style={{position:'fixed',top:16,right:16,zIndex:150,
+          background:'#F5F2EE',borderRadius:16,padding:'16px 18px',
+          border:'1px solid #EAE6E0',
+          boxShadow:'0 8px 32px rgba(44,40,37,.12)',
+          fontFamily:"'DM Sans'",maxWidth:240,
         }}>
-          <span style={{fontSize:13,color:'white',fontWeight:300}}>¿Tour rápido?</span>
-          <button onClick={()=>{setOfrecerTour(false);setShowTour(true);}}
-            style={{background:'#C4A882',color:'white',border:'none',borderRadius:8,padding:'6px 14px',fontSize:12,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>
-            Sí
-          </button>
-          <button onClick={()=>setOfrecerTour(false)}
-            style={{background:'none',color:'#C8C3BB',border:'none',fontSize:12,cursor:'pointer',fontFamily:"'DM Sans'",padding:0}}>
-            No
-          </button>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+            <span style={{fontSize:16}}>🌱</span>
+            <span style={{fontSize:13,fontWeight:500,color:'#2C2825'}}>¿Tour rápido?</span>
+          </div>
+          <div style={{fontSize:12,color:'#B0AA9F',lineHeight:1.5,marginBottom:12}}>
+            Te mostramos todo en un minuto.
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={()=>{setOfrecerTour(false);setShowTour(true);}}
+              style={{flex:1,background:'#2C2825',color:'white',border:'none',borderRadius:10,padding:'7px 0',fontSize:12,fontWeight:500,cursor:'pointer',fontFamily:"'DM Sans'"}}>
+              Sí
+            </button>
+            <button onClick={()=>setOfrecerTour(false)}
+              style={{background:'none',color:'#C8C3BB',border:'1px solid #EAE6E0',borderRadius:10,padding:'7px 10px',fontSize:12,cursor:'pointer',fontFamily:"'DM Sans'"}}>
+              No
+            </button>
+          </div>
         </div>
       )}
     </div>
