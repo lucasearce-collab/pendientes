@@ -5091,7 +5091,10 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       </button>
       <VerTodoModal/>
       <ModalDiaDificil/>
-
+      <input ref={fileInputRef} type="file" accept="image/*"
+        style={{display:'none'}}
+        onChange={e=>{ const f=e.target.files?.[0]; if(f) procesarImagen(f); }}
+      />
       <BtnMic/>
     </div>
   );
@@ -5121,7 +5124,10 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
       </button>
       <VerTodoModal/>
       <ModalDiaDificil/>
-
+      <input ref={fileInputRef} type="file" accept="image/*"
+        style={{display:'none'}}
+        onChange={e=>{ const f=e.target.files?.[0]; if(f) procesarImagen(f); }}
+      />
       <BtnMic/>
     </div>
   );
