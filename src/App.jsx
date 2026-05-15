@@ -582,7 +582,6 @@ export default function App() {
   }} isDesktop={isDesktop}/>;
   return <>
     <AppLayout {...props} desktop={isDesktop}/>
-    <CelebrationToast celebrate={celebrate}/>
   </>;
 }
 
@@ -2286,9 +2285,8 @@ function floatingPoints(x, y, points) {
   el.textContent = '+' + points.toLocaleString() + ' pts';
   el.style.cssText = [
     'position:fixed',
-    `left:${x}px`,
+    'right:20px',
     `top:${y - 10}px`,
-    'transform:translateX(-50%)',
     "font-family:'DM Sans',sans-serif",
     'font-size:13px',
     'font-weight:500',
@@ -2303,7 +2301,7 @@ function floatingPoints(x, y, points) {
   document.body.appendChild(el);
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
-      el.style.transform = 'translateX(-50%) translateY(-40px)';
+      el.style.transform = 'translateY(-40px)';
       el.style.opacity = '0';
     });
   });
@@ -5814,7 +5812,6 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
           Clarity
         </div>
       </div>
-      <CelebrationToast celebrate={celebrate}/>
       <ErrorToast message={opError} onDismiss={()=>setOpError(null)}/>
       {sheets}
       {showTour&&<TourApp onClose={()=>setShowTour(false)}/>}
@@ -5868,7 +5865,6 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
           </div>
         ))}
       </nav>
-      <CelebrationToast celebrate={celebrate}/>
       <ErrorToast message={opError} onDismiss={()=>setOpError(null)}/>
       {sheets}
       {showTour&&<TourApp onClose={()=>setShowTour(false)}/>}
