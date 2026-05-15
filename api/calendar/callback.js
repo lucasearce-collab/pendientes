@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
   if (error || !code || !state) {
     console.error('Missing params:', { code: !!code, error, state: !!state });
-    return res.redirect('https://pendientes-eight.vercel.app/?calendar_error=1');
+    return res.redirect('https://www.getclarity.com.co/?calendar_error=1');
   }
 
   const userId = decodeURIComponent(state);
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID,
         client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: 'https://pendientes-eight.vercel.app/api/calendar/callback',
+        redirect_uri: 'https://www.getclarity.com.co/api/calendar/callback',
         grant_type: 'authorization_code',
       }),
     });
@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     });
 
     if (!tokens.access_token) {
-      return res.redirect('https://pendientes-eight.vercel.app/?calendar_error=2');
+      return res.redirect('https://www.getclarity.com.co/?calendar_error=2');
     }
 
     // Guardar token directamente con el userId del state
@@ -55,14 +55,14 @@ export default async function handler(req, res) {
 
     if (updateError) {
       console.error('Update error:', updateError);
-      return res.redirect('https://pendientes-eight.vercel.app/?calendar_error=3');
+      return res.redirect('https://www.getclarity.com.co/?calendar_error=3');
     }
 
     console.log('Token saved successfully for user:', userId);
-    res.redirect('https://pendientes-eight.vercel.app/?calendar_connected=1');
+    res.redirect('https://www.getclarity.com.co/?calendar_connected=1');
 
   } catch (e) {
     console.error('Calendar callback error:', e.message);
-    res.redirect('https://pendientes-eight.vercel.app/?calendar_error=4');
+    res.redirect('https://www.getclarity.com.co/?calendar_error=4');
   }
 }
