@@ -4558,7 +4558,11 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
             <span style={{fontFamily:"'DM Sans'",fontSize:12,color:'white',background:'rgba(44,40,37,.75)',borderRadius:8,padding:'5px 10px',backdropFilter:'blur(4px)'}}>Dictá una tarea</span>
             <button
               onMouseDown={()=>{setMenuFAB(false);iniciarGrabacion();}}
+              onMouseUp={detenerGrabacion}
+              onMouseLeave={detenerGrabacion}
               onTouchStart={e=>{e.preventDefault();setMenuFAB(false);iniciarGrabacion();}}
+              onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
+              onTouchCancel={e=>{e.preventDefault();detenerGrabacion();}}
               style={{pointerEvents:'auto',width:42,height:42,borderRadius:'50%',background:'#2C2825',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 16px rgba(44,40,37,.22)'}}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="9" y="2" width="6" height="11" rx="3"/>
