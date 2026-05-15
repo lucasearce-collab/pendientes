@@ -995,8 +995,20 @@ function AlignmentHeader({status, label}){
   </>);
 }
 
-function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onDiaDificil, onFoco}){
+function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onDiaDificil, onFoco, uid, supabase}){
   const today = todayStr();
+  const [coachMsg, setCoachMsg] = useState('');
+  const [coachDate, setCoachDate] = useState('');
+  const [loadingCoach, setLoadingCoach] = useState(false);
+
+  useEffect(()=>{
+    if(!uid||!supabase) return;
+    supabase.from('user_profiles').select('coach_message,coach_message_date').eq('id',uid).single()
+      .then(({data})=>{
+        if(data?.coach_message) setCoachMsg(data.coach_message);
+        if(data?.coach_message_date) setCoachDate(data.coach_message_date);
+      });
+  },[uid]);
 
   // Estado vacío para usuarios nuevos — menos de 5 tareas completadas
   const tareasCompletadas = (tasks||[]).filter(t=>t.done);
@@ -1340,8 +1352,96 @@ function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onD
     return <span style={{fontFamily:"'DM Sans'",fontSize:11,background:c.bg,color:c.text,padding:'3px 9px',borderRadius:99}}>{label}</span>;
   };
 
+  // Calcular indicadores para el coach
+  async function generarCoach(){
+    setLoadingCoach(true);
+    try {
+      const weekDays2 = [];
+      for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); weekDays2.push(d.toISOString().slice(0,10)); }
+      const completadosPorDia = weekDays2.map(d=>(tasks||[]).filter(t=>t.completed_at&&t.completed_at.slice(0,10)===d).length);
+      const totalSem = completadosPorDia.reduce((a,b)=>a+b,0);
+      const totalHist = (tasks||[]).filter(t=>t.done).length;
+      const conFecha = (tasks||[]).filter(t=>t.done&&t.date);
+      const aTiempo = conFecha.length>0 ? Math.round(conFecha.filter(t=>t.completed_at&&t.completed_at.slice(0,10)<=t.date).length/conFecha.length*100) : 0;
+      const postergadas = (tasks||[]).filter(t=>!t.done&&t.snoozed_count>0).length;
+      const postPct = conFecha.length>0 ? Math.round(postergadas/(conFecha.length||1)*100) : 0;
+
+      const personalProjs = (projects||[]).filter(p=>p.area==='personal');
+      const personalTasks = (tasks||[]).filter(t=>t.done&&personalProjs.some(p=>p.id===t.projectId));
+      const allDone = (tasks||[]).filter(t=>t.done);
+      const ocioScore = allDone.length>0 ? Math.round(personalTasks.length/allDone.length*100) : 0;
+
+      const estrategicas = allDone.filter(t=>{const p=(projects||[]).find(x=>x.id===t.projectId);return p?.importance==='estrategica';}).length;
+      const urgentes = allDone.filter(t=>{const p=(projects||[]).find(x=>x.id===t.projectId);return p?.importance==='urgente';}).length;
+      const normales = allDone.length - estrategicas - urgentes;
+
+      const momentumData = (goals||[]).filter(g=>g.horizon==='anio').map(g=>{
+        const gTasks = (tasks||[]).filter(t=>{const p=(projects||[]).find(x=>x.id===t.projectId);return p?.goal_id===g.id&&t.done;});
+        const last = gTasks.sort((a,b)=>(b.completed_at||'').localeCompare(a.completed_at||''))[0];
+        const dias = last?.completed_at ? Math.floor((Date.now()-new Date(last.completed_at))/(1000*60*60*24)) : 99;
+        return { meta: g.title, score: Math.max(0,100-dias*5), diasDesdeActividad: dias };
+      });
+
+      const indicadores = {
+        tareasCompletadasPorDia: completadosPorDia,
+        totalSemana: totalSem,
+        totalHistorico: totalHist,
+        porcentajeATiempo: aTiempo,
+        porcentajePostergadas: postPct,
+        presionTotal: 0,
+        ocioScore,
+        balanceEstrategico: {
+          estrategicas: allDone.length>0?Math.round(estrategicas/allDone.length*100):0,
+          prioritarias: allDone.length>0?Math.round(urgentes/allDone.length*100):0,
+          operativas: allDone.length>0?Math.round(normales/allDone.length*100):0,
+        },
+        coherencia: { tareasConProposito: 0, metasConectadas: 0 },
+        momentum: momentumData,
+      };
+
+      const res = await fetch('/api/coach', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ indicadores }),
+      });
+      const data = await res.json();
+      if(data.mensaje){
+        setCoachMsg(data.mensaje);
+        const hoy = todayStr();
+        setCoachDate(hoy);
+        if(uid&&supabase){
+          supabase.from('user_profiles').update({coach_message:data.mensaje,coach_message_date:hoy}).eq('id',uid).then(()=>{});
+        }
+      }
+    } catch(e){ console.error('Coach error:', e); }
+    finally { setLoadingCoach(false); }
+  }
+
   return(
     <div style={{paddingBottom:48,padding:desktop?'0 0 48px':'0 20px 48px',fontFamily:"'DM Sans',sans-serif"}}>
+
+      {/* ── Card Coach ── */}
+      <div style={{background:'#2C2825',borderRadius:14,padding:'16px 18px',marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:coachMsg?10:0}}>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <div style={{width:5,height:5,borderRadius:'50%',background:'#8A9E8A'}}/>
+            <span style={{fontFamily:"'DM Sans'",fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:'#8A9E8A'}}>Coach</span>
+          </div>
+          <button onClick={generarCoach} disabled={loadingCoach}
+            style={{background:'none',border:'none',cursor:loadingCoach?'default':'pointer',
+              fontFamily:"'DM Sans'",fontSize:12,color:'#8A9E8A',
+              display:'flex',alignItems:'center',gap:6,padding:0}}>
+            {loadingCoach
+              ? <><div style={{width:7,height:7,borderRadius:'50%',border:'2px solid #8A9E8A',borderTopColor:'transparent',animation:'spin 1s linear infinite'}}/> analizando...</>
+              : coachMsg ? 'actualizar →' : 'ver mi semana →'
+            }
+          </button>
+        </div>
+        {coachMsg
+          ? <p style={{fontFamily:"'DM Sans'",fontSize:13,color:'white',lineHeight:1.65,margin:0,fontWeight:300}}>{coachMsg}</p>
+          : !loadingCoach && <p style={{fontFamily:"'DM Sans'",fontSize:12,color:'#6B6560',lineHeight:1.5,margin:0,fontStyle:'italic'}}>Tu perspectiva semanal — tocá para generarla.</p>
+        }
+      </div>
 
       <Toggle/>
 
@@ -5884,7 +5984,7 @@ function AppLayout({tasks,projects,goals,section,subView,setSection,setSubView,a
 
       {subView==="analitica"&&(
         <div style={desktop?{padding:"24px 48px",maxWidth:900}:{}}>
-          <AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount} desktop={desktop} onDiaDificil={()=>{switchSection('hoy');}} onFoco={()=>setFocusMode(true)}/>
+          <AnaliticaView tasks={tasks} projects={projects} goals={goals} rescheduledCount={rescheduledCount} desktop={desktop} onDiaDificil={()=>{switchSection('hoy');}} onFoco={()=>setFocusMode(true)} uid={uid} supabase={supabase}/>
         </div>
       )}
 
