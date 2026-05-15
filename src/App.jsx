@@ -653,7 +653,7 @@ function FocusProject({projects,tasksForProject,onToggle,onDelete,onOpen,onAddTa
               <div key={task.id} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderTop:i>0?"1px solid #F5F2EE":"none",cursor:"pointer"}}
                 onClick={()=>onOpen(task)}>
                 <button style={{width:24,height:24,borderRadius:"50%",border:"1.5px solid #C8C3BB",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
-                  onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+                  onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();if(!task.done){particleBurst(r.left+r.width/2,r.top+r.height/2,11);floatingPoints(r.left+r.width/2,r.top+r.height/2,500);}onToggle(task.id);}}>
                 </button>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
@@ -867,7 +867,7 @@ function FocusProjectMode({projects,tasksForProject,onToggle,onDelete,onOpen,onA
               <div key={task.id} onClick={()=>onOpen(task)}
                 style={{display:"flex",alignItems:"center",gap:12,padding:"13px 20px",borderBottom:i<tasks.length-1?"1px solid #F5F2EE":"none",cursor:"pointer"}}>
                 <button style={{width:22,height:22,borderRadius:"50%",border:"1.5px solid #C8C3BB",background:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
-                  onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+                  onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();if(!task.done){particleBurst(r.left+r.width/2,r.top+r.height/2,11);floatingPoints(r.left+r.width/2,r.top+r.height/2,500);}onToggle(task.id);}}>
                 </button>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontFamily:"'DM Sans'",fontSize:14,color:"#2C2825",lineHeight:1.4}}>{task.title}</div>
@@ -998,6 +998,54 @@ function AlignmentHeader({status, label}){
 
 function AnaliticaView({tasks, projects, goals, desktop, rescheduledCount=0, onDiaDificil, onFoco}){
   const today = todayStr();
+
+  // Estado vacío para usuarios nuevos — menos de 5 tareas completadas
+  const tareasCompletadas = (tasks||[]).filter(t=>t.done);
+  if(tareasCompletadas.length < 5){
+    return(
+      <div style={{
+        display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+        padding:desktop?'60px 48px':'48px 24px',
+        minHeight:400,textAlign:'center',
+        fontFamily:"'DM Sans',sans-serif",
+      }}>
+        {/* Ilustración árbol pequeño */}
+        <svg width="80" height="90" viewBox="0 0 80 90" fill="none" style={{marginBottom:24}}>
+          <ellipse cx="40" cy="78" rx="14" ry="3" fill="#EAE6E0"/>
+          <rect x="37" y="60" width="6" height="20" rx="2" fill="#C4B5A5" opacity=".7"/>
+          <ellipse cx="40" cy="48" rx="18" ry="16" fill="#8A9E8A" opacity=".3"/>
+          <ellipse cx="40" cy="44" rx="14" ry="12" fill="#8A9E8A" opacity=".4"/>
+          <ellipse cx="40" cy="40" rx="10" ry="9" fill="#8A9E8A" opacity=".55"/>
+          <circle cx="34" cy="34" r="3.5" fill="#F5C0C0" opacity=".8"/>
+          <circle cx="46" cy="34" r="3.5" fill="#F5C0C0" opacity=".8"/>
+          <circle cx="40" cy="30" r="4" fill="#F5C0C0" opacity=".9"/>
+          <circle cx="40" cy="40" r="3" fill="#F5C0C0" opacity=".7"/>
+        </svg>
+        <div style={{fontSize:18,fontWeight:300,color:'#2C2825',marginBottom:8,letterSpacing:'-.01em'}}>
+          Tu análisis está germinando
+        </div>
+        <div style={{fontSize:13,color:'#B0AA9F',lineHeight:1.7,maxWidth:280,marginBottom:28}}>
+          Completá tus primeras tareas y acá vas a ver métricas de tu rendimiento, salud y dirección estratégica.
+        </div>
+        {/* Barra de progreso hacia las 5 tareas */}
+        <div style={{width:'100%',maxWidth:200}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+            <span style={{fontSize:11,color:'#C8C3BB',fontFamily:"'DM Sans'"}}>Progreso</span>
+            <span style={{fontSize:11,color:'#C4A882',fontFamily:"'DM Sans'",fontWeight:500}}>{tareasCompletadas.length}/5 tareas</span>
+          </div>
+          <div style={{height:4,background:'#EAE6E0',borderRadius:99,overflow:'hidden'}}>
+            <div style={{
+              height:'100%',
+              width:`${(tareasCompletadas.length/5)*100}%`,
+              background:'linear-gradient(to right, #C4A882, #9B8878)',
+              borderRadius:99,
+              transition:'width .6s ease',
+            }}/>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ── Week data ──
   const weekDays = [];
@@ -2232,6 +2280,36 @@ function particleBurst(x, y, count=11){
   }
 }
 
+// ─── Floating Points ─────────────────────────────────────────────────────────
+function floatingPoints(x, y, points) {
+  const el = document.createElement('div');
+  el.textContent = '+' + points.toLocaleString() + ' pts';
+  el.style.cssText = [
+    'position:fixed',
+    `left:${x}px`,
+    `top:${y - 10}px`,
+    'transform:translateX(-50%)',
+    "font-family:'DM Sans',sans-serif",
+    'font-size:13px',
+    'font-weight:500',
+    'color:#8A9E8A',
+    'pointer-events:none',
+    'z-index:999999',
+    'opacity:1',
+    'transition:transform 2000ms cubic-bezier(.25,.46,.45,.94), opacity 1800ms ease 600ms',
+    'white-space:nowrap',
+    'letter-spacing:.01em',
+  ].join(';');
+  document.body.appendChild(el);
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      el.style.transform = 'translateX(-50%) translateY(-40px)';
+      el.style.opacity = '0';
+    });
+  });
+  setTimeout(()=>{ if(el.parentNode) el.remove(); }, 2600);
+}
+
 // ─── Cerezo View ──────────────────────────────────────────────────────────────
 const TREE_SVGS = [
   `<svg viewBox="0 0 80 90" width="100%" xmlns="http://www.w3.org/2000/svg">
@@ -2782,7 +2860,7 @@ function GroupedTasksView({projects,tasksForProject,onToggle,onDelete,onOpen,onA
                       style={{display:"flex",alignItems:"center",gap:12,padding:desktop?"12px 0 12px 20px":"12px 20px",borderBottom:"1px solid #F5F2EE",cursor:"pointer"}}
                       onClick={()=>onOpen(task)}>
                       <button style={{width:22,height:22,borderRadius:"50%",border:`1.5px solid ${task.done?"#B5A99A":"#C8C3BB"}`,background:task.done?"#B5A99A":"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
-                        onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+                        onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();if(!task.done){particleBurst(r.left+r.width/2,r.top+r.height/2,11);floatingPoints(r.left+r.width/2,r.top+r.height/2,500);}onToggle(task.id);}}>
                         {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
                       </button>
                       <div style={{flex:1,minWidth:0}}>
@@ -2929,7 +3007,7 @@ function TaskRows({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorder
             <div style={{background:isDragging?"#EDE9E4":overdue?"#FBF8F4":"#F7F5F2",position:"relative",zIndex:1,transform:swiped?"translateX(-108px)":"translateX(0)",transition:"transform .25s cubic-bezier(.4,0,.2,1)",padding:"13px 20px",borderBottom:"1px solid #EAE6E0",display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}
               onClick={()=>{if(swiped){setSwipedId(null);return;}if(!touchMoved.current)onOpen(task);}}>
               <button style={{width:24,height:24,borderRadius:"50%",border:`1.5px solid ${task.done?"#B5A99A":"#C8C3BB"}`,background:task.done?"#B5A99A":"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}
-                onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+                onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();if(!task.done){particleBurst(r.left+r.width/2,r.top+r.height/2,11);floatingPoints(r.left+r.width/2,r.top+r.height/2,500);}onToggle(task.id);}}>
                 {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
               </button>
               <div style={{flex:1,minWidth:0}}>
@@ -3988,7 +4066,7 @@ function DTaskList({tasks,projects,onToggle,onDelete,onOpen,overdue=false,reorde
               transition:"opacity .1s,background .1s"
             }}
             onClick={()=>{ if(!draggingId) onOpen(task); }}>
-            <button className={`d-ci${task.done?" done":""}`} onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+            <button className={`d-ci${task.done?" done":""}`} onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();if(!task.done){particleBurst(r.left+r.width/2,r.top+r.height/2,11);floatingPoints(r.left+r.width/2,r.top+r.height/2,500);}onToggle(task.id);}}>
               {task.done&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2,6 5,9 10,3"/></svg>}
             </button>
             <div style={{flex:1,minWidth:0}}>
@@ -5094,7 +5172,7 @@ function SemanaView({tasks, projects, onToggle, onOpen, onUpdate, desktop, onAdd
           background:"#FDFCFA",borderRadius:8,border:"1px solid #EAE6E0",
           borderLeft:`3px solid ${borderColor}`,marginBottom:6,cursor:"pointer"}}>
         <button style={{width:20,height:20,borderRadius:"50%",border:"1.5px solid #C8C3BB",background:"none",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}
-          onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();particleBurst(r.left+r.width/2,r.top+r.height/2,11);onToggle(task.id);}}>
+          onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();if(!task.done){particleBurst(r.left+r.width/2,r.top+r.height/2,11);floatingPoints(r.left+r.width/2,r.top+r.height/2,500);}onToggle(task.id);}}>
         </button>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontFamily:"'DM Sans'",fontSize:13,color:"#2C2825",lineHeight:1.4}}>{task.title}</div>
