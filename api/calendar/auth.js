@@ -1,7 +1,7 @@
 // api/calendar/auth.js
 export default function handler(req, res) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
-  const redirectUri = 'https://pendientes-eight.vercel.app/api/calendar/callback';
+  const redirectUri = 'https://www.getclarity.com.co/api/calendar/callback';
   // El user_id viene como query param desde la app
   const userId = req.query.user_id;
   if (!userId) return res.status(400).json({ error: 'Falta user_id' });
