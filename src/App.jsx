@@ -4553,10 +4553,10 @@ function HoyView({overdueWork,projects,tasks,toggleDone,onDelete,onOpen,reorderT
           <div style={{display:'flex',alignItems:'center',gap:10}}>
             <span style={{fontFamily:"'DM Sans'",fontSize:12,color:'white',background:'rgba(44,40,37,.8)',borderRadius:8,padding:'5px 10px',whiteSpace:'nowrap'}}>Dictá una tarea</span>
             <button
-              onMouseDown={iniciarGrabacion}
+              onMouseDown={()=>{setFabOpen(false);iniciarGrabacion();}}
               onMouseUp={detenerGrabacion}
               onMouseLeave={detenerGrabacion}
-              onTouchStart={e=>{e.preventDefault();iniciarGrabacion();}}
+              onTouchStart={e=>{e.preventDefault();setFabOpen(false);iniciarGrabacion();}}
               onTouchEnd={e=>{e.preventDefault();detenerGrabacion();}}
               onTouchCancel={e=>{e.preventDefault();detenerGrabacion();}}
               style={{pointerEvents:'auto',width:44,height:44,borderRadius:'50%',
